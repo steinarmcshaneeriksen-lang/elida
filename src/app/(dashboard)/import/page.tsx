@@ -474,7 +474,16 @@ function ProductListUpload({ companyId }: { companyId: string | undefined }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [result, setResult] = useState<{
-    counts: { products: number; recurring: number };
+    counts: {
+      products: number;
+      recurring: number;
+      added: number;
+      price_changed: number;
+      unchanged: number;
+      missing_from_file: number;
+    };
+    price_changes: Array<{ name: string; from: number | null; to: number | null }>;
+    missing_products: string[];
     groups: string[];
     warnings: string[];
   } | null>(null);
@@ -547,7 +556,7 @@ function ProductListUpload({ companyId }: { companyId: string | undefined }) {
       {error && <p className="mt-3 text-sm text-danger">{error}</p>}
 
       {result && (
-        <div className="mt-4 rounded-lg bg-background px-4 py-3 text-sm">
+        <div className="mt-4 space-y-3 rounded-lg bg-background px-4 py-3 text-sm">
           <p className="text-foreground">
             {result.counts.products} produkter lest,{" "}
             <span className="font-semibold">
@@ -555,13 +564,65 @@ function ProductListUpload({ companyId }: { companyId: string | undefined }) {
             </span>
             .
           </p>
+
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-foreground-secondary">
+            <span>
+              <span className="font-semibold text-foreground">
+                {result.counts.added}
+              </span>{" "}
+              nye
+            </span>
+            <span>
+              <span className="font-semibold text-foreground">
+                {result.counts.price_changed}
+              </span>{" "}
+              med endret pris
+            </span>
+            <span>
+              <span className="font-semibold text-foreground">
+                {result.counts.unchanged}
+              </span>{" "}
+              uendret
+            </span>
+          </div>
+
+          {result.price_changes.length > 0 && (
+            <div>
+              <p className="mb-1 text-xs font-medium text-foreground">
+                Prisendringer
+              </p>
+              <ul className="space-y-0.5 text-xs text-foreground-secondary">
+                {result.price_changes.map((c) => (
+                  <li key={c.name}>
+                    {c.name}:{" "}
+                    <span className="tabular-nums">
+                      {c.from ?? "—"} → {c.to ?? "—"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result.counts.missing_from_file > 0 && (
+            <p className="text-xs text-warning">
+              {result.counts.missing_from_file} produkter fra forrige
+              opplasting mangler i denne filen. De er beholdt, siden
+              posteringer viser til dem
+              {result.missing_products.length > 0
+                ? `: ${result.missing_products.slice(0, 5).join(", ")}`
+                : ""}
+              .
+            </p>
+          )}
+
           {result.groups.length > 0 && (
-            <p className="mt-1 text-xs text-foreground-muted">
+            <p className="text-xs text-foreground-muted">
               Produktgrupper: {result.groups.join(", ")}
             </p>
           )}
           {result.warnings.map((w, i) => (
-            <p key={i} className="mt-2 text-xs text-warning">
+            <p key={i} className="text-xs text-warning">
               {w}
             </p>
           ))}

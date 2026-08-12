@@ -17,6 +17,9 @@ export interface ParsedProduct {
   name: string;
   productGroup: string | null;
   salesAccount: string | null;
+  salesPrice: number | null;
+  costPrice: number | null;
+  unit: string | null;
   isRecurring: boolean;
 }
 
@@ -59,7 +62,28 @@ const HEADINGS: Record<keyof Omit<ParsedProduct, "isRecurring">, string[]> = {
   name: ["navn", "name", "produkt", "produktnavn", "beskrivelse", "description"],
   productGroup: ["produktgruppe", "product group", "gruppe", "group", "kategori"],
   salesAccount: ["salgskonto", "sales account", "konto", "account"],
+  salesPrice: ["salgspris", "sales price", "pris", "price", "utpris"],
+  costPrice: ["kostpris", "cost price", "innpris", "innkjøpspris"],
+  unit: ["enhet", "unit"],
 };
+
+/**
+ * Spreadsheet cells may arrive as numbers or as text with a Norwegian
+ * thousands separator and decimal comma.
+ */
+function parseAmount(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+
+  const cleaned = String(value)
+    .replace(/\s|\u00a0/g, "")
+    .replace(/kr/gi, "")
+    .replace(/\.(?=\d{3}(\D|$))/g, "")
+    .replace(",", ".");
+
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 
 function normalise(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
@@ -139,12 +163,17 @@ export function parseProductWorkbook(buffer: ArrayBuffer): ProductParseResult {
     seen.add(key);
 
     const productGroup = cell(columns.productGroup);
+    const raw = (index: number | undefined) =>
+      index == null ? null : (row[index] ?? null);
 
     products.push({
       code: cell(columns.code),
       name,
       productGroup,
       salesAccount: cell(columns.salesAccount),
+      salesPrice: parseAmount(raw(columns.salesPrice)),
+      costPrice: parseAmount(raw(columns.costPrice)),
+      unit: cell(columns.unit),
       isRecurring: isRecurringGroup(productGroup),
     });
   }
