@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
-import type {
-  Customer,
-  CustomerPaymentProfile,
-  OutgoingInvoice,
-  CustomerLedgerEntry,
-} from "@/lib/types/database";
 
 /**
  * GET /api/companies/[id]/customers/[customerId]
  *
- * Returns detailed customer info: profile, payment history, invoices, trend.
+ * Built from the ledger. The previous version read customer_payment_profiles,
+ * outgoing_invoices and customer_ledger_entries, none of which a SAF-T import
+ * populates, so every field came back empty.
+ *
+ * Outstanding is only a true balance when the file states one per customer.
+ * SAF-T files often omit that, in which case the figure below is the movement
+ * within the period — an invoice raised last year and paid this year shows
+ * only the payment — and is flagged so the page does not present it as a debt.
  */
 export async function GET(
   _request: NextRequest,
@@ -24,55 +25,103 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Load customer record
-    const { data: customer } = await supabase
+    const { data: customer } = (await supabase
       .from("customers")
       .select("*")
       .eq("id", customerId)
       .eq("company_id", companyId)
-      .single() as { data: Customer | null };
+      .maybeSingle()) as {
+      data: {
+        id: string;
+        name: string;
+        customer_number: string | null;
+        org_number: string | null;
+        email: string | null;
+        phone: string | null;
+        address: string | null;
+        closing_balance: number | null;
+      } | null;
+    };
 
     if (!customer) {
-      return NextResponse.json(
-        { error: "Customer not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Fant ikke kunden" }, { status: 404 });
     }
 
-    // Load payment profile
-    const { data: profile } = await supabase
-      .from("customer_payment_profiles")
-      .select("*")
-      .eq("customer_id", customerId)
-      .eq("company_id", companyId)
-      .single() as { data: CustomerPaymentProfile | null };
-
-    // Load open invoices
-    const { data: invoices } = await supabase
-      .from("outgoing_invoices")
-      .select("*")
+    // Every posting that names this customer, plus the revenue lines sharing
+    // its vouchers — SAF-T names the party on the receivable line only.
+    const { data: postings } = (await supabase
+      .from("account_transactions")
+      .select(
+        "id, transaction_date, account_number, amount, description, voucher_id, gl_accounts(name)"
+      )
       .eq("company_id", companyId)
       .eq("customer_id", customerId)
-      .order("invoice_date", { ascending: false })
-      .limit(50) as { data: OutgoingInvoice[] | null };
+      .order("transaction_date", { ascending: false })
+      .limit(500)) as {
+      data: Array<{
+        id: string;
+        transaction_date: string;
+        account_number: string;
+        amount: number;
+        description: string | null;
+        voucher_id: string | null;
+        gl_accounts: { name: string | null } | null;
+      }> | null;
+    };
 
-    // Load recent ledger entries for payment history
-    const { data: ledgerEntries } = await supabase
-      .from("customer_ledger_entries")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("customer_id", customerId)
-      .order("entry_date", { ascending: false })
-      .limit(50) as { data: CustomerLedgerEntry[] | null };
+    const rows = postings ?? [];
+    const voucherIds = [
+      ...new Set(rows.map((r) => r.voucher_id).filter(Boolean)),
+    ] as string[];
 
-    // Compute monthly revenue trend
-    const monthlyTrend: Record<string, number> = {};
-    for (const inv of invoices ?? []) {
-      if (inv.invoice_date && inv.total_amount) {
-        const month = inv.invoice_date.substring(0, 7);
-        monthlyTrend[month] = (monthlyTrend[month] ?? 0) + inv.total_amount;
-      }
+    let revenueRows: Array<{
+      transaction_date: string;
+      amount: number;
+      description: string | null;
+    }> = [];
+
+    if (voucherIds.length > 0) {
+      const { data } = (await supabase
+        .from("account_transactions")
+        .select("transaction_date, amount, description, account_number")
+        .eq("company_id", companyId)
+        .in("voucher_id", voucherIds.slice(0, 200))
+        .gte("account_number", "3000")
+        .lt("account_number", "4000")) as {
+        data: Array<{
+          transaction_date: string;
+          amount: number;
+          description: string | null;
+        }> | null;
+      };
+      revenueRows = data ?? [];
     }
+
+    const revenue = revenueRows.reduce((t, r) => t - r.amount, 0);
+
+    // Revenue per month, so a customer's trend is visible.
+    const byMonth = new Map<string, number>();
+    for (const r of revenueRows) {
+      const month = r.transaction_date.slice(0, 7);
+      byMonth.set(month, (byMonth.get(month) ?? 0) - r.amount);
+    }
+
+    // What they buy, largest first.
+    const byProduct = new Map<string, { amount: number; count: number }>();
+    for (const r of revenueRows) {
+      const key = r.description?.trim() || "(uten beskrivelse)";
+      const entry = byProduct.get(key) ?? { amount: 0, count: 0 };
+      entry.amount -= r.amount;
+      entry.count++;
+      byProduct.set(key, entry);
+    }
+
+    const movement = rows
+      .filter((r) => {
+        const account = parseInt(r.account_number, 10);
+        return account >= 1500 && account <= 1599;
+      })
+      .reduce((t, r) => t + r.amount, 0);
 
     return NextResponse.json({
       profile: {
@@ -83,48 +132,34 @@ export async function GET(
         email: customer.email,
         phone: customer.phone,
         address: customer.address,
-        is_active: customer.is_active,
       },
-      payment_profile: profile
-        ? {
-            total_invoices: profile.total_invoices,
-            total_invoiced_amount: profile.total_invoiced_amount,
-            current_outstanding: profile.current_outstanding,
-            current_overdue: profile.current_overdue,
-            avg_agreed_terms_days: profile.avg_agreed_terms_days,
-            avg_actual_payment_days: profile.avg_actual_payment_days,
-            avg_days_after_due: profile.avg_days_after_due,
-            late_payment_ratio: profile.late_payment_ratio,
-            max_delay_days: profile.max_delay_days,
-            risk_score: profile.payment_risk_score,
-            payment_trend: profile.payment_trend,
-            last_payment_date: profile.last_payment_date,
-          }
-        : null,
-      invoices: (invoices ?? []).map((inv) => ({
-        id: inv.id,
-        invoice_number: inv.invoice_number,
-        invoice_date: inv.invoice_date,
-        due_date: inv.due_date,
-        total_amount: inv.total_amount,
-        remaining_amount: inv.remaining_amount,
-        status: inv.status,
-      })),
-      payment_history: (ledgerEntries ?? []).map((e) => ({
-        id: e.id,
-        date: e.entry_date,
-        type: e.entry_type,
-        invoice_number: e.invoice_number,
-        amount: e.amount,
-        remaining: e.remaining_amount,
-        is_open: e.is_open,
-      })),
-      monthly_revenue_trend: Object.entries(monthlyTrend)
+      outstanding: customer.closing_balance ?? movement,
+      outstanding_is_stated: customer.closing_balance != null,
+      revenue,
+      posting_count: rows.length,
+      last_activity: rows[0]?.transaction_date ?? null,
+      monthly_revenue: [...byMonth.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([month, amount]) => ({ month, amount })),
+        .map(([month, amount]) => ({ month, amount: Math.round(amount) })),
+      products: [...byProduct.entries()]
+        .map(([description, v]) => ({
+          description,
+          amount: Math.round(v.amount),
+          count: v.count,
+        }))
+        .sort((a, b) => b.amount - a.amount)
+        .slice(0, 15),
+      postings: rows.slice(0, 50).map((r) => ({
+        id: r.id,
+        date: r.transaction_date,
+        account_number: r.account_number,
+        account_name: r.gl_accounts?.name ?? null,
+        amount: r.amount,
+        description: r.description,
+      })),
     });
   } catch (error) {
     console.error("Customer detail API error:", error);
-    return errorResponse("Failed to load customer details");
+    return errorResponse("Kunne ikke hente kundedetaljer");
   }
 }

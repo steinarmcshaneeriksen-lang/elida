@@ -19,6 +19,7 @@ interface CustomerRow {
   revenue: number;
   posting_count: number;
   last_activity: string | null;
+  outstanding_is_stated: boolean;
 }
 
 type SortKey = "name" | "outstanding" | "revenue" | "last_activity";
@@ -54,6 +55,7 @@ export default function KunderPage() {
       : (bVal as number) - (aVal as number);
   });
 
+  const outstandingIsStated = customers.some((c) => c.outstanding_is_stated);
   const totalOutstanding = customers.reduce(
     (s, c) => s + Math.max(0, c.outstanding),
     0
@@ -77,7 +79,9 @@ export default function KunderPage() {
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Totalt utestående</p>
+          <p className="text-sm text-foreground-muted">
+            {outstandingIsStated ? "Totalt utestående" : "Endring i fordringer"}
+          </p>
           <p className="mt-1 text-2xl font-bold text-foreground">
             {formatCurrency(totalOutstanding)}
           </p>
@@ -112,7 +116,7 @@ export default function KunderPage() {
                 onSort={toggleSort}
               />
               <SortableHeader
-                label="Utestående"
+                label={outstandingIsStated ? "Utestående" : "Endring"}
                 sortKey="outstanding"
                 currentKey={sortKey}
                 direction={sortDir}

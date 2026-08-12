@@ -136,6 +136,8 @@ async function importAccounts(
       : null,
     account_type: a.accountType,
     is_active: true,
+    opening_balance: a.openingBalance,
+    closing_balance: a.closingBalance,
     source_system: SAFT_SOURCE_SYSTEM,
     source_id: a.accountId,
   }));

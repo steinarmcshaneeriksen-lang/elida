@@ -38,6 +38,14 @@ export interface SaftAccount {
   /** Norwegian standard account (NS 4102) reference, when supplied. */
   standardAccountId: string | null;
   accountType: string | null;
+
+  /**
+   * Balances as stated in the file, signed debit-positive. A balance-sheet
+   * figure must come from here: the postings in the file cover only its own
+   * period, so summing them omits everything carried in from earlier years.
+   */
+  openingBalance: number | null;
+  closingBalance: number | null;
 }
 
 export interface SaftParty {

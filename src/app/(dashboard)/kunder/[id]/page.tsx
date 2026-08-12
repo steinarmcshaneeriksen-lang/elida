@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { formatCurrency, formatDateShort } from "@/lib/format";
 import { useUser } from "@/lib/hooks/use-user";
 import { LoadingState, ErrorState } from "@/components/dashboard/empty-state";
-import { ArrowLeft, Mail, Phone, MapPin, Building2 } from "lucide-react";
+import { ArrowLeft, Mail, Phone, MapPin, Building2, Info } from "lucide-react";
 
 interface CustomerDetail {
   profile: {
@@ -17,28 +17,31 @@ interface CustomerDetail {
     phone: string | null;
     address: string | null;
   };
-  payment_profile: {
-    total_invoices: number | null;
-    total_invoiced_amount: number | null;
-    current_outstanding: number | null;
-    current_overdue: number | null;
-    avg_agreed_terms_days: number | null;
-    avg_actual_payment_days: number | null;
-    avg_days_after_due: number | null;
-    late_payment_ratio: number | null;
-    max_delay_days: number | null;
-    last_payment_date: string | null;
-  } | null;
-  invoices: Array<{
+  outstanding: number;
+  outstanding_is_stated: boolean;
+  revenue: number;
+  posting_count: number;
+  last_activity: string | null;
+  monthly_revenue: Array<{ month: string; amount: number }>;
+  products: Array<{ description: string; amount: number; count: number }>;
+  postings: Array<{
     id: string;
-    invoice_number: string | null;
-    invoice_date: string | null;
-    due_date: string | null;
-    total_amount: number | null;
-    remaining_amount: number | null;
-    status: string | null;
+    date: string;
+    account_number: string;
+    account_name: string | null;
+    amount: number;
+    description: string | null;
   }>;
-  monthly_revenue_trend: Array<{ month: string; amount: number }>;
+}
+
+const MONTHS = [
+  "jan", "feb", "mar", "apr", "mai", "jun",
+  "jul", "aug", "sep", "okt", "nov", "des",
+];
+
+function monthLabel(iso: string): string {
+  const [, m] = iso.split("-").map(Number);
+  return MONTHS[m - 1] ?? iso;
 }
 
 export default function KundeDetaljPage() {
@@ -101,6 +104,11 @@ export default function KundeDetaljPage() {
   const data = isFresh ? result.data : null;
   const error = isFresh ? result.error : null;
 
+  const maxMonth = Math.max(
+    1,
+    ...(data?.monthly_revenue ?? []).map((m) => m.amount)
+  );
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <button
@@ -148,112 +156,161 @@ export default function KundeDetaljPage() {
             </div>
           </div>
 
-          {data.payment_profile ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <StatCard
-                label="Utestående"
-                value={formatCurrency(
-                  data.payment_profile.current_outstanding ?? 0
-                )}
-              />
-              <StatCard
-                label="Forfalt"
-                value={formatCurrency(
-                  data.payment_profile.current_overdue ?? 0
-                )}
-                tone={
-                  (data.payment_profile.current_overdue ?? 0) > 0
-                    ? "danger"
-                    : undefined
-                }
-              />
-              <StatCard
-                label="Snitt betalingstid"
-                value={
-                  data.payment_profile.avg_actual_payment_days != null
-                    ? `${Math.round(data.payment_profile.avg_actual_payment_days)} dager`
-                    : "—"
-                }
-                detail={
-                  data.payment_profile.avg_agreed_terms_days != null
-                    ? `Avtalt: ${Math.round(data.payment_profile.avg_agreed_terms_days)} dager`
-                    : undefined
-                }
-              />
-              <StatCard
-                label="Fakturert totalt"
-                value={formatCurrency(
-                  data.payment_profile.total_invoiced_amount ?? 0
-                )}
-                detail={
-                  data.payment_profile.total_invoices != null
-                    ? `${data.payment_profile.total_invoices} fakturaer`
-                    : undefined
-                }
-              />
-            </div>
-          ) : (
-            <div className="rounded-xl border border-border bg-surface px-5 py-6 text-center text-sm text-foreground-muted">
-              Ingen betalingshistorikk beregnet for denne kunden ennå.
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatCard
+              label="Omsetning i perioden"
+              value={formatCurrency(data.revenue)}
+            />
+            <StatCard
+              label={
+                data.outstanding_is_stated
+                  ? "Utestående"
+                  : "Endring i kundefordring"
+              }
+              value={formatCurrency(data.outstanding)}
+              detail={
+                data.outstanding_is_stated
+                  ? undefined
+                  : "Ikke saldo — se merknad under"
+              }
+              tone={
+                data.outstanding_is_stated && data.outstanding > 0
+                  ? "warning"
+                  : undefined
+              }
+            />
+            <StatCard
+              label="Siste aktivitet"
+              value={
+                data.last_activity ? formatDateShort(data.last_activity) : "—"
+              }
+              detail={`${data.posting_count} posteringer`}
+            />
+          </div>
+
+          {!data.outstanding_is_stated && (
+            <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
+              <Info size={18} className="mt-0.5 shrink-0 text-warning" />
+              <p className="text-sm text-foreground-secondary">
+                SAF-T-filen oppgir ikke saldo per kunde, bare posteringene i
+                perioden. Tallet over er derfor <em>endringen</em> i
+                kundefordringen, ikke hva kunden skylder. En faktura fra i fjor
+                som betales i år gir bare innbetalingen — og dermed et negativt
+                tall. Last opp foregående år, eller hent saldoen fra
+                regnskapssystemet, for et korrekt utestående.
+              </p>
             </div>
           )}
 
-          <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow)]">
-            <h3 className="border-b border-border px-5 py-3 text-sm font-semibold text-foreground">
-              Fakturaer
-            </h3>
-            {data.invoices.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-foreground-muted">
-                Ingen fakturaer registrert.
-              </p>
-            ) : (
+          {data.monthly_revenue.length > 0 && (
+            <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
+              <h3 className="mb-4 text-sm font-semibold text-foreground">
+                Omsetning per måned
+              </h3>
+              <div className="space-y-2">
+                {data.monthly_revenue.map((m) => (
+                  <div key={m.month} className="flex items-center gap-3">
+                    <span className="w-10 text-xs text-foreground-muted">
+                      {monthLabel(m.month)}
+                    </span>
+                    <div className="h-5 flex-1 rounded bg-surface-hover">
+                      <div
+                        className="h-full rounded bg-primary"
+                        style={{
+                          width: `${Math.max(2, (m.amount / maxMonth) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="w-28 text-right text-sm tabular-nums text-foreground">
+                      {formatCurrency(m.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {data.products.length > 0 && (
+            <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow)]">
+              <h3 className="border-b border-border px-5 py-3 text-sm font-semibold text-foreground">
+                Hva kunden kjøper
+              </h3>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border text-left text-xs text-foreground-muted">
+                    <th className="px-5 py-2.5 font-medium">Linje</th>
+                    <th className="px-5 py-2.5 text-right font-medium">Antall</th>
+                    <th className="px-5 py-2.5 text-right font-medium">Beløp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.products.map((p) => (
+                    <tr
+                      key={p.description}
+                      className="border-b border-border-light last:border-0"
+                    >
+                      <td className="px-5 py-2.5 text-foreground">
+                        {p.description}
+                      </td>
+                      <td className="px-5 py-2.5 text-right tabular-nums text-foreground-muted">
+                        {p.count}
+                      </td>
+                      <td className="px-5 py-2.5 text-right font-medium tabular-nums text-foreground">
+                        {formatCurrency(p.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+
+          {data.postings.length > 0 && (
+            <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow)]">
+              <h3 className="border-b border-border px-5 py-3 text-sm font-semibold text-foreground">
+                Posteringer på kundefordring
+              </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-foreground-muted">
-                      <th className="px-5 py-2.5 font-medium">Fakturanr.</th>
                       <th className="px-5 py-2.5 font-medium">Dato</th>
-                      <th className="px-5 py-2.5 font-medium">Forfall</th>
+                      <th className="px-5 py-2.5 font-medium">Konto</th>
+                      <th className="px-5 py-2.5 font-medium">Beskrivelse</th>
                       <th className="px-5 py-2.5 text-right font-medium">
                         Beløp
-                      </th>
-                      <th className="px-5 py-2.5 text-right font-medium">
-                        Gjenstår
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.invoices.map((inv) => (
+                    {data.postings.map((p) => (
                       <tr
-                        key={inv.id}
+                        key={p.id}
                         className="border-b border-border-light last:border-0"
                       >
+                        <td className="whitespace-nowrap px-5 py-2.5 tabular-nums text-foreground-secondary">
+                          {formatDateShort(p.date)}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-2.5 text-foreground-muted">
+                          {p.account_number} {p.account_name ?? ""}
+                        </td>
                         <td className="px-5 py-2.5 text-foreground">
-                          {inv.invoice_number ?? "—"}
+                          {p.description ?? "—"}
                         </td>
-                        <td className="px-5 py-2.5 text-foreground-secondary">
-                          {inv.invoice_date
-                            ? formatDateShort(inv.invoice_date)
-                            : "—"}
-                        </td>
-                        <td className="px-5 py-2.5 text-foreground-secondary">
-                          {inv.due_date ? formatDateShort(inv.due_date) : "—"}
-                        </td>
-                        <td className="px-5 py-2.5 text-right tabular-nums text-foreground">
-                          {formatCurrency(inv.total_amount ?? 0)}
-                        </td>
-                        <td className="px-5 py-2.5 text-right tabular-nums text-foreground-secondary">
-                          {(inv.remaining_amount ?? 0) > 0
-                            ? formatCurrency(inv.remaining_amount ?? 0)
-                            : "—"}
+                        <td
+                          className={`whitespace-nowrap px-5 py-2.5 text-right tabular-nums ${
+                            p.amount >= 0 ? "text-foreground" : "text-success"
+                          }`}
+                        >
+                          {formatCurrency(p.amount)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-          </section>
+            </section>
+          )}
         </>
       )}
     </div>
@@ -269,21 +326,19 @@ function StatCard({
   label: string;
   value: string;
   detail?: string;
-  tone?: "danger";
+  tone?: "warning";
 }) {
   return (
     <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
       <p className="text-sm text-foreground-muted">{label}</p>
       <p
         className={`mt-1 text-xl font-bold tracking-tight ${
-          tone === "danger" ? "text-danger" : "text-foreground"
+          tone === "warning" ? "text-warning" : "text-foreground"
         }`}
       >
         {value}
       </p>
-      {detail && (
-        <p className="mt-1 text-xs text-foreground-muted">{detail}</p>
-      )}
+      {detail && <p className="mt-1 text-xs text-foreground-muted">{detail}</p>}
     </div>
   );
 }

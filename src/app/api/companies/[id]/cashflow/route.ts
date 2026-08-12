@@ -24,7 +24,7 @@ export async function GET(
 
     const supabase = await createClient();
 
-    const [{ data: series }, { data: customers }, { data: suppliers }] =
+    const [{ data: series }, { data: totals }, { data: customers }, { data: suppliers }] =
       await Promise.all([
         supabase.rpc("company_cash_series" as never, {
           p_company_id: companyId,
@@ -33,6 +33,17 @@ export async function GET(
             month: string;
             movement: number;
             balance: number;
+            is_estimated: boolean;
+          }> | null;
+        }>,
+        supabase.rpc("company_balance_totals" as never, {
+          p_company_id: companyId,
+        } as never) as unknown as Promise<{
+          data: Array<{
+            cash: number;
+            receivables: number;
+            payables: number;
+            is_stated: boolean;
           }> | null;
         }>,
         supabase
@@ -53,9 +64,16 @@ export async function GET(
       balance: Number(m.balance),
     }));
 
+    // Balance-sheet figures come from the balances stated in the file. Without
+    // them only movement is known, and the page must say so rather than
+    // presenting a movement as a bank balance.
+    const stated = totals?.[0];
+    const balancesAreStated = stated?.is_stated ?? false;
+
     if (months.length === 0) {
       return NextResponse.json({
         has_data: false,
+        balances_are_stated: balancesAreStated,
         current_balance: null,
         monthly: [],
         receivables: { total: 0, top: [] },
@@ -81,15 +99,24 @@ export async function GET(
 
     return NextResponse.json({
       has_data: true,
-      current_balance: months[months.length - 1].balance,
+      balances_are_stated: balancesAreStated,
+      current_balance: balancesAreStated
+        ? Number(stated!.cash)
+        : months[months.length - 1].balance,
       period: {
         start: months[0].month,
         end: months[months.length - 1].month,
       },
       lowest_point: { month: lowest.month, balance: lowest.balance },
       monthly: months,
-      receivables: { total: sum(receivable), top: receivable.slice(0, 10) },
-      payables: { total: sum(payable), top: payable.slice(0, 10) },
+      receivables: {
+        total: balancesAreStated ? Number(stated!.receivables) : sum(receivable),
+        top: receivable.slice(0, 10),
+      },
+      payables: {
+        total: balancesAreStated ? Number(stated!.payables) : sum(payable),
+        top: payable.slice(0, 10),
+      },
     });
   } catch (error) {
     console.error("Cashflow API error:", error);

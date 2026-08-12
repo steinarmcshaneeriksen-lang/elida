@@ -13,6 +13,7 @@ import {
   ArrowUpRight,
   AlertTriangle,
   ShieldCheck,
+  Info,
 } from "lucide-react";
 
 interface Party {
@@ -23,6 +24,7 @@ interface Party {
 
 interface CashflowResponse {
   has_data?: boolean;
+  balances_are_stated: boolean;
   current_balance: number | null;
   period: { start: string; end: string } | null;
   lowest_point: { month: string; balance: number } | null;
@@ -58,13 +60,29 @@ export default function LikviditetPage() {
 
   const positive = (data.current_balance ?? 0) > 0;
 
+  const stated = data.balances_are_stated;
+
   return (
     <div className="mx-auto max-w-7xl space-y-8">
+      {!stated && (
+        <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
+          <Info size={18} className="mt-0.5 shrink-0 text-warning" />
+          <p className="text-sm text-foreground-secondary">
+            SAF-T-filen oppgir ikke inngående saldo på kontoene, bare
+            posteringene i perioden. Tallene under viser derfor{" "}
+            <em>bevegelsen</em> i perioden, ikke faktisk saldo. Last opp en fil
+            som dekker hele regnskapsåret for korrekte balansetall.
+          </p>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
           <div className="flex items-center gap-2 text-foreground-muted">
             <Droplets size={16} />
-            <span className="text-sm">Bokført likviditet</span>
+            <span className="text-sm">
+              {stated ? "Bokført likviditet" : "Endring i bankbeholdning"}
+            </span>
           </div>
           <p
             className={`mt-2 text-2xl font-bold tracking-tight ${
@@ -74,14 +92,18 @@ export default function LikviditetPage() {
             {formatCurrency(data.current_balance ?? 0)}
           </p>
           <p className="mt-1 text-xs text-foreground-muted">
-            Bokført saldo, ikke live banksaldo
+            {stated
+              ? "Bokført saldo, ikke live banksaldo"
+              : "Bevegelse i perioden — ikke saldo"}
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
           <div className="flex items-center gap-2 text-foreground-muted">
             <ArrowUpRight size={16} className="text-success" />
-            <span className="text-sm">Kunder skylder oss</span>
+            <span className="text-sm">
+              {stated ? "Kunder skylder oss" : "Endring kundefordringer"}
+            </span>
           </div>
           <p className="mt-2 text-2xl font-bold tracking-tight text-success">
             {formatCurrency(data.receivables.total)}
@@ -94,7 +116,9 @@ export default function LikviditetPage() {
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
           <div className="flex items-center gap-2 text-foreground-muted">
             <ArrowDownRight size={16} className="text-danger" />
-            <span className="text-sm">Vi skylder leverandører</span>
+            <span className="text-sm">
+              {stated ? "Vi skylder leverandører" : "Endring leverandørgjeld"}
+            </span>
           </div>
           <p className="mt-2 text-2xl font-bold tracking-tight text-danger">
             {formatCurrency(data.payables.total)}
@@ -133,7 +157,9 @@ export default function LikviditetPage() {
           Bankbeholdning over tid
         </h3>
         <p className="mb-5 text-sm text-foreground-muted">
-          Bokført saldo på bankkontoer ved utgangen av hver måned.
+          {stated
+            ? "Bokført saldo på bankkontoer ved utgangen av hver måned."
+            : "Akkumulert bevegelse på bankkontoer. Uten inngående saldo starter kurven på null."}
         </p>
         <BalanceChart points={data.monthly} />
       </section>

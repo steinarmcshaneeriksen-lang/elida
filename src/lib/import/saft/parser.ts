@@ -178,11 +178,22 @@ function parseAccounts(masterFiles: Node): SaftAccount[] {
   for (const a of accounts) {
     const accountId = str(a.AccountID);
     if (!accountId) continue;
+
+    // Stated as separate debit and credit figures; net them so the sign
+    // matches the postings, which are stored debit-positive.
+    const net = (debit: unknown, credit: unknown) => {
+      const d = num(debit);
+      const c = num(credit);
+      return d == null && c == null ? null : (d ?? 0) - (c ?? 0);
+    };
+
     result.push({
       accountId,
       description: str(a.AccountDescription),
       standardAccountId: str(a.StandardAccountID),
       accountType: str(a.AccountType),
+      openingBalance: net(a.OpeningDebitBalance, a.OpeningCreditBalance),
+      closingBalance: net(a.ClosingDebitBalance, a.ClosingCreditBalance),
     });
   }
   return result;

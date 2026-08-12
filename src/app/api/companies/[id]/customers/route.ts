@@ -38,6 +38,7 @@ export async function GET(
               customer_id: string;
               revenue: number;
               outstanding: number;
+              outstanding_is_stated: boolean;
               posting_count: number;
               last_activity: string | null;
             }>
@@ -60,6 +61,8 @@ export async function GET(
         // The stated balance wins; the aggregate is the fallback for files
         // that omit party balances.
         outstanding: c.closing_balance ?? agg?.outstanding ?? 0,
+        outstanding_is_stated:
+          c.closing_balance != null || (agg?.outstanding_is_stated ?? false),
         revenue: Number(agg?.revenue ?? 0),
         posting_count: Number(agg?.posting_count ?? 0),
         last_activity: agg?.last_activity ?? null,
