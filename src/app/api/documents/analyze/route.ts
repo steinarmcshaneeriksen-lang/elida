@@ -189,7 +189,7 @@ function generateMockAnalysis(
           debit_account: "6540",
           debit_account_name: "IT-kostnader",
           credit_account: "2400",
-          credit_account_name: "Leverandorgjeld",
+          credit_account_name: "Leverandørgjeld",
           vat_code: "1",
           amount: 36_000,
           vat_amount: 9_000,
@@ -206,8 +206,8 @@ function generateMockAnalysis(
           confidence: 0.88,
         },
         notes: [
-          "Leverandor gjenkjent fra tidligere posteringer",
-          "Belop er noe lavere enn gjennomsnittlig faktura fra denne leverandoren (89 000 kr)",
+          "Leverandør gjenkjent fra tidligere posteringer",
+          "Beløp er noe lavere enn gjennomsnittlig faktura fra denne leverandøren (89 000 kr)",
           "MVA-sats 25 % stemmer med standard sats",
         ],
       },
@@ -240,7 +240,7 @@ function generateMockAnalysis(
           vat_amount: 54.72,
         },
         notes: [
-          "Kategorisert som representasjon. Vurder om dette gjelder kundemote (fradragsberettiget) eller internt (begrenset fradrag).",
+          "Kategorisert som representasjon. Vurder om dette gjelder kundemøte (fradragsberettiget) eller internt (begrenset fradrag).",
           "Husk at representasjonskostnader har begrenset MVA-fradrag.",
         ],
       },

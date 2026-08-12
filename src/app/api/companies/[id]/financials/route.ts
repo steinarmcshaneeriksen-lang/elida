@@ -212,7 +212,7 @@ function getCostCategory(accountNumber: number): string {
   if (accountNumber >= 6700 && accountNumber < 6900) return "IT og programvare";
   if (accountNumber >= 6900 && accountNumber < 7100) return "Telefon og porto";
   if (accountNumber >= 7100 && accountNumber < 7200) return "Reisekostnader";
-  if (accountNumber >= 7200 && accountNumber < 7400) return "Markedsforing";
+  if (accountNumber >= 7200 && accountNumber < 7400) return "Markedsføring";
   if (accountNumber >= 7400 && accountNumber < 7500) return "Forsikring";
   if (accountNumber >= 7500 && accountNumber < 8000) return "Andre driftskostnader";
   return "Uspesifisert";
@@ -244,10 +244,10 @@ function getMockFinancials(
       payroll: 4_760_000,
       other_operating: 2_900_000,
       by_category: {
-        Lonnskostnader: 4_760_000,
+        Lønnskostnader: 4_760_000,
         Kontorleie: 455_000,
         "IT og programvare": 905_000,
-        Markedsforing: 210_000,
+        Markedsføring: 210_000,
         "Reise og transport": 185_000,
         Forsikring: 112_000,
         "Regnskap og revisjon": 180_000,

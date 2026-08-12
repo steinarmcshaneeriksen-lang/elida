@@ -204,9 +204,9 @@ function getMockResponse(message: string): string {
     lower.includes("hvordan") &&
     (lower.includes("gar") || lower.includes("gaar") || lower.includes("går"))
   ) {
-    return `## Okonomi denne maaneden
+    return `## Økonomi denne måneden
 
-Her er en oppsummering basert paa tilgjengelige data:
+Her er en oppsummering basert på tilgjengelige data:
 
 - **Omsetning**: 850 000 kr (estimert)
 - **Kostnader**: 620 000 kr (estimert)
@@ -215,10 +215,10 @@ Her er en oppsummering basert paa tilgjengelige data:
 
 **Likviditet:**
 - Bankbeholdning: 1 250 000 kr
-- Utestaaende fordringer: 340 000 kr
-- Leverandorgjeld: 180 000 kr
+- Utestående fordringer: 340 000 kr
+- Leverandørgjeld: 180 000 kr
 
-**Vurdering:** Selskapet ser ut til aa gaa bra denne maaneden med en sunn resultatmargin. Likviditetssituasjonen er god.
+**Vurdering:** Selskapet ser ut til å gå bra denne måneden med en sunn resultatmargin. Likviditetssituasjonen er god.
 
 > **Merk:** Dette er eksempeldata. Koble til regnskapssystemet for reelle tall.`;
   }
@@ -226,32 +226,32 @@ Her er en oppsummering basert paa tilgjengelige data:
   if (lower.includes("mva") || lower.includes("merverdi")) {
     return `## MVA-estimat
 
-Basert paa tilgjengelige data for innevaerende termin:
+Basert på tilgjengelige data for inneværende termin:
 
-- **Utgaaende MVA**: 170 000 kr
-- **Inngaaende MVA**: 102 000 kr
-- **Netto aa betale**: 68 000 kr
+- **Utgående MVA**: 170 000 kr
+- **Inngående MVA**: 102 000 kr
+- **Netto å betale**: 68 000 kr
 - **Frist**: 10. april 2025
 
-**Konfidensnivaa:** Middels -- dette er et estimat basert paa tilgjengelige transaksjoner.
+**Konfidensnivå:** Middels -- dette er et estimat basert på tilgjengelige transaksjoner.
 
-> Anbefaler aa avstemme mot regnskapssystemet for endelig tall.`;
+> Anbefaler å avstemme mot regnskapssystemet for endelig tall.`;
   }
 
   if (lower.includes("skylder") || lower.includes("fordring")) {
-    return `## Utestaaende fordringer
+    return `## Utestående fordringer
 
-Totalt utestaaende: **340 000 kr**
+Totalt utestående: **340 000 kr**
 
 **Aldersfordeling:**
-| Periode | Belop |
+| Periode | Beløp |
 |---------|-------|
 | 0-30 dager | 180 000 kr |
 | 31-60 dager | 95 000 kr |
 | 61-90 dager | 45 000 kr |
 | Over 90 dager | 20 000 kr |
 
-**Storste debitorer:**
+**Største debitorer:**
 1. Eksempel Kunde AS -- 120 000 kr
 2. Demo Handel AS -- 85 000 kr
 3. Test Tjenester AS -- 55 000 kr
@@ -259,17 +259,17 @@ Totalt utestaaende: **340 000 kr**
 > **Merk:** Viser eksempeldata.`;
   }
 
-  return `Hei! Jeg er Elida, din okonomi- og regnskapsassistent.
+  return `Hei! Jeg er Elida, din økonomi- og regnskapsassistent.
 
 Jeg kan hjelpe deg med:
-- **Okonomianalyse** -- omsetning, kostnader, resultat, likviditet
-- **Regnskapsrad** -- kontering, MVA-behandling, regnskapsregler
-- **Prognoser** -- kontantstromprognose, skatte- og MVA-estimater
+- **Økonomianalyse** -- omsetning, kostnader, resultat, likviditet
+- **Regnskapsråd** -- kontering, MVA-behandling, regnskapsregler
+- **Prognoser** -- kontantstrømprognose, skatte- og MVA-estimater
 - **Scenarioanalyser** -- "hva om"-beregninger
 
-Hva lurer du paa?
+Hva lurer du på?
 
-> **Merk:** Koble til et regnskapssystem (f.eks. PowerOffice Go) for aa faa reelle tall og analyser.`;
+> **Merk:** Koble til et regnskapssystem (f.eks. PowerOffice Go) for å få reelle tall og analyser.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -283,7 +283,7 @@ export async function POST(request: NextRequest) {
 
     if (!company_id || !message) {
       return new Response(
-        JSON.stringify({ error: "company_id og message er paakrevd" }),
+        JSON.stringify({ error: "company_id og message er påkrevd" }),
         { status: 400, headers: { "Content-Type": "application/json" } }
       );
     }
@@ -403,7 +403,7 @@ export async function POST(request: NextRequest) {
                     role: "tool",
                     tool_call_id: toolCall.id,
                     content: JSON.stringify({
-                      error: `Feil ved kjoring av ${toolName}: ${toolError instanceof Error ? toolError.message : "Ukjent feil"}`,
+                      error: `Feil ved kjøring av ${toolName}: ${toolError instanceof Error ? toolError.message : "Ukjent feil"}`,
                     }),
                   });
 
