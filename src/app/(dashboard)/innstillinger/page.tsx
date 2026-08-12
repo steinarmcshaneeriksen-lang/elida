@@ -14,6 +14,7 @@ import {
   Database,
   CheckCircle2,
   AlertCircle,
+  ShieldAlert,
   Upload,
 } from "lucide-react";
 
@@ -301,6 +302,8 @@ export default function InnstillingerPage() {
         </div>
       </section>
 
+      <PrivacySection companyId={companyId} />
+
       {/* Integration status */}
       <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
         <div className="mb-4 flex items-center gap-2">
@@ -444,5 +447,136 @@ export default function InnstillingerPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+interface FlaggedSupplier {
+  id: string;
+  name: string;
+  supplier_number: string | null;
+  is_anonymised: boolean;
+}
+
+/**
+ * Employees registered as suppliers for expense reimbursement carry personal
+ * names. They are flagged on import so they can be anonymised here.
+ */
+function PrivacySection({ companyId }: { companyId: string | undefined }) {
+  const [suppliers, setSuppliers] = useState<FlaggedSupplier[]>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [version, setVersion] = useState(0);
+  const [isWorking, setIsWorking] = useState(false);
+
+  useEffect(() => {
+    if (!companyId) return;
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `/api/companies/${companyId}/suppliers/privacy`
+        );
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) setSuppliers(data.suppliers ?? []);
+      } catch {
+        // Section is supplementary; stay silent if it cannot load.
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId, version]);
+
+  const pending = suppliers.filter((s) => !s.is_anonymised);
+  if (!companyId || pending.length === 0) return null;
+
+  const anonymise = async () => {
+    if (selected.size === 0 || isWorking) return;
+    setIsWorking(true);
+    try {
+      await fetch(`/api/companies/${companyId}/suppliers/privacy`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ supplier_ids: [...selected] }),
+      });
+      setSelected(new Set());
+      setVersion((v) => v + 1);
+    } finally {
+      setIsWorking(false);
+    }
+  };
+
+  const toggle = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  return (
+    <section className="rounded-xl border border-warning/40 bg-surface p-6 shadow-[var(--shadow)]">
+      <div className="mb-2 flex items-center gap-2">
+        <ShieldAlert size={18} className="text-warning" />
+        <h2 className="text-lg font-semibold text-foreground">
+          Mulige privatpersoner
+        </h2>
+      </div>
+      <p className="mb-4 text-sm text-foreground-secondary">
+        Disse leverandørene mangler gyldig organisasjonsnummer og kan være
+        ansatte registrert for utleggsrefusjon. Anonymisering erstatter navn,
+        e-post, telefon og adresse. Posteringene og beløpene beholdes.
+      </p>
+
+      <div className="space-y-1.5">
+        {pending.map((s) => (
+          <label
+            key={s.id}
+            className="flex cursor-pointer items-center gap-3 rounded-lg border border-border-light px-4 py-2.5 hover:bg-surface-hover"
+          >
+            <input
+              type="checkbox"
+              checked={selected.has(s.id)}
+              onChange={() => toggle(s.id)}
+              className="h-4 w-4 rounded border-border"
+            />
+            <span className="flex-1 text-sm text-foreground">{s.name}</span>
+            {s.supplier_number && (
+              <span className="text-xs text-foreground-muted">
+                nr. {s.supplier_number}
+              </span>
+            )}
+          </label>
+        ))}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <button
+          onClick={() =>
+            setSelected(
+              selected.size === pending.length
+                ? new Set()
+                : new Set(pending.map((s) => s.id))
+            )
+          }
+          className="text-sm text-primary hover:text-primary-light"
+        >
+          {selected.size === pending.length ? "Fjern alle" : "Velg alle"}
+        </button>
+        <button
+          onClick={anonymise}
+          disabled={selected.size === 0 || isWorking}
+          className="rounded-lg bg-primary px-5 py-2 text-sm font-medium text-white hover:bg-primary-light disabled:opacity-40"
+        >
+          {isWorking
+            ? "Anonymiserer …"
+            : `Anonymiser ${selected.size > 0 ? `(${selected.size})` : ""}`}
+        </button>
+      </div>
+    </section>
   );
 }

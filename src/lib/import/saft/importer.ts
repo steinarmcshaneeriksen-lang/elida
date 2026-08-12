@@ -15,6 +15,12 @@ import type {
   SaftImportResult,
 } from "./types";
 import { isDepartmentType, isProjectType } from "./parser";
+import {
+  buildKnownNameMatcher,
+  isNameBearingAccount,
+  looksLikePrivatePerson,
+  redactPersonalNames,
+} from "./redact";
 
 export const SAFT_SOURCE_SYSTEM = "saft";
 
@@ -169,6 +175,9 @@ async function importSuppliers(
     address: s.address,
     country: s.country,
     is_active: true,
+    // Suppliers without a valid organisation number are usually employees
+    // registered for expense reimbursement. Flagged for the user to review.
+    is_possible_private_person: looksLikePrivatePerson(s.registrationNumber),
     source_system: SAFT_SOURCE_SYSTEM,
     source_id: s.partyId,
   }));
@@ -281,13 +290,26 @@ async function importLedger(
     return { vouchers: 0, transactions: 0 };
   }
 
+  const knownNamesForVouchers = buildKnownNameMatcher(
+    file.suppliers
+      .filter((s) => looksLikePrivatePerson(s.registrationNumber))
+      .map((s) => s.name)
+  );
+
   // Voucher source ids must be unique within the file; journal id disambiguates
   // systems that restart transaction numbering per journal.
   const voucherRows = transactions.map(({ journalId, transaction }) => ({
     company_id: companyId,
     voucher_number: transaction.voucherNumber,
     voucher_date: transaction.transactionDate,
-    description: transaction.description,
+    // A voucher spans several accounts, so the payroll heuristic cannot be
+    // scoped safely here; apply it when any line touches a payroll account.
+    description: redactPersonalNames(transaction.description, {
+      knownNames: knownNamesForVouchers,
+      applyHeuristic: transaction.lines.some((l) =>
+        isNameBearingAccount(l.accountId)
+      ),
+    }),
     source_system: SAFT_SOURCE_SYSTEM,
     source_id: voucherSourceId(journalId, transaction.transactionId),
   }));
@@ -311,9 +333,18 @@ async function importLedger(
   const departmentIds = await fetchIdMap(supabase, "departments", companyId);
   const projectIds = await fetchIdMap(supabase, "projects", companyId);
 
+  // Names of parties recorded without an organisation number. These are known
+  // private individuals, so they can be matched exactly in any description.
+  const knownNames = buildKnownNameMatcher(
+    file.suppliers
+      .filter((s) => looksLikePrivatePerson(s.registrationNumber))
+      .map((s) => s.name)
+  );
+
   const defaultCurrency = file.header.defaultCurrency;
   const lineRows: Record<string, unknown>[] = [];
   const missingAccounts = new Set<string>();
+  let redactedCount = 0;
 
   for (const { journalId, transaction } of transactions) {
     const sourceId = voucherSourceId(journalId, transaction.transactionId);
@@ -327,13 +358,20 @@ async function importLedger(
         line.valueDate ?? transaction.transactionDate;
       if (!transactionDate) return;
 
+      const rawDescription = line.description ?? transaction.description;
+      const description = redactPersonalNames(rawDescription, {
+        knownNames,
+        applyHeuristic: isNameBearingAccount(line.accountId),
+      });
+      if (description !== rawDescription) redactedCount++;
+
       lineRows.push({
         company_id: companyId,
         voucher_id: voucherId,
         gl_account_id: glAccountId,
         account_number: line.accountId,
         transaction_date: transactionDate,
-        description: line.description ?? transaction.description,
+        description,
         amount: line.amount,
         currency: line.currency ?? defaultCurrency,
         currency_amount: line.currencyAmount,
@@ -356,6 +394,23 @@ async function importLedger(
       `${missingAccounts.size} kontonummer i posteringene finnes ikke i kontoplanen ` +
         `(f.eks. ${[...missingAccounts].slice(0, 5).join(", ")}). ` +
         "Posteringene er importert, men uten kobling til konto."
+    );
+  }
+
+  if (redactedCount > 0) {
+    warnings.push(
+      `Personnavn ble maskert i ${redactedCount} beskrivelser på lønns- og ` +
+        "refusjonsposteringer. Beløp, konto og dato er beholdt uendret."
+    );
+  }
+
+  const flaggedSuppliers = file.suppliers.filter((s) =>
+    looksLikePrivatePerson(s.registrationNumber)
+  ).length;
+  if (flaggedSuppliers > 0) {
+    warnings.push(
+      `${flaggedSuppliers} leverandører mangler gyldig organisasjonsnummer og ` +
+        "kan være privatpersoner. De er merket for gjennomgang under Innstillinger."
     );
   }
 

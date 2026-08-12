@@ -1861,6 +1861,8 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          is_anonymised: boolean
+          is_possible_private_person: boolean
           name: string
           org_number: string | null
           phone: string | null
@@ -1877,6 +1879,8 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          is_anonymised?: boolean
+          is_possible_private_person?: boolean
           name: string
           org_number?: string | null
           phone?: string | null
@@ -1893,6 +1897,8 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          is_anonymised?: boolean
+          is_possible_private_person?: boolean
           name?: string
           org_number?: string | null
           phone?: string | null
@@ -2485,7 +2491,6 @@ export const Constants = {
 
 // ─── Named type aliases ─────────────────────────────────────────────────────
 
-// Row types
 export type Company = Tables<"companies">;
 export type User = Tables<"users">;
 export type UserCompanyAccess = Tables<"user_company_access">;
@@ -2529,7 +2534,6 @@ export type KnowledgeArticle = Tables<"knowledge_articles">;
 export type KnowledgeEvaluation = Tables<"knowledge_evaluations">;
 export type ImportRun = Tables<"import_runs">;
 
-// Enum types
 export type AccountingKnowledgeLevel = Enums<"accounting_knowledge_level">;
 export type IntegrationProvider = Enums<"integration_provider">;
 export type SyncStatus = Enums<"sync_status">;
