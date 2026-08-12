@@ -125,7 +125,7 @@ function getMockCashflow(horizonDays: number) {
     8: -42_000, // CloudHost
     13: -680_000, // Payroll
     8.5: 340_000, // Stavanger Tech payment
-    10: 180_000, // Tromso Digital payment
+    10: 180_000, // Tromsø Digital payment
     16: -35_000, // Digital Marketing
     20: -65_000, // Rent
     28: -310_000, // VAT
@@ -174,7 +174,7 @@ function getMockCashflow(horizonDays: number) {
       {
         date: addDays(today, 10),
         amount: 180_000,
-        description: "Tromso Digital AS - Forfalt faktura",
+        description: "Tromsø Digital AS - Forfalt faktura",
         confidence: "estimated",
         source_type: "invoice",
       },
@@ -218,7 +218,7 @@ function getMockCashflow(horizonDays: number) {
       {
         date: addDays(today, 13),
         amount: -680_000,
-        description: "Lonnskjoring august",
+        description: "Lønnskjøring august",
         confidence: "high_confidence",
         source_type: "payroll",
       },
@@ -255,21 +255,21 @@ function getMockCashflow(horizonDays: number) {
       {
         date: addDays(today, 6),
         amount: 89_000,
-        description: "Leverandor: Tekna Systems AS",
+        description: "Leverandør: Tekna Systems AS",
         confidence: "confirmed",
         source_type: "supplier_invoice",
       },
       {
         date: addDays(today, 8),
         amount: 42_000,
-        description: "Leverandor: CloudHost Norge",
+        description: "Leverandør: CloudHost Norge",
         confidence: "confirmed",
         source_type: "supplier_invoice",
       },
       {
         date: addDays(today, 13),
         amount: 680_000,
-        description: "Lonnskjoring august",
+        description: "Lønnskjøring august",
         confidence: "high_confidence",
         source_type: "payroll",
       },

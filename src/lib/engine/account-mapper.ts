@@ -102,31 +102,31 @@ interface KeywordMapping {
 }
 
 /**
- * Norwegian (bokmaal) and English keywords for account name matching.
+ * Norwegian (bokmål) and English keywords for account name matching.
  */
 const KEYWORD_MAPPINGS: KeywordMapping[] = [
   { keywords: ["salgsinntekt", "salg", "omsetning", "revenue", "sales"], categoryKey: "REVENUE", confidence: 0.8 },
-  { keywords: ["varekostnad", "varekjop", "innkjop", "cogs", "cost of goods"], categoryKey: "COGS", confidence: 0.8 },
-  { keywords: ["lonn", "loennskostnad", "salary", "payroll", "wage"], categoryKey: "PAYROLL", confidence: 0.85 },
+  { keywords: ["varekostnad", "varekjøp", "innkjøp", "cogs", "cost of goods"], categoryKey: "COGS", confidence: 0.8 },
+  { keywords: ["lønn", "lønnskostnad", "salary", "payroll", "wage"], categoryKey: "PAYROLL", confidence: 0.85 },
   { keywords: ["feriepenger", "holiday pay"], categoryKey: "PAYROLL", confidence: 0.85 },
   { keywords: ["arbeidsgiveravgift", "aga", "employer tax", "employer contribution"], categoryKey: "EMPLOYER_TAX", confidence: 0.9 },
   { keywords: ["pensjon", "pension", "otp"], categoryKey: "PENSION", confidence: 0.9 },
   { keywords: ["husleie", "leie av lokaler", "rent"], categoryKey: "RENT", confidence: 0.85 },
   { keywords: ["programvare", "software", "it-kostnad", "lisens"], categoryKey: "SOFTWARE_IT", confidence: 0.8 },
-  { keywords: ["markedsfoering", "reklame", "annonse", "marketing", "advertising"], categoryKey: "MARKETING", confidence: 0.8 },
+  { keywords: ["markedsføring", "reklame", "annonse", "marketing", "advertising"], categoryKey: "MARKETING", confidence: 0.8 },
   { keywords: ["reise", "diett", "travel"], categoryKey: "TRAVEL", confidence: 0.8 },
-  { keywords: ["bil", "kjoretoy", "drivstoff", "vehicle", "fuel"], categoryKey: "VEHICLE", confidence: 0.8 },
+  { keywords: ["bil", "kjøretøy", "drivstoff", "vehicle", "fuel"], categoryKey: "VEHICLE", confidence: 0.8 },
   { keywords: ["forsikring", "insurance"], categoryKey: "INSURANCE", confidence: 0.85 },
-  { keywords: ["konsulent", "raadgivning", "consultant"], categoryKey: "CONSULTANTS", confidence: 0.75 },
+  { keywords: ["konsulent", "rådgivning", "consultant"], categoryKey: "CONSULTANTS", confidence: 0.75 },
   { keywords: ["kontor", "rekvisita", "office"], categoryKey: "OFFICE", confidence: 0.75 },
-  { keywords: ["telefon", "mobil", "data", "bredbond", "telecom"], categoryKey: "TELECOM", confidence: 0.8 },
+  { keywords: ["telefon", "mobil", "data", "bredbånd", "telecom"], categoryKey: "TELECOM", confidence: 0.8 },
   { keywords: ["avskrivning", "depreciation", "nedskrivning"], categoryKey: "DEPRECIATION", confidence: 0.9 },
   { keywords: ["rente", "interest"], categoryKey: "INTEREST", confidence: 0.75 },
   { keywords: ["renteinntekt", "interest income"], categoryKey: "INTEREST_INCOME", confidence: 0.8 },
   { keywords: ["skatt", "tax"], categoryKey: "TAX", confidence: 0.7 },
   { keywords: ["bank", "kasse", "kontant", "cash"], categoryKey: "CASH", confidence: 0.7 },
   { keywords: ["kundefordring", "accounts receivable"], categoryKey: "ACCOUNTS_RECEIVABLE", confidence: 0.8 },
-  { keywords: ["leverandoergjeld", "accounts payable"], categoryKey: "ACCOUNTS_PAYABLE", confidence: 0.8 },
+  { keywords: ["leverandørgjeld", "accounts payable"], categoryKey: "ACCOUNTS_PAYABLE", confidence: 0.8 },
   { keywords: ["egenkapital", "equity"], categoryKey: "EQUITY", confidence: 0.8 },
 ];
 

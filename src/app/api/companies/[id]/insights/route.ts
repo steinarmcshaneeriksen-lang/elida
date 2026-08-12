@@ -71,7 +71,7 @@ function getMockInsights() {
         severity: "high",
         title: "Stor kundefordring 45 dager forbi forfall",
         description:
-          "Nordfjord Consulting AS har en faktura pa 185 000 kr (faktura #2024-0087) som er 45 dager forbi forfall. Historisk sett betaler de i snitt 12 dager etter forfall. Vurder purring.",
+          "Nordfjord Consulting AS har en faktura på 185 000 kr (faktura #2024-0087) som er 45 dager forbi forfall. Historisk sett betaler de i snitt 12 dager etter forfall. Vurder purring.",
         metric_current: 185_000,
         metric_reference: null,
         period: null,
@@ -89,9 +89,9 @@ function getMockInsights() {
         id: "mock-ins-2",
         type: "cost_increase",
         severity: "medium",
-        title: "Kontorkostnader har okt 23 % siste kvartal",
+        title: "Kontorkostnader har økt 23 % siste kvartal",
         description:
-          "Kontorkostnader (konto 6300-6399) var 148 000 kr i Q2 mot 120 000 kr i Q1. Storste bidragsyter er okt bruk av programvarelisenser.",
+          "Kontorkostnader (konto 6300-6399) var 148 000 kr i Q2 mot 120 000 kr i Q1. Største bidragsyter er økt bruk av programvarelisenser.",
         metric_current: 148_000,
         metric_reference: 120_000,
         period: "Q2 2026",
@@ -109,16 +109,16 @@ function getMockInsights() {
         id: "mock-ins-3",
         type: "vat_reminder",
         severity: "medium",
-        title: "MVA-termin 10. september naermer seg",
+        title: "MVA-termin 10. september nærmer seg",
         description:
-          "Estimert MVA-betaling for 4. termin (jul-aug) er ca. 310 000 kr. Sorg for at det er nok likviditet. Forrige termin var betalingen 285 000 kr.",
+          "Estimert MVA-betaling for 4. termin (jul-aug) er ca. 310 000 kr. Sørg for at det er nok likviditet. Forrige termin var betalingen 285 000 kr.",
         metric_current: 310_000,
         metric_reference: 285_000,
         period: "4. termin (jul-aug)",
         evidence: [
           {
             type: "calculation",
-            reference: "Beregnet fra bokforte transaksjoner",
+            reference: "Beregnet fra bokførte transaksjoner",
             detail: "Termin 3 var 285 000 kr",
           },
         ],
@@ -129,9 +129,9 @@ function getMockInsights() {
         id: "mock-ins-4",
         type: "revenue_highlight",
         severity: "info",
-        title: "Beste maned hittil: Mai 2026",
+        title: "Beste måned hittil: Mai 2026",
         description:
-          "Mai hadde den hoyeste omsetningen hittil i ar med 1 620 000 kr, 18 % over gjennomsnittet. To store prosjektleveranser bidro til resultatet.",
+          "Mai hadde den høyeste omsetningen hittil i år med 1 620 000 kr, 18 % over gjennomsnittet. To store prosjektleveranser bidro til resultatet.",
         metric_current: 1_620_000,
         metric_reference: 1_370_000,
         period: "Mai 2026",

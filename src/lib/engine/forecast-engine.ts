@@ -489,10 +489,10 @@ export class ForecastEngine {
       effectiveRate: NORWAY_CORPORATE_TAX_RATE,
       confidence: "rough_estimate",
       disclaimer:
-        "Dette er et grovt estimat basert pa resultat for skatt * 22%. " +
+        "Dette er et grovt estimat basert på resultat før skatt * 22%. " +
         "Faktisk skatt kan avvike vesentlig pga. permanente og midlertidige " +
-        "forskjeller, fremforbare underskudd, og andre skattemessige justeringer. " +
-        "Kontakt regnskapsforer for noeyaktig skatteberegning.",
+        "forskjeller, fremførbare underskudd, og andre skattemessige justeringer. " +
+        "Kontakt regnskapsfører for nøyaktig skatteberegning.",
     };
   }
 
@@ -604,7 +604,7 @@ export class ForecastEngine {
       obligations.push({
         date: payment.dueDate,
         category: "supplier_payment",
-        description: `Leverandorbetaling: ${payment.supplierName || payment.invoiceNumber || "Ukjent"}`,
+        description: `Leverandørbetaling: ${payment.supplierName || payment.invoiceNumber || "Ukjent"}`,
         amount: payment.remainingAmount,
         isRecurring: false,
         confidence: "confirmed",
@@ -649,7 +649,7 @@ export class ForecastEngine {
         obligations.push({
           date: formatDate(checkDate),
           category: "payroll",
-          description: "Lonnsutbetaling (estimert)",
+          description: "Lønnsutbetaling (estimert)",
           amount: payrollEstimate.estimatedGrossPayroll,
           isRecurring: true,
           confidence: payrollEstimate.confidence,
@@ -702,7 +702,7 @@ export class ForecastEngine {
         obligations.push({
           date: formatDate(vatDate),
           category: "vat",
-          description: "MVA-oppgjor (estimert)",
+          description: "MVA-oppgjør (estimert)",
           amount: vatEstimate.estimatedSettlement,
           isRecurring: true,
           confidence: "estimated",

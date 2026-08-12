@@ -202,13 +202,13 @@ function buildFinancialsFromTransactions(
 
 function getCostCategory(accountNumber: number): string {
   if (accountNumber >= 4000 && accountNumber < 5000) return "Varekostnad";
-  if (accountNumber >= 5000 && accountNumber < 5200) return "Lonnskostnad";
+  if (accountNumber >= 5000 && accountNumber < 5200) return "Lønnskostnad";
   if (accountNumber >= 5200 && accountNumber < 6000) return "Andre personalkostnader";
   if (accountNumber >= 6000 && accountNumber < 6100) return "Avskrivning";
   if (accountNumber >= 6100 && accountNumber < 6200) return "Leiekostnader";
-  if (accountNumber >= 6200 && accountNumber < 6300) return "Strom og oppvarming";
+  if (accountNumber >= 6200 && accountNumber < 6300) return "Strøm og oppvarming";
   if (accountNumber >= 6300 && accountNumber < 6500) return "Kontorkostnader";
-  if (accountNumber >= 6500 && accountNumber < 6700) return "Utstyr og verktoy";
+  if (accountNumber >= 6500 && accountNumber < 6700) return "Utstyr og verktøy";
   if (accountNumber >= 6700 && accountNumber < 6900) return "IT og programvare";
   if (accountNumber >= 6900 && accountNumber < 7100) return "Telefon og porto";
   if (accountNumber >= 7100 && accountNumber < 7200) return "Reisekostnader";

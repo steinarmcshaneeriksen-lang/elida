@@ -182,7 +182,7 @@ function getMockSummary(
             severity: "high",
             title: "Stor kundefordring 45 dager forbi forfall",
             description:
-              "Nordfjord Consulting AS har en faktura pa 185 000 kr som er 45 dager forbi forfall.",
+              "Nordfjord Consulting AS har en faktura på 185 000 kr som er 45 dager forbi forfall.",
             metric_current: 185_000,
             metric_reference: null,
             period: null,
@@ -192,7 +192,7 @@ function getMockSummary(
             id: "mock-ins-2",
             type: "cost_increase",
             severity: "medium",
-            title: "Kontorkostnader har okt 23 % siste kvartal",
+            title: "Kontorkostnader har økt 23 % siste kvartal",
             description:
               "Kontorkostnader var 148 000 kr i Q2 mot 120 000 kr i Q1.",
             metric_current: 148_000,
@@ -204,7 +204,7 @@ function getMockSummary(
             id: "mock-ins-3",
             type: "vat_reminder",
             severity: "medium",
-            title: "MVA-termin neste maned",
+            title: "MVA-termin neste måned",
             description:
               "Estimert MVA-betaling for 4. termin er ca. 310 000 kr.",
             metric_current: 310_000,

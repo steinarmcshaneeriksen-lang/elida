@@ -174,7 +174,7 @@ export class InsightEngine {
           title_nb: "Driftsmarginen har falt",
           description_nb:
             `Driftsmarginen falt fra ${previousMargin.toFixed(1)}% ` +
-            `til ${currentMargin.toFixed(1)}%, en nedgang pa ` +
+            `til ${currentMargin.toFixed(1)}%, en nedgang på ` +
             `${marginDrop.toFixed(1)} prosentpoeng.`,
           metric_current: currentMargin,
           metric_reference: previousMargin,
@@ -200,10 +200,10 @@ export class InsightEngine {
       insights.push({
         type: "PAYROLL_GROWING_FASTER",
         severity: "medium",
-        title_nb: "Lonnskostnadene vokser raskere enn omsetningen",
+        title_nb: "Lønnskostnadene vokser raskere enn omsetningen",
         description_nb:
-          `Lonnskostnadene okte ${payrollGrowth.toFixed(1)}% mens ` +
-          `omsetningen ${revenueChange > 0 ? "okte" : "falt"} ` +
+          `Lønnskostnadene økte ${payrollGrowth.toFixed(1)}% mens ` +
+          `omsetningen ${revenueChange > 0 ? "økte" : "falt"} ` +
           `${Math.abs(revenueChange).toFixed(1)}%. ` +
           `Differansen er ${(payrollGrowth - (revenueChange > 0 ? revenueChange : 0)).toFixed(1)} prosentpoeng.`,
         metric_current: currentPersonnel.total,
@@ -231,9 +231,9 @@ export class InsightEngine {
         insights.push({
           type: "HIGH_OVERDUE_RECEIVABLES",
           severity: overduePercent > 40 ? "high" : "medium",
-          title_nb: "Hoy andel forfalte kundefordringer",
+          title_nb: "Høy andel forfalte kundefordringer",
           description_nb:
-            `${overduePercent.toFixed(1)}% av utestande kundefordringer er forfalt ` +
+            `${overduePercent.toFixed(1)}% av utestående kundefordringer er forfalt ` +
             `(kr ${receivablesSummary.totalOverdue.toLocaleString("nb-NO")} ` +
             `av kr ${receivablesSummary.totalOutstanding.toLocaleString("nb-NO")}).`,
           metric_current: receivablesSummary.totalOverdue,
@@ -266,12 +266,12 @@ export class InsightEngine {
         insights.push({
           type: "CUSTOMER_CONCENTRATION",
           severity: concentrationPercent > 50 ? "high" : "medium",
-          title_nb: "Hoy kundeavhengighet",
+          title_nb: "Høy kundeavhengighet",
           description_nb:
-            `Kunde "${topCustomer.customerName}" star for ` +
+            `Kunde "${topCustomer.customerName}" står for ` +
             `${concentrationPercent.toFixed(1)}% av omsetningen ` +
             `(kr ${topCustomer.amount.toLocaleString("nb-NO")}). ` +
-            `Dette gir hoy risiko ved kundefrafall.`,
+            `Dette gir høy risiko ved kundefrafall.`,
           metric_current: topCustomer.amount,
           metric_reference: currentRevenue.amount,
           evidence: {
@@ -301,7 +301,7 @@ export class InsightEngine {
           description_nb:
             `Estimert kontantbeholdning om ${cashForecast.horizonDays} dager er ` +
             `kr ${cashForecast.estimatedFutureCash.toLocaleString("nb-NO")}, ` +
-            `som er under terskelverdi pa kr ${threshold.toLocaleString("nb-NO")}.`,
+            `som er under terskelverdi på kr ${threshold.toLocaleString("nb-NO")}.`,
           metric_current: cashForecast.estimatedFutureCash,
           metric_reference: threshold,
           evidence: {
@@ -330,7 +330,7 @@ export class InsightEngine {
           description_nb:
             `Estimert kontantbeholdning om ${cashForecast.horizonDays} dager er ` +
             `kr ${cashForecast.estimatedFutureCash.toLocaleString("nb-NO")}. ` +
-            `Det kan oppsta likviditetsproblemer.`,
+            `Det kan oppstå likviditetsproblemer.`,
           metric_current: cashForecast.estimatedFutureCash,
           metric_reference: 0,
           evidence: {
@@ -359,9 +359,9 @@ export class InsightEngine {
         insights.push({
           type: "COST_INCREASE",
           severity: costChange > 50 ? "high" : "medium",
-          title_nb: `Stor okning i ${currentCost.categoryNameNb.toLowerCase()}`,
+          title_nb: `Stor økning i ${currentCost.categoryNameNb.toLowerCase()}`,
           description_nb:
-            `${currentCost.categoryNameNb} okte ${costChange.toFixed(1)}% ` +
+            `${currentCost.categoryNameNb} økte ${costChange.toFixed(1)}% ` +
             `fra kr ${prevCost.amount.toLocaleString("nb-NO")} ` +
             `til kr ${currentCost.amount.toLocaleString("nb-NO")}.`,
           metric_current: currentCost.amount,
@@ -386,7 +386,7 @@ export class InsightEngine {
           severity: deficit > currentLiabilities * 0.5 ? "critical" : "high",
           title_nb: "Negativ arbeidskapital",
           description_nb:
-            `Omlopsmidler (kr ${currentAssets.toLocaleString("nb-NO")}) er lavere enn ` +
+            `Omløpsmidler (kr ${currentAssets.toLocaleString("nb-NO")}) er lavere enn ` +
             `kortsiktig gjeld (kr ${currentLiabilities.toLocaleString("nb-NO")}). ` +
             `Differansen er kr ${deficit.toLocaleString("nb-NO")}.`,
           metric_current: currentAssets,
