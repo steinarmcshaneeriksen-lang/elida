@@ -25,15 +25,23 @@ interface CustomerDetail {
   last_activity: string | null;
   monthly_revenue: Array<{ month: string; amount: number }>;
   products: Array<{ description: string; amount: number; count: number }>;
-  postings: Array<{
-    id: string;
+  events: Array<{
+    voucher_id: string | null;
+    voucher_number: number | null;
     date: string;
-    account_number: string;
-    account_name: string | null;
+    type: "invoice" | "credit_note" | "payment" | "other";
+    summary: string;
     amount: number;
-    description: string | null;
+    settles_count: number;
   }>;
 }
+
+const EVENT_LABELS: Record<string, { label: string; className: string }> = {
+  invoice: { label: "Faktura", className: "bg-primary-100 text-primary" },
+  credit_note: { label: "Kreditnota", className: "bg-warning-light text-warning" },
+  payment: { label: "Innbetaling", className: "bg-success-light text-success" },
+  other: { label: "Postering", className: "bg-surface-hover text-foreground-muted" },
+};
 
 const MONTHS = [
   "jan", "feb", "mar", "apr", "mai", "jun",
@@ -268,47 +276,61 @@ export default function KundeDetaljPage() {
             </section>
           )}
 
-          {data.postings.length > 0 && (
+          {data.events.length > 0 && (
             <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow)]">
               <h3 className="border-b border-border px-5 py-3 text-sm font-semibold text-foreground">
-                Posteringer på kundefordring
+                Fakturaer og innbetalinger
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-foreground-muted">
                       <th className="px-5 py-2.5 font-medium">Dato</th>
-                      <th className="px-5 py-2.5 font-medium">Konto</th>
-                      <th className="px-5 py-2.5 font-medium">Beskrivelse</th>
-                      <th className="px-5 py-2.5 text-right font-medium">
-                        Beløp
-                      </th>
+                      <th className="px-5 py-2.5 font-medium">Type</th>
+                      <th className="px-5 py-2.5 font-medium">Bilag</th>
+                      <th className="px-5 py-2.5 font-medium">Gjelder</th>
+                      <th className="px-5 py-2.5 text-right font-medium">Beløp</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.postings.map((p) => (
-                      <tr
-                        key={p.id}
-                        className="border-b border-border-light last:border-0"
-                      >
-                        <td className="whitespace-nowrap px-5 py-2.5 tabular-nums text-foreground-secondary">
-                          {formatDateShort(p.date)}
-                        </td>
-                        <td className="whitespace-nowrap px-5 py-2.5 text-foreground-muted">
-                          {p.account_number} {p.account_name ?? ""}
-                        </td>
-                        <td className="px-5 py-2.5 text-foreground">
-                          {p.description ?? "—"}
-                        </td>
-                        <td
-                          className={`whitespace-nowrap px-5 py-2.5 text-right tabular-nums ${
-                            p.amount >= 0 ? "text-foreground" : "text-success"
-                          }`}
+                    {data.events.map((e) => {
+                      const label = EVENT_LABELS[e.type] ?? EVENT_LABELS.other;
+                      return (
+                        <tr
+                          key={`${e.voucher_id}-${e.date}`}
+                          className="border-b border-border-light last:border-0"
                         >
-                          {formatCurrency(p.amount)}
-                        </td>
-                      </tr>
-                    ))}
+                          <td className="whitespace-nowrap px-5 py-2.5 tabular-nums text-foreground-secondary">
+                            {formatDateShort(e.date)}
+                          </td>
+                          <td className="whitespace-nowrap px-5 py-2.5">
+                            <span
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${label.className}`}
+                            >
+                              {label.label}
+                            </span>
+                          </td>
+                          <td className="whitespace-nowrap px-5 py-2.5 tabular-nums text-foreground-muted">
+                            {e.voucher_number ?? "—"}
+                          </td>
+                          <td className="px-5 py-2.5 text-foreground">
+                            {e.summary}
+                            {e.type === "payment" && e.settles_count > 1 && (
+                              <span className="ml-1 text-xs text-foreground-muted">
+                                (dekker {e.settles_count} fakturaer)
+                              </span>
+                            )}
+                          </td>
+                          <td
+                            className={`whitespace-nowrap px-5 py-2.5 text-right font-medium tabular-nums ${
+                              e.amount < 0 ? "text-success" : "text-foreground"
+                            }`}
+                          >
+                            {formatCurrency(Math.abs(e.amount))}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

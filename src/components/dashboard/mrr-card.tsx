@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/format";
 export interface MrrMonth {
   month: string;
   recurring: number;
+  normalised: number;
   one_off: number;
   total: number;
   is_complete: boolean;
@@ -17,6 +18,8 @@ export interface MrrData {
   mrr: {
     month: string;
     value: number;
+    billed_value: number;
+    based_on_product_list: boolean;
     previous_value: number | null;
     change_percent: number | null;
     arr: number;
@@ -60,7 +63,7 @@ export function MrrCard({ data }: { data: MrrData }) {
   const up = (mrr.change_percent ?? 0) > 0.5;
   const down = (mrr.change_percent ?? 0) < -0.5;
 
-  const max = Math.max(...months.map((m) => m.recurring), 1);
+  const max = Math.max(...months.map((m) => m.normalised), 1);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
@@ -113,6 +116,17 @@ export function MrrCard({ data }: { data: MrrData }) {
             {longMonth(mrr.month)} — siste fullstendige måned.{" "}
             {mrr.recurring_share} % av omsetningen den måneden.
           </p>
+          <p className="mt-1 text-xs text-foreground-muted">
+            {mrr.based_on_product_list
+              ? "Basert på produktlisten din. "
+              : "Utledet fra posteringstekst — last opp produktlisten for et sikrere tall. "}
+            Kvartals- og årskontrakter er fordelt ned på måned
+            {mrr.billed_value !== mrr.value
+              ? ` (fakturert i måneden: ${formatCurrency(mrr.billed_value)})`
+              : ""}
+            . Kontrakter som ikke er fakturert innenfor perioden i filen er
+            ikke med.
+          </p>
         </div>
 
         <div className="flex gap-6">
@@ -138,7 +152,7 @@ export function MrrCard({ data }: { data: MrrData }) {
               <div
                 key={m.month}
                 className="group flex flex-1 flex-col items-center gap-1"
-                title={`${longMonth(m.month)}: ${formatCurrency(m.recurring)}${
+                title={`${longMonth(m.month)}: ${formatCurrency(m.normalised)}${
                   m.is_complete ? "" : " (ufullstendig måned)"
                 }`}
               >
@@ -150,7 +164,7 @@ export function MrrCard({ data }: { data: MrrData }) {
                         "bg-accent/30 outline outline-1 outline-dashed outline-accent/50"
                   }`}
                   style={{
-                    height: `${Math.max(4, (m.recurring / max) * 100)}%`,
+                    height: `${Math.max(4, (m.normalised / max) * 100)}%`,
                   }}
                 />
                 <span className="text-[10px] text-foreground-muted">

@@ -33,16 +33,33 @@ export async function GET(
         one_off: number;
         total: number;
         is_complete: boolean;
+        normalised_mrr: number;
       }> | null;
     };
 
     const months = (data ?? []).map((m) => ({
       month: m.month,
+      // Billed in the month, before spreading non-monthly contracts.
       recurring: Number(m.recurring),
+      // Each contract divided by the interval at which it is invoiced, which
+      // is the figure a subscription business calls MRR.
+      normalised: Number(m.normalised_mrr),
       one_off: Number(m.one_off),
       total: Number(m.total),
       is_complete: m.is_complete,
     }));
+
+    // Whether the split rests on the company's own product list or on
+    // inference decides how much weight the figure carries.
+    const { data: productRows } = (await supabase
+      .from("products")
+      .select("id, is_recurring")
+      .eq("company_id", companyId)
+      .limit(500)) as {
+      data: Array<{ id: string; is_recurring: boolean }> | null;
+    };
+
+    const basedOnProductList = (productRows ?? []).some((p) => p.is_recurring);
 
     const complete = months.filter((m) => m.is_complete);
 
@@ -58,29 +75,31 @@ export async function GET(
     const previous = complete[complete.length - 2] ?? null;
 
     const change =
-      previous && previous.recurring > 0
-        ? ((current.recurring - previous.recurring) / previous.recurring) * 100
+      previous && previous.normalised > 0
+        ? ((current.normalised - previous.normalised) / previous.normalised) * 100
         : null;
 
     // Averaging the last three complete months damps the month-to-month
     // noise a single billing run can cause.
     const window = complete.slice(-3);
     const average =
-      window.reduce((t, m) => t + m.recurring, 0) / window.length;
+      window.reduce((t, m) => t + m.normalised, 0) / window.length;
 
     return NextResponse.json({
       has_data: true,
       mrr: {
         month: current.month,
-        value: current.recurring,
-        previous_value: previous?.recurring ?? null,
+        value: current.normalised,
+        billed_value: current.recurring,
+        based_on_product_list: basedOnProductList,
+        previous_value: previous?.normalised ?? null,
         change_percent: change != null ? Math.round(change * 10) / 10 : null,
         // Annual run rate, not booked annual revenue.
-        arr: current.recurring * 12,
+        arr: current.normalised * 12,
         average_3m: Math.round(average),
         recurring_share:
           current.total > 0
-            ? Math.round((current.recurring / current.total) * 100)
+            ? Math.round((current.normalised / current.total) * 100)
             : 0,
       },
       months,

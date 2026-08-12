@@ -35,11 +35,18 @@ function asArray(value: unknown): Node[] {
   return (Array.isArray(value) ? value : [value]) as Node[];
 }
 
+/**
+ * Placeholders some systems write where a value is absent. Carrying them
+ * through means "NA" ends up displayed as if it were a description.
+ */
+const NULL_PLACEHOLDERS = new Set(["na", "n/a", "-", "--", "null", "none", "."]);
+
 function str(value: unknown): string | null {
   if (value == null) return null;
   if (typeof value === "object") return null;
   const s = String(value).trim();
-  return s === "" ? null : s;
+  if (s === "") return null;
+  return NULL_PLACEHOLDERS.has(s.toLowerCase()) ? null : s;
 }
 
 function num(value: unknown): number | null {

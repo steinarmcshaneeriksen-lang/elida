@@ -2,6 +2,108 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 
+interface VoucherLine {
+  voucher_id: string | null;
+  transaction_date: string;
+  amount: number;
+  description: string | null;
+  account_number: string;
+  vouchers: { voucher_number: number | null; voucher_date: string | null } | null;
+}
+
+export interface LedgerEvent {
+  voucher_id: string | null;
+  voucher_number: number | null;
+  date: string;
+  type: "invoice" | "credit_note" | "payment" | "other";
+  /** What was sold, or how the payment settled. */
+  summary: string;
+  lines: string[];
+  /** Movement on the receivable: positive raises it, negative settles it. */
+  amount: number;
+  settles_count: number;
+}
+
+/**
+ * Turns raw ledger lines into the events a person recognises — an invoice for
+ * something, a credit note, a payment covering several invoices.
+ *
+ * The account and a placeholder description repeated on every row say nothing.
+ * What the voucher contains does: revenue lines name what was sold, a bank
+ * line means money arrived, and the number of receivable lines in a payment
+ * says how many invoices it cleared.
+ */
+function buildLedgerEvents(
+  receivableRows: Array<{ voucher_id: string | null; transaction_date: string; amount: number }>,
+  allLines: VoucherLine[]
+): LedgerEvent[] {
+  const byVoucher = new Map<string, VoucherLine[]>();
+  for (const line of allLines) {
+    if (!line.voucher_id) continue;
+    const bucket = byVoucher.get(line.voucher_id);
+    if (bucket) bucket.push(line);
+    else byVoucher.set(line.voucher_id, [line]);
+  }
+
+  const events = new Map<string, LedgerEvent>();
+
+  for (const row of receivableRows) {
+    if (!row.voucher_id) continue;
+
+    const existing = events.get(row.voucher_id);
+    if (existing) {
+      existing.amount += row.amount;
+      existing.settles_count++;
+      continue;
+    }
+
+    const lines = byVoucher.get(row.voucher_id) ?? [];
+    const inRange = (line: VoucherLine, from: number, to: number) => {
+      const account = parseInt(line.account_number, 10);
+      return account >= from && account <= to;
+    };
+
+    const revenue = lines.filter((l) => inRange(l, 3000, 3999));
+    const bank = lines.filter((l) => inRange(l, 1900, 1999));
+
+    // Revenue credited raises an invoice; revenue debited reverses one.
+    const revenueTotal = revenue.reduce((t, l) => t + l.amount, 0);
+
+    let type: LedgerEvent["type"] = "other";
+    if (revenue.length > 0 && revenueTotal < 0) type = "invoice";
+    else if (revenue.length > 0 && revenueTotal > 0) type = "credit_note";
+    else if (bank.length > 0) type = "payment";
+
+    const soldItems = [
+      ...new Set(
+        revenue
+          .map((l) => l.description?.trim())
+          .filter((d): d is string => Boolean(d))
+      ),
+    ];
+
+    const voucher = lines.find((l) => l.vouchers)?.vouchers ?? null;
+
+    events.set(row.voucher_id, {
+      voucher_id: row.voucher_id,
+      voucher_number: voucher?.voucher_number ?? null,
+      date: row.transaction_date,
+      type,
+      summary:
+        soldItems.length > 0
+          ? soldItems.join(", ")
+          : type === "payment"
+            ? "Innbetaling"
+            : "—",
+      lines: soldItems,
+      amount: row.amount,
+      settles_count: 1,
+    });
+  }
+
+  return [...events.values()].sort((a, b) => b.date.localeCompare(a.date));
+}
+
 /**
  * GET /api/companies/[id]/customers/[customerId]
  *
@@ -74,28 +176,27 @@ export async function GET(
       ...new Set(rows.map((r) => r.voucher_id).filter(Boolean)),
     ] as string[];
 
-    let revenueRows: Array<{
-      transaction_date: string;
-      amount: number;
-      description: string | null;
-    }> = [];
+    // Every line on the customer's vouchers, so an event can be told apart:
+    // an invoice carries revenue lines, a payment carries a bank line.
+    let voucherLines: VoucherLine[] = [];
 
     if (voucherIds.length > 0) {
       const { data } = (await supabase
         .from("account_transactions")
-        .select("transaction_date, amount, description, account_number")
+        .select(
+          "voucher_id, transaction_date, amount, description, account_number, vouchers(voucher_number, voucher_date)"
+        )
         .eq("company_id", companyId)
-        .in("voucher_id", voucherIds.slice(0, 200))
-        .gte("account_number", "3000")
-        .lt("account_number", "4000")) as {
-        data: Array<{
-          transaction_date: string;
-          amount: number;
-          description: string | null;
-        }> | null;
+        .in("voucher_id", voucherIds.slice(0, 300))) as {
+        data: VoucherLine[] | null;
       };
-      revenueRows = data ?? [];
+      voucherLines = data ?? [];
     }
+
+    const revenueRows = voucherLines.filter((l) => {
+      const account = parseInt(l.account_number, 10);
+      return account >= 3000 && account <= 3999;
+    });
 
     const revenue = revenueRows.reduce((t, r) => t - r.amount, 0);
 
@@ -150,14 +251,7 @@ export async function GET(
         }))
         .sort((a, b) => b.amount - a.amount)
         .slice(0, 15),
-      postings: rows.slice(0, 50).map((r) => ({
-        id: r.id,
-        date: r.transaction_date,
-        account_number: r.account_number,
-        account_name: r.gl_accounts?.name ?? null,
-        amount: r.amount,
-        description: r.description,
-      })),
+      events: buildLedgerEvents(rows, voucherLines),
     });
   } catch (error) {
     console.error("Customer detail API error:", error);
