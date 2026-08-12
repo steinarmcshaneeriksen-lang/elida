@@ -47,7 +47,7 @@ export interface AccountingQuery {
 
   /**
    * An explicit question the user typed, e.g.
-   * "Skal dette aktiveres eller kostnadsfoeres?"
+   * "Skal dette aktiveres eller kostnadsføres?"
    */
   userQuestion?: string;
 }

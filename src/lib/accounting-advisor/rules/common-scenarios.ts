@@ -55,18 +55,18 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       code: "1",
       deductible: true,
       notes_nb:
-        "Norsk leverandoer: 25 % MVA med fradrag. " +
-        "Utenlandsk leverandoer: snudd avregning (reverse charge), " +
-        "beregn 25 % utgaaende MVA og krev tilsvarende fradrag.",
+        "Norsk leverandør: 25 % MVA med fradrag. " +
+        "Utenlandsk leverandør: snudd avregning (reverse charge), " +
+        "beregn 25 % utgående MVA og krev tilsvarende fradrag.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Loepende SaaS-abonnementer kostnadsfoeres. " +
-      "Aarsabonnementer over vesentlighetsgrensen bor periodiseres. " +
-      "Engangs-programvarelisenser over kr 15 000 kan maatte aktiveres.",
+      "Løpende SaaS-abonnementer kostnadsføres. " +
+      "Årsabonnementer over vesentlighetsgrensen bør periodiseres. " +
+      "Engangs-programvarelisenser over kr 15 000 kan måtte aktiveres.",
     conditions_nb:
-      "Sjekk om leverandoer er norsk eller utenlandsk for korrekt MVA-behandling.",
+      "Sjekk om leverandør er norsk eller utenlandsk for korrekt MVA-behandling.",
   },
   {
     id: "scenario-computer-under-threshold",
@@ -91,7 +91,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     ],
     typical_accounts: [
       { number: "6550", name: "Datautstyr" },
-      { number: "6500", name: "Verktoy, inventar og driftsmaterialer" },
+      { number: "6500", name: "Verktøy, inventar og driftsmaterialer" },
     ],
     vat_treatment: {
       rate: 25,
@@ -102,7 +102,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Datautstyr under kr 15 000 ekskl. MVA kostnadsfoeres direkte. " +
+      "Datautstyr under kr 15 000 ekskl. MVA kostnadsføres direkte. " +
       "Husk at like gjenstander kjøpt samtidig kan vurderes samlet.",
   },
   {
@@ -124,13 +124,13 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       rate: 25,
       code: "1",
       deductible: true,
-      notes_nb: "Full MVA-fradrag. MVA beregnes paa nettopris.",
+      notes_nb: "Full MVA-fradrag. MVA beregnes på nettopris.",
     },
     treatment: "capitalize",
     risk_level: "low",
     notes_nb:
-      "Datautstyr over kr 15 000 ekskl. MVA med levetid over 3 aar " +
-      "aktiveres paa balansen og avskrives med inntil 30 % (saldogruppe a).",
+      "Datautstyr over kr 15 000 ekskl. MVA med levetid over 3 år " +
+      "aktiveres på balansen og avskrives med inntil 30 % (saldogruppe a).",
   },
 
   // ── Office & supplies ────────────────────────────────────────────────
@@ -161,13 +161,13 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     },
     treatment: "expense",
     risk_level: "low",
-    notes_nb: "Kostnadsfoeres direkte.",
+    notes_nb: "Kostnadsføres direkte.",
   },
 
   // ── Telecom ──────────────────────────────────────────────────────────
   {
     id: "scenario-telecom",
-    name_nb: "Telefon og bredbaand",
+    name_nb: "Telefon og bredbånd",
     keywords: [
       "telefon",
       "mobil",
@@ -194,13 +194,13 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       code: "1",
       deductible: true,
       notes_nb:
-        "Full MVA-fradrag for abonnement brukt i naeringsvirksomhet. " +
-        "Ved privat bruk av firmamobil: arbeidsgiver maa beskatte fordelen, " +
+        "Full MVA-fradrag for abonnement brukt i næringsvirksomhet. " +
+        "Ved privat bruk av firmamobil: arbeidsgiver må beskatte fordelen, " +
         "men MVA-fradrag er normalt fullt.",
     },
     treatment: "expense",
     risk_level: "low",
-    notes_nb: "Kostnadsfoeres loepende.",
+    notes_nb: "Kostnadsføres løpende.",
   },
 
   // ── Travel ───────────────────────────────────────────────────────────
@@ -243,9 +243,9 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Reisekostnader kostnadsfoeres direkte. " +
-      "Husk formaalsdokumentasjon: formaal, reisemaal, tidsrom. " +
-      "Diett og nattillegg kan vaere oppgavepliktig (konto 7150).",
+      "Reisekostnader kostnadsføres direkte. " +
+      "Husk formålsdokumentasjon: formål, reisemål, tidsrom. " +
+      "Diett og nattillegg kan være oppgavepliktig (konto 7150).",
   },
 
   // ── Representation ──────────────────────────────────────────────────
@@ -276,14 +276,14 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       notes_nb:
         "INGEN MVA-fradrag for representasjon. " +
         "Skattemessig fradrag begrenset til kr 551 per person per tilstelning. " +
-        "Dokumentasjonskrav: deltakerliste, formaal, sted og dato.",
+        "Dokumentasjonskrav: deltakerliste, formål, sted og dato.",
     },
     treatment: "expense",
     risk_level: "medium",
     notes_nb:
-      "Krev alltid dokumentasjon med deltakerliste og forretningsformaal. " +
-      "Overskytende beloep er ikke fradragsberettiget skattemessig. " +
-      "Enkel bevertning (kaffe, kaker) i forbindelse med moeter " +
+      "Krev alltid dokumentasjon med deltakerliste og forretningsformål. " +
+      "Overskytende beløp er ikke fradragsberettiget skattemessig. " +
+      "Enkel bevertning (kaffe, kaker) i forbindelse med møter " +
       "regnes IKKE som representasjon og gir fullt MVA-fradrag.",
     conditions_nb:
       "Skillet mellom enkel bevertning og representasjon er viktig. " +
@@ -316,20 +316,20 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       deductible: true,
       notes_nb:
         "MVA-fradrag for rimelige velferdstiltak for alle ansatte. " +
-        "Gjelder ogsaa alkohol servert ved slike arrangementer.",
+        "Gjelder også alkohol servert ved slike arrangementer.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
       "Velferdsarrangementer for alle ansatte er fradragsberettiget. " +
-      "Maa vaere rimelig omfang og inkludere alle/en gruppe ansatte. " +
+      "Må være rimelig omfang og inkludere alle/en gruppe ansatte. " +
       "Private arrangementer for enkeltpersoner gir ikke fradrag.",
   },
 
   // ── Marketing ────────────────────────────────────────────────────────
   {
     id: "scenario-marketing",
-    name_nb: "Markedsfoering og reklame",
+    name_nb: "Markedsføring og reklame",
     keywords: [
       "markedsfoering",
       "reklame",
@@ -350,7 +350,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       "utstilling",
     ],
     typical_accounts: [
-      { number: "7300", name: "Markedsfoering og reklame" },
+      { number: "7300", name: "Markedsføring og reklame" },
     ],
     vat_treatment: {
       rate: 25,
@@ -620,7 +620,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     ],
     typical_accounts: [
       { number: "5900", name: "Andre personalkostnader" },
-      { number: "6500", name: "Verktoy, inventar og driftsmaterialer" },
+      { number: "6500", name: "Verktøy, inventar og driftsmaterialer" },
     ],
     vat_treatment: {
       rate: 25,
