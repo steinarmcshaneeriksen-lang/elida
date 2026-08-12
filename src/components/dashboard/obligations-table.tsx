@@ -1,7 +1,16 @@
 "use client";
 
 import { formatCurrency, formatDateShort } from "@/lib/format";
-import type { Obligation } from "@/lib/mock-data";
+export type ObligationStatus = "Estimert" | "Bokført";
+
+export interface Obligation {
+  id: string;
+  event: string;
+  amount: number;
+  expectedDate: string;
+  status: ObligationStatus;
+  category: string;
+}
 
 interface ObligationsTableProps {
   obligations: Obligation[];

@@ -84,6 +84,7 @@ export async function GET(
         }));
 
       return NextResponse.json({
+        has_data: true,
         starting_cash: (forecast.summary as Record<string, unknown>).starting_cash ?? 0,
         horizon_days: forecast.horizon_days,
         forecast_date: forecast.forecast_date,
@@ -105,6 +106,9 @@ export async function GET(
       calculated_at: new Date().toISOString(),
       confidence: "no_data",
       daily_forecast: [],
+      inflows: [],
+      outflows: [],
+      obligations: [],
     });
   } catch (error) {
     console.error("Cashflow API error:", error);

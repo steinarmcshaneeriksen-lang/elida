@@ -60,6 +60,7 @@ export async function GET(
         compTransactions ?? []
       );
       return NextResponse.json({
+        has_data: true,
         period_start: periodStart,
         period_end: periodEnd,
         comparison_start: comparisonStart,
@@ -172,7 +173,36 @@ function buildFinancialsFromTransactions(
     }
   }
 
+  // Monthly series for the revenue chart, ordered oldest to newest.
+  const monthlyMap = new Map<
+    string,
+    { revenue: number; costs: number }
+  >();
+  for (const t of transactions) {
+    if (!t.transaction_date) continue;
+    const month = t.transaction_date.slice(0, 7);
+    const acct = parseInt(t.account_number, 10);
+    const entry = monthlyMap.get(month) ?? { revenue: 0, costs: 0 };
+
+    if (acct >= ACCOUNT_CLASSES.REVENUE.from && acct <= ACCOUNT_CLASSES.REVENUE.to) {
+      entry.revenue += Math.abs(t.amount);
+    } else if (acct >= 4000 && acct < 8000) {
+      entry.costs += Math.abs(t.amount);
+    }
+    monthlyMap.set(month, entry);
+  }
+
+  const monthly = [...monthlyMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, v]) => ({
+      month,
+      revenue: v.revenue,
+      costs: v.costs,
+      profit: v.revenue - v.costs,
+    }));
+
   return {
+    monthly,
     revenue: {
       total: revenue,
       previous_period_total: compRevenue,

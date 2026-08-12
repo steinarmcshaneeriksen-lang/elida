@@ -44,9 +44,11 @@ export default function TransaksjonerPage() {
   const [activeSearch, setActiveSearch] = useState("");
   const [page, setPage] = useState(1);
 
-  const [data, setData] = useState<TransactionsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{
+    key: string;
+    data: TransactionsResponse | null;
+    error: string | null;
+  } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -56,16 +58,13 @@ export default function TransaksjonerPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  useEffect(() => {
-    if (isLoadingUser) return;
-    if (!companyId) {
-      setIsLoading(false);
-      return;
-    }
+  const key = companyId
+    ? `${companyId}:${page}:${activeSearch}`
+    : null;
 
+  useEffect(() => {
+    if (!key || !companyId) return;
     let cancelled = false;
-    setIsLoading(true);
-    setError(null);
 
     async function load() {
       try {
@@ -82,20 +81,29 @@ export default function TransaksjonerPage() {
 
         if (!res.ok) {
           const body = await res.json().catch(() => null);
-          setError(body?.error ?? `Forespørselen feilet (${res.status})`);
+          if (!cancelled) {
+            setResult({
+              key: key!,
+              data: null,
+              error: body?.error ?? `Forespørselen feilet (${res.status})`,
+            });
+          }
           return;
         }
 
         const json = (await res.json()) as TransactionsResponse;
-        if (!cancelled) setData(json);
+        if (!cancelled) setResult({ key: key!, data: json, error: null });
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error ? err.message : "Kunne ikke hente transaksjoner"
-          );
+          setResult({
+            key: key!,
+            data: null,
+            error:
+              err instanceof Error
+                ? err.message
+                : "Kunne ikke hente transaksjoner",
+          });
         }
-      } finally {
-        if (!cancelled) setIsLoading(false);
       }
     }
 
@@ -103,7 +111,13 @@ export default function TransaksjonerPage() {
     return () => {
       cancelled = true;
     };
-  }, [companyId, page, activeSearch, isLoadingUser]);
+  }, [key, companyId, page, activeSearch]);
+
+  // Derived, so the effect never writes loading state synchronously.
+  const isFresh = result?.key === key;
+  const isLoading = isLoadingUser || (key != null && !isFresh);
+  const data = isFresh ? result.data : null;
+  const error = isFresh ? result.error : null;
 
   const transactions = data?.transactions ?? [];
   const total = data?.pagination.total ?? 0;

@@ -11,6 +11,13 @@ interface CompanyDataState<T> {
   isEmpty: boolean;
 }
 
+interface Result<T> {
+  /** Identifies which request produced this result. */
+  key: string;
+  data: T | null;
+  error: string | null;
+}
+
 /**
  * Fetches a company-scoped API endpoint for the signed-in user's company.
  *
@@ -27,21 +34,12 @@ export function useCompanyData<T = unknown>(
   const { company, isLoading: isLoadingUser } = useUser();
   const companyId = company?.id;
 
-  const [data, setData] = useState<T | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const key = companyId ? `${companyId}/${path}` : null;
+  const [result, setResult] = useState<Result<T> | null>(null);
 
   useEffect(() => {
-    if (isLoadingUser) return;
-
-    if (!companyId) {
-      setIsLoading(false);
-      return;
-    }
-
+    if (!key || !companyId) return;
     let cancelled = false;
-    setIsLoading(true);
-    setError(null);
 
     async function load() {
       try {
@@ -49,28 +47,33 @@ export function useCompanyData<T = unknown>(
         const res = await fetch(
           `/api/companies/${companyId}/${path}${separator}_=${Date.now()}`
         );
-
         if (cancelled) return;
 
         if (!res.ok) {
           const body = await res.json().catch(() => null);
-          setError(body?.error ?? `Forespørselen feilet (${res.status})`);
-          setData(null);
+          if (!cancelled) {
+            setResult({
+              key: key!,
+              data: null,
+              error: body?.error ?? `Forespørselen feilet (${res.status})`,
+            });
+          }
           return;
         }
 
         const json = (await res.json()) as T;
-        if (!cancelled) setData(json);
+        if (!cancelled) setResult({ key: key!, data: json, error: null });
       } catch (err) {
         if (!cancelled) {
-          setError(
-            err instanceof Error
-              ? err.message
-              : "Kunne ikke koble til. Sjekk nettforbindelsen."
-          );
+          setResult({
+            key: key!,
+            data: null,
+            error:
+              err instanceof Error
+                ? err.message
+                : "Kunne ikke koble til. Sjekk nettforbindelsen.",
+          });
         }
-      } finally {
-        if (!cancelled) setIsLoading(false);
       }
     }
 
@@ -78,7 +81,14 @@ export function useCompanyData<T = unknown>(
     return () => {
       cancelled = true;
     };
-  }, [companyId, path, isLoadingUser]);
+  }, [key, companyId, path]);
+
+  // Derived rather than stored, so no state is written during the effect body.
+  const isFresh = result?.key === key;
+  const isLoading = isLoadingUser || (key != null && !isFresh);
+
+  const data = isFresh ? result.data : null;
+  const error = isFresh ? result.error : null;
 
   const isEmpty =
     !isLoading &&
@@ -86,5 +96,5 @@ export function useCompanyData<T = unknown>(
     data != null &&
     (data as { has_data?: boolean }).has_data === false;
 
-  return { data, isLoading: isLoading || isLoadingUser, error, isEmpty, companyId };
+  return { data, isLoading, error, isEmpty, companyId };
 }
