@@ -19,7 +19,7 @@ export function ObligationsTable({ obligations }: ObligationsTableProps) {
               Hendelse
             </th>
             <th className="px-4 py-3 text-right font-medium text-foreground-secondary">
-              Belop
+              Beløp
             </th>
             <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
               Forventet dato
@@ -74,7 +74,7 @@ function StatusBadge({ status }: { status: string }) {
           : "bg-success-light text-success"
       }`}
     >
-      {isEstimated ? "Estimert" : "Bokfort"}
+      {isEstimated ? "Estimert" : "Bokført"}
     </span>
   );
 }

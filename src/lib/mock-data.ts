@@ -165,7 +165,7 @@ export const insights: Insight[] = [
 
 // --- Obligations ---
 
-export type ObligationStatus = "Estimert" | "Bokfort";
+export type ObligationStatus = "Estimert" | "Bokført";
 
 export interface Obligation {
   id: string;
@@ -214,7 +214,7 @@ export const obligations: Obligation[] = [
     event: "Leverandør: Tekna Systems AS",
     amount: 89_000,
     expectedDate: "2026-08-18",
-    status: "Bokfort",
+    status: "Bokført",
     category: "Leverandør",
   },
   {
@@ -222,7 +222,7 @@ export const obligations: Obligation[] = [
     event: "Leverandør: CloudHost Norge",
     amount: 42_000,
     expectedDate: "2026-08-20",
-    status: "Bokfort",
+    status: "Bokført",
     category: "Leverandør",
   },
   {
@@ -238,7 +238,7 @@ export const obligations: Obligation[] = [
     event: "Forsikring kvartal",
     amount: 28_000,
     expectedDate: "2026-09-01",
-    status: "Bokfort",
+    status: "Bokført",
     category: "Fast kostnad",
   },
 ];

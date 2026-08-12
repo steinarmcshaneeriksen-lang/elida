@@ -39,7 +39,7 @@ const severityConfig: Record<
     icon: AlertTriangle,
     bg: "bg-warning-light",
     text: "text-warning",
-    label: "Hoy",
+    label: "Høy",
   },
   critical: {
     icon: AlertOctagon,

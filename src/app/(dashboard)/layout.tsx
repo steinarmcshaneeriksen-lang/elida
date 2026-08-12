@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 
 const pageTitles: Record<string, string> = {
   "/": "Oversikt",
-  "/okonomi": "Okonomi",
+  "/okonomi": "Økonomi",
   "/likviditet": "Likviditet",
   "/kunder": "Kunder",
-  "/leverandorer": "Leverandorer",
+  "/leverandorer": "Leverandører",
   "/transaksjoner": "Transaksjoner",
   "/innstillinger": "Innstillinger",
 };

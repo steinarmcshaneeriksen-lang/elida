@@ -26,15 +26,15 @@ const knowledgeLevels: {
     key: "beginner",
     label: "Nybegynner",
     icon: GraduationCap,
-    title: "Jeg vet lite om okonomi",
+    title: "Jeg vet lite om økonomi",
     description:
-      "Elida forklarer alt i klarsprak, skjuler tekniske regnskapsdetaljer, og fokuserer pa de viktigste sporsmålene. Du far enkle svar uten okonomisk sjargong.",
+      "Elida forklarer alt i klarspråk, skjuler tekniske regnskapsdetaljer, og fokuserer på de viktigste spørsmålene. Du får enkle svar uten økonomisk sjargong.",
   },
   {
     key: "intermediate",
-    label: "Mellomniva",
+    label: "Mellomnivå",
     icon: Briefcase,
-    title: "Jeg forstår grunnleggende okonomi",
+    title: "Jeg forstår grunnleggende økonomi",
     description:
       "Elida viser mer detaljert informasjon, inkludert nøkkeltall og trender. Du kan drille ned i kategorier og se sammenligninger mot tidligere perioder.",
   },
@@ -65,11 +65,11 @@ export default function InnstillingerPage() {
       {/* Knowledge level */}
       <section>
         <h2 className="mb-1 text-lg font-semibold text-foreground">
-          Kunnskapsniva
+          Kunnskapsnivå
         </h2>
         <p className="mb-4 text-sm text-foreground-muted">
-          Velg ditt kunnskapsniva for å tilpasse hvordan Elida presenterer
-          okonomisk informasjon.
+          Velg ditt kunnskapsnivå for å tilpasse hvordan Elida presenterer
+          økonomisk informasjon.
         </p>
         <div className="grid gap-4 sm:grid-cols-3">
           {knowledgeLevels.map((kl) => {
@@ -141,7 +141,7 @@ export default function InnstillingerPage() {
           </div>
           <button className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-foreground-secondary hover:bg-surface-hover">
             <RefreshCw size={14} />
-            Synkroniser na
+            Synkroniser nå
           </button>
         </div>
       </section>
@@ -184,7 +184,7 @@ export default function InnstillingerPage() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-foreground-secondary">
-                Lonnsdag
+                Lønnsdag
               </label>
               <input
                 type="number"
@@ -195,7 +195,7 @@ export default function InnstillingerPage() {
                 className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
               />
               <p className="mt-1 text-xs text-foreground-muted">
-                Dag i måneden lonn utbetales
+                Dag i måneden lønn utbetales
               </p>
             </div>
 
@@ -252,7 +252,7 @@ export default function InnstillingerPage() {
             { name: "Kontoplan", status: "ok", lastSync: "2026-08-12T09:47:00Z" },
             { name: "Bilag", status: "ok", lastSync: "2026-08-12T09:47:00Z" },
             { name: "Kunder", status: "ok", lastSync: "2026-08-12T09:45:00Z" },
-            { name: "Leverandorer", status: "ok", lastSync: "2026-08-12T09:45:00Z" },
+            { name: "Leverandører", status: "ok", lastSync: "2026-08-12T09:45:00Z" },
             { name: "Ansatte", status: "ok", lastSync: "2026-08-12T09:40:00Z" },
             { name: "Prosjekter", status: "ok", lastSync: "2026-08-12T09:40:00Z" },
           ].map((item) => (

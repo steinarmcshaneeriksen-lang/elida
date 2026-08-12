@@ -15,7 +15,7 @@ export default function DashboardPage() {
           God morgen!
         </h2>
         <p className="mt-1 text-sm text-foreground-secondary">
-          Her er en oppsummering av den okonomiske situasjonen til Fjordtech AS.
+          Her er en oppsummering av den økonomiske situasjonen til Fjordtech AS.
         </p>
       </div>
 
@@ -41,7 +41,7 @@ export default function DashboardPage() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-foreground">
-              Dette bor du vite na
+              Dette bør du vite nå
             </h3>
             <p className="text-sm text-foreground-muted">
               Viktige hendelser og observasjoner fra Elida

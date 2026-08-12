@@ -239,7 +239,7 @@ export function ChatProvider({
               ? {
                   ...m,
                   content:
-                    "Beklager, jeg klarte ikke aa koble til. Vennligst prov igjen.",
+                    "Beklager, jeg klarte ikke å koble til. Vennligst prøv igjen.",
                   isStreaming: false,
                 }
               : m

@@ -9,9 +9,9 @@ type Period = "month" | "quarter" | "ytd" | "rolling12";
 type ComparisonType = "prevPeriod" | "sameLastYear";
 
 const periodLabels: Record<Period, string> = {
-  month: "Maned",
+  month: "Måned",
   quarter: "Kvartal",
-  ytd: "Hittil i ar",
+  ytd: "Hittil i år",
   rolling12: "Siste 12 mnd",
 };
 
@@ -104,7 +104,7 @@ export default function OkonomiPage() {
         <div className="mb-6 flex items-center gap-2">
           <BarChart3 size={18} className="text-foreground-muted" />
           <h3 className="text-lg font-semibold text-foreground">
-            Omsetning per maned
+            Omsetning per måned
           </h3>
         </div>
         <div className="space-y-3">

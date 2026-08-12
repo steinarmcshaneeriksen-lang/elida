@@ -42,8 +42,8 @@ export default function TransaksjonerPage() {
       <div className="flex items-start gap-3 rounded-lg border border-border bg-info-light p-4">
         <Info size={16} className="mt-0.5 shrink-0 text-info" />
         <p className="text-sm text-foreground-secondary">
-          Denne visningen er tilgjengelig for brukere med mellomniva eller
-          ekspertniva. For nybegynnere vises en forenklet oversikt pa
+          Denne visningen er tilgjengelig for brukere med mellomnivå eller
+          ekspertnivå. For nybegynnere vises en forenklet oversikt på
           hovedsiden.
         </p>
       </div>
@@ -65,7 +65,7 @@ export default function TransaksjonerPage() {
           />
           <input
             type="text"
-            placeholder="Sok i beskrivelse, leverandor, kunde..."
+            placeholder="Søk i beskrivelse, leverandør, kunde..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -132,7 +132,7 @@ export default function TransaksjonerPage() {
                 Avdeling
               </th>
               <th className="px-4 py-3 text-right font-medium text-foreground-secondary">
-                Belop
+                Beløp
               </th>
             </tr>
           </thead>

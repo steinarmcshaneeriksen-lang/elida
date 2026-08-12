@@ -262,7 +262,7 @@ const getCostAnalysis: ToolHandler = async (companyId, params) => {
         const num = parseInt(t.account_number);
         let category: string;
         if (num < 5000) category = "Varekostnad";
-        else if (num < 6000) category = "Lonnskostnader";
+        else if (num < 6000) category = "Lønnskostnader";
         else if (num < 7000) category = "Avskrivninger og nedskrivninger";
         else category = "Andre driftskostnader";
         byRange[category] = (byRange[category] || 0) + Math.abs(t.amount);
@@ -283,11 +283,11 @@ const getCostAnalysis: ToolHandler = async (companyId, params) => {
     total_costs: { amount: 620000, currency: "NOK", confidence: "estimated" },
     by_category: {
       Varekostnad: 340000,
-      Lonnskostnader: 150000,
+      Lønnskostnader: 150000,
       Husleie: 35000,
       "Kontorkostnader og rekvisita": 12000,
       "Reise og transport": 18000,
-      "Markedsforing": 25000,
+      "Markedsføring": 25000,
       "IT og programvare": 15000,
       "Andre driftskostnader": 25000,
     },
@@ -538,7 +538,7 @@ const getSupplierPayables: ToolHandler = async (companyId) => {
     },
     upcoming_due: [
       {
-        supplier: "Leverandor Eksempel AS",
+        supplier: "Leverandør Eksempel AS",
         amount: 45000,
         due_date: "2025-02-20",
       },
@@ -567,7 +567,7 @@ const getUpcomingObligations: ToolHandler = async (companyId, params) => {
       return {
         horizon_days: days,
         obligations: invoices.map((inv) => ({
-          type: "leverandorfaktura",
+          type: "leverandørfaktura",
           supplier: (inv as Record<string, unknown>).suppliers,
           amount: inv.remaining_amount ?? inv.total_amount,
           due_date: inv.due_date,
@@ -588,8 +588,8 @@ const getUpcomingObligations: ToolHandler = async (companyId, params) => {
   return {
     horizon_days: days,
     obligations: [
-      { type: "Leverandorfakturaer", amount: 85000, currency: "NOK" },
-      { type: "Lonn og arbeidsgiveravgift", amount: 195000, currency: "NOK" },
+      { type: "Leverandørfakturaer", amount: 85000, currency: "NOK" },
+      { type: "Lønn og arbeidsgiveravgift", amount: 195000, currency: "NOK" },
       { type: "MVA-termin", amount: 68000, currency: "NOK" },
       { type: "Husleie", amount: 35000, currency: "NOK" },
     ],
@@ -658,7 +658,7 @@ const getVatEstimate: ToolHandler = async (companyId) => {
       return {
         vat_registered: vatSettings.vat_registered,
         vat_period: vatSettings.vat_period,
-        note: "MVA-estimat basert paa innstillinger. Detaljert beregning krever full transaksjonsdata.",
+        note: "MVA-estimat basert på innstillinger. Detaljert beregning krever full transaksjonsdata.",
         data_source: "partial",
       };
     }
@@ -668,9 +668,9 @@ const getVatEstimate: ToolHandler = async (companyId) => {
 
   return {
     termin: "1. termin 2025 (jan-feb)",
-    utgaaende_mva: { amount: 170000, currency: "NOK" },
-    inngaaende_mva: { amount: 102000, currency: "NOK" },
-    netto_aa_betale: { amount: 68000, currency: "NOK" },
+    utgående_mva: { amount: 170000, currency: "NOK" },
+    inngående_mva: { amount: 102000, currency: "NOK" },
+    netto_å_betale: { amount: 68000, currency: "NOK" },
     frist: "2025-04-10",
     confidence: "estimated",
     data_source: "mock_data",
@@ -710,7 +710,7 @@ const getTaxEstimate: ToolHandler = async (companyId) => {
     taxable_profit_ytd: { amount: 230000, currency: "NOK" },
     tax_rate_percent: 22,
     estimated_tax: { amount: 50600, currency: "NOK" },
-    note: "Forenklet estimat. Faktisk skatt kan avvike pga. midlertidige forskjeller, fremforbart underskudd, etc. Raadfor deg med regnskapsforer for noyaktig beregning.",
+    note: "Forenklet estimat. Faktisk skatt kan avvike pga. midlertidige forskjeller, fremførbart underskudd, etc. Rådfør deg med regnskapsfører for nøyaktig beregning.",
     confidence: "estimated",
     data_source: "mock_data",
   };
@@ -743,13 +743,13 @@ const getChartOfAccounts: ToolHandler = async (companyId) => {
 
   return {
     account_count: 0,
-    note: "Kontoplan ikke tilgjengelig. Koble til regnskapssystem for aa hente kontoplan.",
+    note: "Kontoplan ikke tilgjengelig. Koble til regnskapssystem for å hente kontoplan.",
     standard_accounts_hint: [
       { number: "1920", name: "Bankinnskudd", type: "asset" },
-      { number: "2400", name: "Leverandorgjeld", type: "liability" },
+      { number: "2400", name: "Leverandørgjeld", type: "liability" },
       { number: "3000", name: "Salgsinntekt, avgiftspliktig", type: "revenue" },
       { number: "4000", name: "Varekostnad", type: "expense" },
-      { number: "5000", name: "Lonn", type: "expense" },
+      { number: "5000", name: "Lønn", type: "expense" },
       { number: "6300", name: "Leie av lokaler", type: "expense" },
       { number: "6800", name: "Kontorkostnader", type: "expense" },
       { number: "7100", name: "Bilkostnader", type: "expense" },
@@ -814,7 +814,7 @@ const findSimilarVendorTransactions: ToolHandler = async (
   return {
     vendor_name: vendorName,
     matching_transactions: [],
-    note: "Ingen tidligere transaksjoner funnet for denne leverandoren.",
+    note: "Ingen tidligere transaksjoner funnet for denne leverandøren.",
     data_source: "mock_data",
   };
 };
@@ -901,7 +901,7 @@ const getVendorPostingHistory: ToolHandler = async (companyId, params) => {
   return {
     vendor_name: vendorName,
     posting_patterns: [],
-    note: "Ingen posteringshistorikk funnet for denne leverandoren.",
+    note: "Ingen posteringshistorikk funnet for denne leverandøren.",
     data_source: "mock_data",
   };
 };
@@ -940,7 +940,7 @@ const searchAccountingRules: ToolHandler = async (companyId, params) => {
   return {
     topic,
     rules: [],
-    note: "Ingen spesifikke regler funnet i databasen. Assistenten vil svare basert paa generell kunnskap om norsk regnskapspraksis.",
+    note: "Ingen spesifikke regler funnet i databasen. Assistenten vil svare basert på generell kunnskap om norsk regnskapspraksis.",
     data_source: "mock_data",
   };
 };
@@ -985,10 +985,10 @@ const runScenario: ToolHandler = async (companyId, params) => {
         financing: scenarioParams.financing || "egenkapital",
         impact: {
           cash_effect: -amount,
-          balance_sheet: "Oker anleggsmidler, reduserer kontanter/oker gjeld",
+          balance_sheet: "Øker anleggsmidler, reduserer kontanter/øker gjeld",
           annual_depreciation: Math.round(amount / 5),
         },
-        note: "Avskrivningstiden avhenger av type eiendel. Konsulter regnskapsforer for korrekt avskrivningsplan.",
+        note: "Avskrivningstiden avhenger av type eiendel. Konsulter regnskapsfører for korrekt avskrivningsplan.",
         confidence: "estimated",
       };
     }
@@ -997,7 +997,7 @@ const runScenario: ToolHandler = async (companyId, params) => {
       return {
         scenario: scenarioType,
         parameters: scenarioParams,
-        note: "Scenarioanalyse er under utvikling. For detaljerte analyser, ta kontakt med regnskapsforer.",
+        note: "Scenarioanalyse er under utvikling. For detaljerte analyser, ta kontakt med regnskapsfører.",
         confidence: "low",
       };
   }
@@ -1040,7 +1040,7 @@ export async function executeTool(
 ): Promise<ToolResult> {
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) {
-    throw new Error(`Ukjent verktoy: ${toolName}`);
+    throw new Error(`Ukjent verktøy: ${toolName}`);
   }
   return handler(companyId, params);
 }

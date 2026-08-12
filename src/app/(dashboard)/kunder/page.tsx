@@ -44,7 +44,7 @@ export default function KunderPage() {
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Totalt utestaende</p>
+          <p className="text-sm text-foreground-muted">Totalt utestående</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
             {formatCurrency(totalOutstanding)}
           </p>
@@ -76,7 +76,7 @@ export default function KunderPage() {
                 onSort={toggleSort}
               />
               <SortableHeader
-                label="Utestaende"
+                label="Utestående"
                 sortKey="outstanding"
                 currentKey={sortKey}
                 direction={sortDir}
@@ -204,7 +204,7 @@ function RiskBadge({ risk }: { risk: "low" | "medium" | "high" }) {
   const config = {
     low: { label: "Lav", className: "bg-success-light text-success" },
     medium: { label: "Medium", className: "bg-warning-light text-warning" },
-    high: { label: "Hoy", className: "bg-danger-light text-danger" },
+    high: { label: "Høy", className: "bg-danger-light text-danger" },
   };
   const c = config[risk];
   return (

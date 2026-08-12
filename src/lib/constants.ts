@@ -12,7 +12,7 @@ export const ACCOUNT_NUMBER_RANGES: readonly AccountRange[] = [
   { from: 1000, to: 1099, category: "intangible_assets", description_nb: "Immaterielle eiendeler", description_en: "Intangible assets" },
   { from: 1100, to: 1299, category: "fixed_assets", description_nb: "Tomter, bygninger og annen fast eiendom", description_en: "Land, buildings and other real estate" },
   { from: 1300, to: 1399, category: "machinery_equipment", description_nb: "Maskiner og anlegg", description_en: "Machinery and plant" },
-  { from: 1400, to: 1499, category: "fixtures_vehicles", description_nb: "Inventar, verktoy, kontormaskiner mv.", description_en: "Fixtures, tools, office machines etc." },
+  { from: 1400, to: 1499, category: "fixtures_vehicles", description_nb: "Inventar, verktøy, kontormaskiner mv.", description_en: "Fixtures, tools, office machines etc." },
   { from: 1500, to: 1599, category: "financial_fixed_assets", description_nb: "Finansielle anleggsmidler", description_en: "Financial fixed assets" },
   { from: 1600, to: 1799, category: "receivables", description_nb: "Fordringer", description_en: "Receivables" },
   { from: 1800, to: 1899, category: "investments", description_nb: "Investeringer", description_en: "Short-term investments" },
@@ -35,7 +35,7 @@ export const ACCOUNT_NUMBER_RANGES: readonly AccountRange[] = [
   { from: 3900, to: 3999, category: "gain_loss_assets", description_nb: "Gevinst/tap ved avgang anleggsmidler", description_en: "Gain/loss on disposal of assets" },
   { from: 4000, to: 4499, category: "cost_of_goods", description_nb: "Varekostnad", description_en: "Cost of goods sold" },
   { from: 4500, to: 4999, category: "inventory_adjustment", description_nb: "Beholdningsendring og ukurans", description_en: "Inventory adjustment and obsolescence" },
-  { from: 5000, to: 5099, category: "salaries", description_nb: "Lonnskostnad", description_en: "Salaries" },
+  { from: 5000, to: 5099, category: "salaries", description_nb: "Lønnskostnad", description_en: "Salaries" },
   { from: 5100, to: 5199, category: "employer_tax", description_nb: "Arbeidsgiveravgift", description_en: "Employer tax" },
   { from: 5200, to: 5299, category: "pension_costs", description_nb: "Pensjonskostnad", description_en: "Pension costs" },
   { from: 5300, to: 5399, category: "other_benefits", description_nb: "Andre ytelser", description_en: "Other employee benefits" },
@@ -45,9 +45,9 @@ export const ACCOUNT_NUMBER_RANGES: readonly AccountRange[] = [
   { from: 6200, to: 6299, category: "electricity_heating", description_nb: "Elektrisitet og oppvarming", description_en: "Electricity and heating" },
   { from: 6300, to: 6399, category: "maintenance_repairs", description_nb: "Vedlikehold og reparasjon", description_en: "Maintenance and repairs" },
   { from: 6400, to: 6499, category: "office_supplies", description_nb: "Kontorkostnad", description_en: "Office supplies" },
-  { from: 6500, to: 6599, category: "equipment_tools", description_nb: "Verktoy, inventar mv.", description_en: "Equipment and tools" },
+  { from: 6500, to: 6599, category: "equipment_tools", description_nb: "Verktøy, inventar mv.", description_en: "Equipment and tools" },
   { from: 6600, to: 6699, category: "external_services", description_nb: "Eksterne tjenester", description_en: "External services" },
-  { from: 6700, to: 6799, category: "accounting_consulting", description_nb: "Regnskap, revisjon, radgivning", description_en: "Accounting, audit, consulting" },
+  { from: 6700, to: 6799, category: "accounting_consulting", description_nb: "Regnskap, revisjon, rådgivning", description_en: "Accounting, audit, consulting" },
   { from: 6800, to: 6899, category: "it_costs", description_nb: "IT-kostnader", description_en: "IT costs" },
   { from: 6900, to: 6999, category: "telephone_postage", description_nb: "Telefon, porto mv.", description_en: "Telephone, postage etc." },
   { from: 7000, to: 7099, category: "transport_vehicle", description_nb: "Transportkostnad", description_en: "Transport and vehicle costs" },
@@ -62,9 +62,9 @@ export const ACCOUNT_NUMBER_RANGES: readonly AccountRange[] = [
   { from: 8000, to: 8099, category: "financial_income", description_nb: "Finansinntekt", description_en: "Financial income" },
   { from: 8100, to: 8199, category: "financial_expenses", description_nb: "Finanskostnad", description_en: "Financial expenses" },
   { from: 8200, to: 8599, category: "other_financial", description_nb: "Andre finansposter", description_en: "Other financial items" },
-  { from: 8600, to: 8799, category: "extraordinary_items", description_nb: "Ekstraordinaere poster", description_en: "Extraordinary items" },
+  { from: 8600, to: 8799, category: "extraordinary_items", description_nb: "Ekstraordinære poster", description_en: "Extraordinary items" },
   { from: 8800, to: 8899, category: "tax_expense", description_nb: "Skattekostnad", description_en: "Tax expense" },
-  { from: 8900, to: 8999, category: "annual_result", description_nb: "Arsresultat", description_en: "Annual result" },
+  { from: 8900, to: 8999, category: "annual_result", description_nb: "Årsresultat", description_en: "Annual result" },
 ] as const;
 
 // ─── High-level account class ranges ────────────────────────────────────────
@@ -74,7 +74,7 @@ export const ACCOUNT_CLASSES = {
   EQUITY_LIABILITIES: { from: 2000, to: 2999, label: "Egenkapital og gjeld" },
   REVENUE: { from: 3000, to: 3999, label: "Inntekter" },
   COST_OF_GOODS: { from: 4000, to: 4999, label: "Varekostnad" },
-  PAYROLL: { from: 5000, to: 5999, label: "Lonnskostnad" },
+  PAYROLL: { from: 5000, to: 5999, label: "Lønnskostnad" },
   OTHER_OPERATING: { from: 6000, to: 7999, label: "Andre driftskostnader" },
   FINANCIAL: { from: 8000, to: 8999, label: "Finansposter og skatt" },
 } as const;
@@ -95,7 +95,7 @@ export const EMPLOYER_TAX_RATES: Record<string, { zone: string; rate: number; de
 
 export const VAT_RATES = {
   STANDARD: { rate: 0.25, label: "Standard sats", description: "Alminnelig sats" },
-  FOOD: { rate: 0.15, label: "Matvaresats", description: "Naeringmidler" },
+  FOOD: { rate: 0.15, label: "Matvaresats", description: "Næringsmidler" },
   LOW: { rate: 0.12, label: "Lav sats", description: "Persontransport, overnatting, kino, kultur, idrett mv." },
   EXEMPT: { rate: 0.0, label: "Fritatt", description: "Avgiftsfri omsetning" },
 } as const;

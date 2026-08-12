@@ -34,7 +34,7 @@ const INDUSTRIES = [
   "Produksjon og industri",
   "Reiseliv og turisme",
   "Transport og logistikk",
-  "Utdanning og opplaering",
+  "Utdanning og opplæring",
   "Annet",
 ];
 
@@ -52,8 +52,8 @@ const SYNC_STEPS = [
   { key: "accounting", label: "Henter regnskap" },
   { key: "invoices", label: "Henter fakturaer" },
   { key: "customers", label: "Analyserer kunder" },
-  { key: "suppliers", label: "Analyserer leverandorer" },
-  { key: "history", label: "Bygger okonomisk historikk" },
+  { key: "suppliers", label: "Analyserer leverandører" },
+  { key: "history", label: "Bygger økonomisk historikk" },
 ];
 
 const KNOWLEDGE_LEVELS: {
@@ -65,10 +65,10 @@ const KNOWLEDGE_LEVELS: {
 }[] = [
   {
     value: "beginner",
-    title: "Jeg vil bare forsta hvordan bedriften gar",
+    title: "Jeg vil bare forstå hvordan bedriften går",
     description: "Nybegynner",
     detail:
-      "Jeg har liten eller ingen regnskapskunnskap. Forklar okonomien min med vanlig sprak.",
+      "Jeg har liten eller ingen regnskapskunnskap. Forklar økonomien min med vanlig språk.",
     icon: Lightbulb,
   },
   {
@@ -76,7 +76,7 @@ const KNOWLEDGE_LEVELS: {
     title: "Jeg kjenner de viktigste begrepene",
     description: "Middels",
     detail:
-      "Jeg forstar resultat, balanse, MVA og likviditet, men onsker hjelp med analyse.",
+      "Jeg forstår resultat, balanse, MVA og likviditet, men ønsker hjelp med analyse.",
     icon: BarChart3,
   },
   {
@@ -84,7 +84,7 @@ const KNOWLEDGE_LEVELS: {
     title: "Vis meg detaljene",
     description: "Avansert",
     detail:
-      "Jeg er komfortabel med resultat, balanse, hovedbok, kontoplan og nokkeltall.",
+      "Jeg er komfortabel med resultat, balanse, hovedbok, kontoplan og nøkkeltall.",
     icon: FileSpreadsheet,
   },
 ];
@@ -335,15 +335,15 @@ export default function OnboardingPage() {
               className="text-2xl font-bold mb-3"
               style={{ color: "var(--foreground)" }}
             >
-              Forsta bedriften din
+              Forstå bedriften din
             </h2>
 
             <p
               className="text-base leading-relaxed mb-6"
               style={{ color: "var(--foreground-secondary)" }}
             >
-              Elida er din AI-drevne regnskapsassistent. Vi hjelper deg a forsta
-              okonomien i bedriften din, med tydelige forklaringer og
+              Elida er din AI-drevne regnskapsassistent. Vi hjelper deg å forstå
+              økonomien i bedriften din, med tydelige forklaringer og
               handlingsrettede innsikter.
             </p>
 
@@ -355,8 +355,8 @@ export default function OnboardingPage() {
                 color: "var(--primary-700)",
               }}
             >
-              Elida leser okonomidataene dine for a analysere bedriften. Vi
-              bokforer eller endrer ingenting.
+              Elida leser økonomidataene dine for å analysere bedriften. Vi
+              bokfører eller endrer ingenting.
             </div>
 
             <button
@@ -384,7 +384,7 @@ export default function OnboardingPage() {
               className="text-sm mb-8 text-center"
               style={{ color: "var(--foreground-secondary)" }}
             >
-              Dette hjelper oss a tilpasse sprak og detaljer til deg.
+              Dette hjelper oss å tilpasse språk og detaljer til deg.
             </p>
 
             <div className="space-y-3">
@@ -612,8 +612,8 @@ export default function OnboardingPage() {
                 className="text-sm leading-relaxed"
                 style={{ color: "var(--foreground-secondary)" }}
               >
-                Vi leser okonomidataene dine for a analysere bedriften. Vi
-                bokforer eller endrer ingenting i PowerOffice.
+                Vi leser økonomidataene dine for å analysere bedriften. Vi
+                bokfører eller endrer ingenting i PowerOffice.
               </p>
             </div>
 
@@ -683,7 +683,7 @@ export default function OnboardingPage() {
                     color: "var(--danger)",
                   }}
                 >
-                  Tilkoblingen feilet. Sjekk Client Key og prov igjen.
+                  Tilkoblingen feilet. Sjekk Client Key og prøv igjen.
                 </div>
               )}
 
@@ -719,7 +719,7 @@ export default function OnboardingPage() {
                   style={{ color: "var(--foreground-muted)" }}
                   disabled={connectionStatus === "connecting"}
                 >
-                  Hopp over for na
+                  Hopp over for nå
                 </button>
               </div>
             </div>
@@ -758,7 +758,7 @@ export default function OnboardingPage() {
               style={{ color: "var(--foreground-secondary)" }}
             >
               {skippedConnection
-                ? "Vi forbereder et demomiljo slik at du kan utforske Elida."
+                ? "Vi forbereder et demomiljø slik at du kan utforske Elida."
                 : "Dette tar vanligvis et par minutter."}
             </p>
 
@@ -845,13 +845,13 @@ export default function OnboardingPage() {
                 className="text-2xl font-bold mb-2"
                 style={{ color: "var(--foreground)" }}
               >
-                Noen fa sporsmal
+                Noen få spørsmål
               </h2>
               <p
                 className="text-sm"
                 style={{ color: "var(--foreground-secondary)" }}
               >
-                Dette hjelper oss a gi bedre analyser. Disse kan endres senere
+                Dette hjelper oss å gi bedre analyser. Disse kan endres senere
                 under innstillinger.
               </p>
             </div>
@@ -864,7 +864,7 @@ export default function OnboardingPage() {
                   className="block text-sm font-medium mb-1.5"
                   style={{ color: "var(--foreground)" }}
                 >
-                  Normal lonnsdag
+                  Normal lønnsdag
                 </label>
                 <div className="relative">
                   <select
@@ -881,7 +881,7 @@ export default function OnboardingPage() {
                   >
                     {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
                       <option key={day} value={day.toString()}>
-                        {day}. i maneden
+                        {day}. i måneden
                       </option>
                     ))}
                   </select>
@@ -968,7 +968,7 @@ export default function OnboardingPage() {
                   className="mt-1.5 text-xs"
                   style={{ color: "var(--foreground-muted)" }}
                 >
-                  Elida varsler deg nar kontoen narmer seg dette belopet.
+                  Elida varsler deg når kontoen nærmer seg dette beløpet.
                 </p>
               </div>
             </div>
@@ -1020,8 +1020,8 @@ export default function OnboardingPage() {
                   er satt opp og klar.{" "}
                 </>
               )}
-              Vi har analysert okonomien din og bygget en oversikt tilpasset
-              ditt niva.
+              Vi har analysert økonomien din og bygget en oversikt tilpasset
+              ditt nivå.
             </p>
 
             {/* Summary cards */}
@@ -1048,7 +1048,7 @@ export default function OnboardingPage() {
               {knowledgeLevel && (
                 <div className="flex items-center justify-between text-sm">
                   <span style={{ color: "var(--foreground-secondary)" }}>
-                    Spraknivia
+                    Språknivå
                   </span>
                   <span
                     className="font-medium"
@@ -1086,7 +1086,7 @@ export default function OnboardingPage() {
               className="inline-flex items-center gap-2 rounded-lg px-8 py-3 text-sm font-semibold text-white hover:opacity-90"
               style={{ background: "var(--primary)" }}
             >
-              Ga til oversikten
+              Gå til oversikten
               <ArrowRight size={18} />
             </button>
           </div>
@@ -1219,7 +1219,7 @@ export default function OnboardingPage() {
               {isSaving ? (
                 <Loader2 size={16} className="animate-spin" />
               ) : null}
-              {isSaving ? "Lagrer..." : "Fullfar"}
+              {isSaving ? "Lagrer..." : "Fullfør"}
               {!isSaving && <ArrowRight size={16} />}
             </button>
           ) : (

@@ -13,12 +13,12 @@ import { useChatContext } from "./chat-provider";
 import { ChatMessage } from "./chat-message";
 
 const SUGGESTED_QUESTIONS = [
-  "Hvordan gar det denne maneden?",
-  "Hvorfor har resultatet blitt darligere?",
-  "Har jeg nok penger til lonn?",
+  "Hvordan går det denne måneden?",
+  "Hvorfor har resultatet blitt dårligere?",
+  "Har jeg nok penger til lønn?",
   "Hvem skylder oss mest penger?",
-  "Hvor mye MVA bor jeg sette av?",
-  "Hva bruker vi mest penger pa?",
+  "Hvor mye MVA bør jeg sette av?",
+  "Hva bruker vi mest penger på?",
 ];
 
 export function ChatPanel() {
@@ -102,7 +102,7 @@ export function ChatPanel() {
                 Elida
               </h2>
               <p className="text-[11px] text-foreground-muted">
-                Din okonomiassistent
+                Din økonomiassistent
               </p>
             </div>
           </div>
@@ -136,8 +136,8 @@ export function ChatPanel() {
                 Hei! Jeg er Elida
               </h3>
               <p className="text-sm text-foreground-muted text-center mb-6 max-w-[280px]">
-                Spor meg om okonomien din, eller fa hjelp med bokforing og
-                regnskapsrad.
+                Spør meg om økonomien din, eller få hjelp med bokføring og
+                regnskapsråd.
               </p>
 
               <div className="w-full space-y-2">
@@ -206,7 +206,7 @@ export function ChatPanel() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Spor om okonomien din..."
+                placeholder="Spør om økonomien din..."
                 rows={1}
                 className="w-full resize-none rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground placeholder-foreground-muted focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-shadow"
                 style={{
@@ -234,7 +234,7 @@ export function ChatPanel() {
           </div>
 
           <p className="text-[10px] text-foreground-muted mt-1.5 text-center">
-            Elida kan gjore feil. Verifiser viktige tall med regnskapsforer.
+            Elida kan gjøre feil. Verifiser viktige tall med regnskapsfører.
           </p>
         </div>
       </div>

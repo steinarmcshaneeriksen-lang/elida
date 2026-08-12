@@ -44,19 +44,19 @@ export default function LeverandorerPage() {
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Totale kostnader hittil i ar</p>
+          <p className="text-sm text-foreground-muted">Totale kostnader hittil i år</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
             {formatCurrency(totalCostYTD)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Utestaende</p>
+          <p className="text-sm text-foreground-muted">Utestående</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
             {formatCurrency(totalOutstanding)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Antall leverandorer</p>
+          <p className="text-sm text-foreground-muted">Antall leverandører</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
             {suppliers.length}
           </p>
@@ -69,7 +69,7 @@ export default function LeverandorerPage() {
           <thead>
             <tr className="border-b border-border bg-surface-hover">
               <SortableHeader
-                label="Leverandor"
+                label="Leverandør"
                 sortKey="name"
                 currentKey={sortKey}
                 direction={sortDir}
@@ -79,7 +79,7 @@ export default function LeverandorerPage() {
                 Kategori
               </th>
               <SortableHeader
-                label="Kostnad hittil i ar"
+                label="Kostnad hittil i år"
                 sortKey="costYTD"
                 currentKey={sortKey}
                 direction={sortDir}
@@ -95,7 +95,7 @@ export default function LeverandorerPage() {
                 align="right"
               />
               <SortableHeader
-                label="Utestaende"
+                label="Utestående"
                 sortKey="outstanding"
                 currentKey={sortKey}
                 direction={sortDir}

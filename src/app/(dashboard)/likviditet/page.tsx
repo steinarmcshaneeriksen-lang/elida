@@ -29,7 +29,7 @@ export default function LikviditetPage() {
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
           <div className="flex items-center gap-2 text-foreground-muted">
             <Droplets size={16} />
-            <span className="text-sm">Banksaldo na</span>
+            <span className="text-sm">Banksaldo nå</span>
           </div>
           <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
             {formatCurrency(cashPosition.currentBalance)}
@@ -90,7 +90,7 @@ export default function LikviditetPage() {
         </h3>
         <div className="flex h-48 items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-hover">
           <p className="text-sm text-foreground-muted">
-            Likviditetsgraf vises her nar API-et er tilkoblet
+            Likviditetsgraf vises her når API-et er tilkoblet
           </p>
         </div>
       </section>
@@ -231,7 +231,7 @@ function ConfidenceDot({
     low: "bg-danger",
   };
   const labels = {
-    high: "Hoy",
+    high: "Høy",
     medium: "Middels",
     low: "Lav",
   };

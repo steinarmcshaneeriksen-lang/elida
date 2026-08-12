@@ -12,7 +12,7 @@ import {
 import type { ChatMessage as ChatMessageType, ToolCallInfo } from "./chat-provider";
 
 const TOOL_LABELS: Record<string, string> = {
-  get_financial_summary: "Henter okonomisammendrag",
+  get_financial_summary: "Henter økonomisammendrag",
   get_revenue_analysis: "Analyserer inntekter",
   get_profit_analysis: "Analyserer resultat",
   get_cost_analysis: "Analyserer kostnader",
@@ -20,17 +20,17 @@ const TOOL_LABELS: Record<string, string> = {
   get_customer_receivables: "Henter kundefordringer",
   get_customer_payment_profile: "Henter betalingsprofil",
   get_overdue_invoices: "Henter forfalte fakturaer",
-  get_supplier_payables: "Henter leverandorgjeld",
+  get_supplier_payables: "Henter leverandørgjeld",
   get_upcoming_obligations: "Henter kommende forpliktelser",
-  get_cash_forecast: "Beregner kontantstromprognose",
+  get_cash_forecast: "Beregner kontantstrømprognose",
   get_vat_estimate: "Estimerer MVA",
   get_tax_estimate: "Estimerer skatt",
   get_chart_of_accounts: "Henter kontoplan",
-  find_similar_vendor_transactions: "Soker etter lignende transaksjoner",
-  find_similar_description_transactions: "Soker i beskrivelser",
+  find_similar_vendor_transactions: "Søker etter lignende transaksjoner",
+  find_similar_description_transactions: "Søker i beskrivelser",
   get_vendor_posting_history: "Henter posteringshistorikk",
-  search_accounting_rules: "Soker i regnskapsregler",
-  run_scenario: "Kjorer scenarioanalyse",
+  search_accounting_rules: "Søker i regnskapsregler",
+  run_scenario: "Kjører scenarioanalyse",
 };
 
 function renderMarkdown(text: string): string {
@@ -117,7 +117,7 @@ function parseAccountingRecommendation(
 function parseConfidence(text?: string): "high" | "medium" | "low" {
   if (!text) return "medium";
   const lower = text.toLowerCase();
-  if (lower.includes("hoy") || lower.includes("high")) return "high";
+  if (lower.includes("høy") || lower.includes("hoy") || lower.includes("high")) return "high";
   if (lower.includes("lav") || lower.includes("low")) return "low";
   return "medium";
 }
@@ -134,7 +134,7 @@ function AccountingRecommendationCard({
   };
 
   const confidenceLabels = {
-    high: "Hoy",
+    high: "Høy",
     medium: "Middels",
     low: "Lav",
   };
@@ -185,7 +185,7 @@ function AccountingRecommendationCard({
         {rec.poweroffice_instructions && (
           <div className="mt-2 pt-2 border-t border-border-light">
             <span className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
-              Slik gjor du det i PowerOffice
+              Slik gjør du det i PowerOffice
             </span>
             <p className="mt-1 text-foreground-secondary">
               {rec.poweroffice_instructions}
@@ -291,7 +291,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           <div className="mt-2 p-2 bg-surface-hover rounded text-xs text-foreground-muted">
             {message.toolCalls && message.toolCalls.length > 0 ? (
               <>
-                <p className="font-medium mb-1">Verktoy brukt:</p>
+                <p className="font-medium mb-1">Verktøy brukt:</p>
                 <ul className="space-y-0.5">
                   {message.toolCalls.map((tool, i) => (
                     <li key={i} className="flex items-center gap-1">
@@ -302,7 +302,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                 </ul>
               </>
             ) : (
-              <p>Svaret er basert paa generell kunnskap.</p>
+              <p>Svaret er basert på generell kunnskap.</p>
             )}
           </div>
         )}
