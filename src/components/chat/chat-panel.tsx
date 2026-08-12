@@ -27,6 +27,7 @@ export function ChatPanel() {
     setIsOpen,
     messages,
     sendMessage,
+    uploadDocument,
     isLoading,
     activeTools,
     clearMessages,
@@ -34,6 +35,7 @@ export function ChatPanel() {
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,6 +69,19 @@ export function ChatPanel() {
       sendMessage(question);
     },
     [sendMessage]
+  );
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        uploadDocument(file);
+      }
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    [uploadDocument]
   );
 
   useEffect(() => {
@@ -190,9 +205,18 @@ export function ChatPanel() {
         {/* Input area */}
         <div className="shrink-0 border-t border-border bg-surface px-4 py-3">
           <div className="flex items-center gap-2 mb-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={handleFileChange}
+              className="hidden"
+            />
             <button
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-foreground-muted bg-surface-hover hover:bg-background transition-colors"
-              title="Last opp bilag"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-foreground-muted bg-surface-hover hover:bg-background disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Last opp bilag (PDF, JPG, PNG)"
             >
               <Upload className="w-3.5 h-3.5" />
               Last opp bilag

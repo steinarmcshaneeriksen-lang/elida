@@ -32,6 +32,7 @@ interface ChatContextValue {
   setIsOpen: (open: boolean) => void;
   messages: ChatMessage[];
   sendMessage: (text: string) => Promise<void>;
+  uploadDocument: (file: File) => Promise<void>;
   isLoading: boolean;
   conversationId: string | null;
   activeTools: ToolCallInfo[];
@@ -253,6 +254,116 @@ export function ChatProvider({
     [companyId, conversationId, isLoading, knowledgeLevel]
   );
 
+  const uploadDocument = useCallback(
+    async (file: File) => {
+      if (isLoading) return;
+
+      const userMessage: ChatMessage = {
+        id: `user_${Date.now()}`,
+        role: "user",
+        content: `📎 Lastet opp: ${file.name}`,
+        timestamp: new Date(),
+      };
+
+      const assistantId = `assistant_${Date.now()}`;
+      const assistantMessage: ChatMessage = {
+        id: assistantId,
+        role: "assistant",
+        content: "",
+        timestamp: new Date(),
+        isStreaming: true,
+      };
+
+      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setIsLoading(true);
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("company_id", companyId);
+
+        const response = await fetch("/api/documents/analyze", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => null);
+          throw new Error(
+            errorData?.error ?? `Opplasting feilet (${response.status})`
+          );
+        }
+
+        const result = await response.json();
+        const extraction = result.extraction;
+        const recommendation = result.recommendation;
+
+        let content = "## Dokumentanalyse\n\n";
+
+        if (extraction?.fields) {
+          const fields = extraction.fields;
+          if (fields.supplier_name || fields.vendor_name) {
+            content += `**Leverandør:** ${fields.supplier_name ?? fields.vendor_name}\n`;
+          }
+          if (fields.invoice_number) {
+            content += `**Fakturanr:** ${fields.invoice_number}\n`;
+          }
+          if (fields.invoice_date ?? fields.date) {
+            content += `**Dato:** ${fields.invoice_date ?? fields.date}\n`;
+          }
+          if (fields.total_amount) {
+            content += `**Totalbeløp:** ${Number(fields.total_amount).toLocaleString("nb-NO")} kr\n`;
+          }
+          if (fields.vat_amount) {
+            content += `**MVA:** ${Number(fields.vat_amount).toLocaleString("nb-NO")} kr\n`;
+          }
+          content += "\n";
+        }
+
+        if (recommendation?.posting_suggestion) {
+          const ps = recommendation.posting_suggestion;
+          content += "### Konteringsforslag\n\n";
+          content += `| | Konto | Navn |\n|---|---|---|\n`;
+          content += `| Debet | ${ps.debit_account} | ${ps.debit_account_name} |\n`;
+          content += `| Kredit | ${ps.credit_account} | ${ps.credit_account_name} |\n\n`;
+          if (ps.vat_code) {
+            content += `**MVA-kode:** ${ps.vat_code}\n\n`;
+          }
+        }
+
+        if (recommendation?.notes?.length > 0) {
+          content += "### Merknader\n\n";
+          for (const note of recommendation.notes) {
+            content += `- ${note}\n`;
+          }
+        }
+
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content, isStreaming: false }
+              : m
+          )
+        );
+      } catch (err) {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? {
+                  ...m,
+                  content: `Beklager, dokumentanalysen feilet: ${err instanceof Error ? err.message : "Ukjent feil"}`,
+                  isStreaming: false,
+                }
+              : m
+          )
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [companyId, isLoading]
+  );
+
   const clearMessages = useCallback(() => {
     setMessages([]);
     setConversationId(null);
@@ -265,6 +376,7 @@ export function ChatProvider({
         setIsOpen,
         messages,
         sendMessage,
+        uploadDocument,
         isLoading,
         conversationId,
         activeTools,
