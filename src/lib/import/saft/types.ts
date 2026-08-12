@@ -107,6 +107,8 @@ export interface SaftImportResult {
   counts: SaftImportCounts;
   /** Non-fatal problems worth surfacing to the user. */
   warnings: string[];
+  /** Every financial year the company now holds data for, ascending. */
+  years: number[];
 }
 
 export interface SaftImportCounts {

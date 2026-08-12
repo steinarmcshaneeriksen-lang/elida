@@ -30,20 +30,22 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Attempt to load real data from financial_metric_snapshots
-    const now = new Date();
-    const yearStart = `${now.getFullYear()}-01-01`;
-    const yearEnd = `${now.getFullYear()}-12-31`;
-
-    const { data: metrics } = await supabase
+    // Show the most recent period the company actually holds data for.
+    // Filtering to the current calendar year would show nothing at all to
+    // someone who has only uploaded last year's file.
+    const { data: allMetrics } = await supabase
       .from("financial_metric_snapshots")
       .select("*")
       .eq("company_id", companyId)
-      .gte("period_start", yearStart)
-      .lte("period_end", yearEnd)
-      .order("calculated_at", { ascending: false }) as {
+      .eq("period_type", "ytd")
+      .order("period_end", { ascending: false }) as {
       data: FinancialMetricSnapshot[] | null;
     };
+
+    const latestPeriodEnd = allMetrics?.[0]?.period_end ?? null;
+    const metrics = (allMetrics ?? []).filter(
+      (m) => m.period_end === latestPeriodEnd
+    );
 
     // Load active insights
     const { data: insights } = await supabase
@@ -63,50 +65,44 @@ export async function GET(
       data: IntegrationSyncState[] | null;
     };
 
-    // If we have real metric snapshots, use them
-    const revenueMetric = metrics?.find((m) => m.metric === "revenue_ytd");
-    const profitMetric = metrics?.find(
+    const revenueMetric = metrics.find((m) => m.metric === "revenue_ytd");
+    const profitMetric = metrics.find(
       (m) => m.metric === "operating_profit_ytd"
     );
 
     if (revenueMetric && profitMetric) {
-      const cashMetric = metrics?.find((m) => m.metric === "cash_balance");
-      const forecastMetric = metrics?.find(
-        (m) => m.metric === "cash_forecast_60d_min"
-      );
-      const receivablesMetric = metrics?.find(
+      const cashMetric = metrics.find((m) => m.metric === "cash_balance");
+      const receivablesMetric = metrics.find(
         (m) => m.metric === "receivables_total"
-      );
-      const overdueMetric = metrics?.find(
-        (m) => m.metric === "receivables_overdue"
-      );
-      const obligationsMetric = metrics?.find(
-        (m) => m.metric === "obligations_30d"
       );
 
       const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
 
+      // A metric with no comparison means the previous year has not been
+      // imported. Report that as absent rather than as zero, which would
+      // render as a 100% collapse.
+      const withComparison = (m: FinancialMetricSnapshot) => ({
+        ytd: m.value,
+        comparison_ytd: m.comparison_value,
+        change_percent: m.change_percent,
+        has_comparison: m.comparison_value != null,
+      });
+
       return NextResponse.json({
         has_data: true,
-        revenue: {
-          ytd: revenueMetric.value,
-          comparison_ytd: revenueMetric.comparison_value ?? 0,
-          change_percent: revenueMetric.change_percent ?? 0,
+        period: {
+          start: revenueMetric.period_start,
+          end: revenueMetric.period_end,
+          comparison_start: revenueMetric.comparison_period_start,
+          comparison_end: revenueMetric.comparison_period_end,
         },
-        profit: {
-          ytd: profitMetric.value,
-          comparison_ytd: profitMetric.comparison_value ?? 0,
-          change_percent: profitMetric.change_percent ?? 0,
-        },
-        cash: {
-          current: cashMetric?.value ?? 0,
-          forecast_60_day_min: forecastMetric?.value ?? 0,
-        },
-        receivables: {
-          total: receivablesMetric?.value ?? 0,
-          overdue: overdueMetric?.value ?? 0,
-        },
-        upcoming_obligations_30d: obligationsMetric?.value ?? 0,
+        revenue: withComparison(revenueMetric),
+        profit: withComparison(profitMetric),
+        cash: cashMetric ? { current: cashMetric.value } : null,
+        receivables: receivablesMetric
+          ? { total: receivablesMetric.value, overdue: null }
+          : null,
+        upcoming_obligations_30d: null,
         insights: mapInsights(insights),
         data_quality: {
           last_sync: lastSync,

@@ -15,6 +15,7 @@ import type {
   SaftImportResult,
 } from "./types";
 import { isDepartmentType, isProjectType } from "./parser";
+import { computeCompanyMetrics } from "@/lib/metrics/compute";
 import {
   buildKnownNameMatcher,
   isNameBearingAccount,
@@ -72,7 +73,21 @@ export async function importSaft(
   counts.vouchers = ledger.vouchers;
   counts.transactions = ledger.transactions;
 
-  return { header: file.header, counts, warnings };
+  // Recompute across every year held, not just the one just imported, so
+  // uploading an earlier year backfills the comparison on years already here.
+  const metrics = await computeCompanyMetrics(supabase, companyId);
+  const years = metrics.years;
+
+  if (years.length > 0) {
+    warnings.push(
+      years.length === 1
+        ? `Regnskapsdata for ${years[0]} er nå tilgjengelig. Last opp foregående år for å få sammenligning mot i fjor.`
+        : `Regnskapsdata for ${years.join(", ")} er nå tilgjengelig. ` +
+          `Sammenligning mot foregående år er beregnet for ${metrics.yearsWithComparison.join(", ")}.`
+    );
+  }
+
+  return { header: file.header, counts, warnings, years };
 }
 
 /**
@@ -296,23 +311,54 @@ async function importLedger(
       .map((s) => s.name)
   );
 
-  // Voucher source ids must be unique within the file; journal id disambiguates
-  // systems that restart transaction numbering per journal.
-  const voucherRows = transactions.map(({ journalId, transaction }) => ({
-    company_id: companyId,
-    voucher_number: transaction.voucherNumber,
-    voucher_date: transaction.transactionDate,
-    // A voucher spans several accounts, so the payroll heuristic cannot be
-    // scoped safely here; apply it when any line touches a payroll account.
-    description: redactPersonalNames(transaction.description, {
-      knownNames: knownNamesForVouchers,
-      applyHeuristic: transaction.lines.some((l) =>
-        isNameBearingAccount(l.accountId)
-      ),
-    }),
-    source_system: SAFT_SOURCE_SYSTEM,
-    source_id: voucherSourceId(journalId, transaction.transactionId),
-  }));
+  // A file may carry several <Transaction> elements sharing one TransactionID
+  // within a journal — they describe one voucher, entered in parts. Group them
+  // so the voucher is written once and none of its lines are lost.
+  const voucherGroups = new Map<
+    string,
+    { journalId: string | null; transactions: typeof transactions }
+  >();
+
+  for (const entry of transactions) {
+    const sourceId = voucherSourceId(
+      entry.journalId,
+      entry.transaction.transactionId
+    );
+    const group = voucherGroups.get(sourceId);
+    if (group) group.transactions.push(entry);
+    else
+      voucherGroups.set(sourceId, {
+        journalId: entry.journalId,
+        transactions: [entry],
+      });
+  }
+
+  const mergedCount = transactions.length - voucherGroups.size;
+  if (mergedCount > 0) {
+    warnings.push(
+      `${mergedCount} posteringsgrupper delte bilagsnummer og er slått sammen ` +
+        "til ett bilag hver. Alle linjer er beholdt."
+    );
+  }
+
+  const voucherRows = [...voucherGroups.entries()].map(([sourceId, group]) => {
+    const first = group.transactions[0].transaction;
+    const allLines = group.transactions.flatMap((t) => t.transaction.lines);
+
+    return {
+      company_id: companyId,
+      voucher_number: first.voucherNumber,
+      voucher_date: first.transactionDate,
+      // A voucher spans several accounts, so the payroll heuristic cannot be
+      // scoped safely here; apply it when any line touches a payroll account.
+      description: redactPersonalNames(first.description, {
+        knownNames: knownNamesForVouchers,
+        applyHeuristic: allLines.some((l) => isNameBearingAccount(l.accountId)),
+      }),
+      source_system: SAFT_SOURCE_SYSTEM,
+      source_id: sourceId,
+    };
+  });
 
   await upsertBatched(
     supabase,
@@ -345,6 +391,25 @@ async function importLedger(
   const lineRows: Record<string, unknown>[] = [];
   const missingAccounts = new Set<string>();
   let redactedCount = 0;
+
+  // RecordID is only unique within one <Transaction>, so merged vouchers can
+  // repeat it. A line id that collided would be silently collapsed by the
+  // upsert dedupe and the posting would be lost, so uniqueness is enforced
+  // per voucher here.
+  const usedLineIds = new Set<string>();
+
+  const nextLineId = (voucherSource: string, recordId: string | null, index: number) => {
+    const base = `${voucherSource}:${recordId ?? index}`;
+    if (!usedLineIds.has(base)) {
+      usedLineIds.add(base);
+      return base;
+    }
+    let suffix = 2;
+    while (usedLineIds.has(`${base}#${suffix}`)) suffix++;
+    const unique = `${base}#${suffix}`;
+    usedLineIds.add(unique);
+    return unique;
+  };
 
   for (const { journalId, transaction } of transactions) {
     const sourceId = voucherSourceId(journalId, transaction.transactionId);
@@ -384,7 +449,7 @@ async function importLedger(
           ? (projectIds.get(line.projectCode) ?? null)
           : null,
         source_system: SAFT_SOURCE_SYSTEM,
-        source_id: `${sourceId}:${line.recordId ?? index}`,
+        source_id: nextLineId(sourceId, line.recordId, index),
       });
     });
   }
@@ -441,8 +506,14 @@ async function upsertBatched(
   rows: Record<string, unknown>[],
   onConflict: string
 ): Promise<void> {
-  for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-    const batch = rows.slice(i, i + BATCH_SIZE);
+  // Postgres refuses to update the same row twice in one statement
+  // ("ON CONFLICT DO UPDATE command cannot affect row a second time"), and
+  // real exports do repeat identifiers. Collapse duplicates on the conflict
+  // key first, keeping the last occurrence.
+  const deduped = dedupeByConflictKey(rows, onConflict);
+
+  for (let i = 0; i < deduped.length; i += BATCH_SIZE) {
+    const batch = deduped.slice(i, i + BATCH_SIZE);
     const { error } = await supabase
       .from(table)
       .upsert(batch as never, { onConflict });
@@ -453,6 +524,21 @@ async function upsertBatched(
       );
     }
   }
+}
+
+function dedupeByConflictKey(
+  rows: Record<string, unknown>[],
+  onConflict: string
+): Record<string, unknown>[] {
+  const columns = onConflict.split(",").map((c) => c.trim());
+  const seen = new Map<string, Record<string, unknown>>();
+
+  for (const row of rows) {
+    const key = columns.map((c) => String(row[c] ?? "")).join("\u0000");
+    seen.set(key, row);
+  }
+
+  return [...seen.values()];
 }
 
 /** Maps source_id -> row id for rows this import owns. */

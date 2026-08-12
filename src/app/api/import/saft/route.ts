@@ -143,14 +143,19 @@ export async function POST(request: NextRequest) {
         .eq("id", runId) as never);
     }
 
-    // Parse errors describe the user's own file and are safe to return.
-    // Anything else may carry database or internal detail, so keep it in the
-    // server log and hand the caller a generic message.
+    // The caller is a verified member of this company importing their own
+    // file, so the actual failure is far more useful to them than a generic
+    // message — and it is their own data either way.
     if (error instanceof SaftParseError) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
-    return errorResponse(
-      "Importen feilet. Kontroller at filen er en gyldig SAF-T-eksport, og prøv igjen."
+    return NextResponse.json(
+      {
+        error: "Importen feilet.",
+        detail: message,
+        import_run_id: runId,
+      },
+      { status: 500 }
     );
   } finally {
     // The upload is working storage only; never keep the raw ledger file.

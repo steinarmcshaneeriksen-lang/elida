@@ -151,7 +151,12 @@ export default function ImportPage() {
         });
 
         if (!res.ok) {
-          setError(await readError(res, "Import feilet"));
+          const body = await res.json().catch(() => null);
+          setError(
+            body?.detail
+              ? `${body.error ?? "Import feilet"} ${body.detail}`
+              : await readError(res, "Import feilet")
+          );
           return;
         }
 
@@ -401,6 +406,11 @@ export default function ImportPage() {
                         status={run.status}
                         error={run.error_message}
                       />
+                      {run.status === "failed" && run.error_message && (
+                        <p className="mt-1 max-w-xs text-xs text-danger">
+                          {run.error_message}
+                        </p>
+                      )}
                     </td>
                     <td className="px-4 py-2.5 text-foreground-muted">
                       {formatRelativeTime(run.started_at)}

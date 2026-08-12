@@ -11,12 +11,25 @@ import { useUser } from "@/lib/hooks/use-user";
 import { useCompanyData } from "@/lib/hooks/use-company-data";
 import { formatCurrency } from "@/lib/format";
 
+interface Metric {
+  ytd: number;
+  comparison_ytd: number | null;
+  change_percent: number | null;
+  has_comparison: boolean;
+}
+
 interface SummaryResponse {
   has_data?: boolean;
-  revenue: { ytd: number; comparison_ytd: number; change_percent: number } | null;
-  profit: { ytd: number; comparison_ytd: number; change_percent: number } | null;
-  cash: { current: number; forecast_60_day_min: number } | null;
-  receivables: { total: number; overdue: number } | null;
+  period: {
+    start: string;
+    end: string;
+    comparison_start: string | null;
+    comparison_end: string | null;
+  } | null;
+  revenue: Metric | null;
+  profit: Metric | null;
+  cash: { current: number } | null;
+  receivables: { total: number; overdue: number | null } | null;
   upcoming_obligations_30d: number | null;
   insights: Array<{
     id: string;
@@ -67,6 +80,14 @@ export default function DashboardPage() {
           Her er en oppsummering av den økonomiske situasjonen
           {company ? ` til ${company.name}` : ""}.
         </p>
+        {data?.period && (
+          <p className="mt-2 text-xs text-foreground-muted">
+            Tallene gjelder {formatPeriod(data.period.start, data.period.end)}
+            {data.period.comparison_start && data.period.comparison_end
+              ? `, sammenlignet med ${formatPeriod(data.period.comparison_start, data.period.comparison_end)}.`
+              : ". Last opp foregående år for å se utvikling."}
+          </p>
+        )}
       </div>
 
       {isLoading && <LoadingState />}
@@ -128,6 +149,20 @@ export default function DashboardPage() {
   );
 }
 
+const MONTHS = [
+  "januar", "februar", "mars", "april", "mai", "juni",
+  "juli", "august", "september", "oktober", "november", "desember",
+];
+
+/** "1. jan – 30. jun 2026", collapsing the year when both ends share it. */
+function formatPeriod(start: string, end: string): string {
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  const from = `${MONTHS[sm - 1]}`;
+  const to = `${ed}. ${MONTHS[em - 1]}`;
+  return sy === ey ? `${from}–${to} ${ey}` : `${from} ${sy} – ${to} ${ey}`;
+}
+
 function buildMetrics(data: SummaryResponse) {
   const confidence = confidenceFor(data.data_quality.freshness);
   const metrics: {
@@ -145,37 +180,25 @@ function buildMetrics(data: SummaryResponse) {
   }[] = [];
 
   if (data.profit) {
-    const diff = data.profit.ytd - data.profit.comparison_ytd;
     metrics.push({
       question: "Går bedriften med overskudd?",
-      label: "Driftsresultat hittil i år",
+      label: "Driftsresultat i perioden",
       value: formatCurrency(data.profit.ytd),
-      comparison: {
-        value: diff,
-        percent: data.profit.change_percent,
-        direction: direction(data.profit.change_percent),
-        label: "vs. samme periode i fjor",
-      },
+      comparison: comparisonFor(data.profit),
       confidence,
     });
   }
 
   if (data.revenue) {
-    const diff = data.revenue.ytd - data.revenue.comparison_ytd;
     const margin =
       data.revenue.ytd && data.profit
         ? (data.profit.ytd / data.revenue.ytd) * 100
         : null;
     metrics.push({
       question: "Vokser bedriften?",
-      label: "Omsetning hittil i år",
+      label: "Omsetning i perioden",
       value: formatCurrency(data.revenue.ytd),
-      comparison: {
-        value: diff,
-        percent: data.revenue.change_percent,
-        direction: direction(data.revenue.change_percent),
-        label: "vs. samme periode i fjor",
-      },
+      comparison: comparisonFor(data.revenue),
       confidence,
       detail:
         margin != null
@@ -190,13 +213,12 @@ function buildMetrics(data: SummaryResponse) {
       label: "Bokført likviditet",
       value: formatCurrency(data.cash.current),
       comparison: {
-        value: data.cash.forecast_60_day_min,
+        value: 0,
         percent: 0,
         direction: "flat",
-        label: "laveste punkt neste 60 dager",
+        label: "ved periodens slutt",
       },
-      // A forward-looking minimum is a projection, never a confirmed figure.
-      confidence: "medium",
+      confidence,
       detail: "Bokført saldo, ikke live banksaldo.",
     });
   }
@@ -207,29 +229,35 @@ function buildMetrics(data: SummaryResponse) {
       label: "Utestående kundefordringer",
       value: formatCurrency(data.receivables.total),
       comparison: {
-        value: data.receivables.overdue,
-        percent: 0,
-        direction: data.receivables.overdue > 0 ? "down" : "flat",
-        label: "forfalt",
-      },
-      confidence,
-    });
-  }
-
-  if (data.upcoming_obligations_30d != null) {
-    metrics.push({
-      question: "Hva må vi betale snart?",
-      label: "Forpliktelser neste 30 dager",
-      value: formatCurrency(data.upcoming_obligations_30d),
-      comparison: {
         value: 0,
         percent: 0,
         direction: "flat",
-        label: "forfaller innen 30 dager",
+        label: "bokført ved periodens slutt",
       },
       confidence,
     });
   }
 
   return metrics;
+}
+
+/**
+ * Without a previous year there is nothing to compare against. Showing a
+ * zero baseline would render as a 100% change, so say so instead.
+ */
+function comparisonFor(metric: Metric) {
+  if (!metric.has_comparison || metric.change_percent == null) {
+    return {
+      value: 0,
+      percent: 0,
+      direction: "flat" as const,
+      label: "ingen sammenligning ennå",
+    };
+  }
+  return {
+    value: metric.ytd - (metric.comparison_ytd ?? 0),
+    percent: metric.change_percent,
+    direction: direction(metric.change_percent),
+    label: "vs. samme periode i fjor",
+  };
 }
