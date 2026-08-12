@@ -1,18 +1,44 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/format";
-import { customers, type Customer } from "@/lib/mock-data";
+import { useCompanyData } from "@/lib/hooks/use-company-data";
+import {
+  NoDataState,
+  LoadingState,
+  ErrorState,
+} from "@/components/dashboard/empty-state";
 import { ArrowUpDown, AlertTriangle, ChevronRight } from "lucide-react";
 
-type SortKey = keyof Pick<
-  Customer,
-  "name" | "outstanding" | "overdue" | "oldestOverdueDays" | "avgDelayDays"
->;
+interface CustomerRow {
+  id: string;
+  name: string;
+  outstanding: number;
+  overdue: number;
+  avg_payment_days: number | null;
+  late_payment_ratio: number | null;
+  risk_score: number | null;
+}
+
+type SortKey = "name" | "outstanding" | "overdue" | "avg_payment_days";
+
+/** Payment risk arrives as a 0-1 score; the badge shows three bands. */
+function riskBand(score: number | null): "low" | "medium" | "high" {
+  if (score == null) return "low";
+  if (score >= 0.66) return "high";
+  if (score >= 0.33) return "medium";
+  return "low";
+}
 
 export default function KunderPage() {
+  const router = useRouter();
+  const { data, isLoading, error } =
+    useCompanyData<{ customers: CustomerRow[] }>("customers");
   const [sortKey, setSortKey] = useState<SortKey>("outstanding");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const customers = data?.customers ?? [];
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -38,6 +64,17 @@ export default function KunderPage() {
 
   const totalOutstanding = customers.reduce((s, c) => s + c.outstanding, 0);
   const totalOverdue = customers.reduce((s, c) => s + c.overdue, 0);
+
+  if (isLoading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+  if (customers.length === 0) {
+    return (
+      <NoDataState
+        title="Ingen kunder ennå"
+        description="Importer en SAF-T-fil fra regnskapssystemet ditt, så viser Elida kundene dine med utestående beløp og betalingsatferd."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -92,16 +129,8 @@ export default function KunderPage() {
                 align="right"
               />
               <SortableHeader
-                label="Eldste forfalt"
-                sortKey="oldestOverdueDays"
-                currentKey={sortKey}
-                direction={sortDir}
-                onSort={toggleSort}
-                align="right"
-              />
-              <SortableHeader
-                label="Snitt forsinkelse"
-                sortKey="avgDelayDays"
+                label="Snitt betalingstid"
+                sortKey="avg_payment_days"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
@@ -117,6 +146,7 @@ export default function KunderPage() {
             {sorted.map((customer) => (
               <tr
                 key={customer.id}
+                onClick={() => router.push(`/kunder/${customer.id}`)}
                 className="group cursor-pointer border-b border-border-light last:border-b-0 hover:bg-surface-hover"
               >
                 <td className="px-4 py-3 font-medium text-foreground">
@@ -136,15 +166,12 @@ export default function KunderPage() {
                   )}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-foreground-secondary">
-                  {customer.oldestOverdueDays !== null
-                    ? `${customer.oldestOverdueDays} dager`
+                  {customer.avg_payment_days != null
+                    ? `${Math.round(customer.avg_payment_days)} dager`
                     : "—"}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-foreground-secondary">
-                  {customer.avgDelayDays} dager
-                </td>
                 <td className="px-4 py-3">
-                  <RiskBadge risk={customer.riskScore} />
+                  <RiskBadge risk={riskBand(customer.risk_score)} />
                 </td>
                 <td className="px-4 py-3">
                   <ChevronRight

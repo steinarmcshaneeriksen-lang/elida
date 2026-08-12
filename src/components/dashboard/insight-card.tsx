@@ -1,15 +1,21 @@
 "use client";
 
 import { AlertTriangle, AlertCircle, Info, Bell, AlertOctagon, ChevronRight } from "lucide-react";
-import type { InsightSeverity } from "@/lib/mock-data";
 import { formatRelativeTime } from "@/lib/format";
+
+export type InsightSeverity =
+  | "info"
+  | "low"
+  | "medium"
+  | "high"
+  | "critical";
 
 interface InsightCardProps {
   severity: InsightSeverity;
   title: string;
   description: string;
   evidence?: string;
-  category: string;
+  category?: string;
   createdAt: string;
 }
 
@@ -57,7 +63,7 @@ export function InsightCard({
   category,
   createdAt,
 }: InsightCardProps) {
-  const config = severityConfig[severity];
+  const config = severityConfig[severity] ?? severityConfig.info;
   const Icon = config.icon;
 
   return (
@@ -79,9 +85,11 @@ export function InsightCard({
                 Kilde: {evidence}
               </span>
             )}
-            <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-xs font-medium text-foreground-secondary">
-              {category}
-            </span>
+            {category && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-xs font-medium text-foreground-secondary">
+                {category}
+              </span>
+            )}
             <span className="text-xs text-foreground-muted">
               {formatRelativeTime(createdAt)}
             </span>

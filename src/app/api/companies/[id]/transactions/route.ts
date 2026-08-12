@@ -9,6 +9,9 @@ type TransactionWithVoucher = AccountTransaction & {
     voucher_date: string | null;
     description: string | null;
   } | null;
+  gl_accounts: { name: string | null } | null;
+  departments: { name: string | null } | null;
+  projects: { name: string | null } | null;
 };
 
 /**
@@ -47,9 +50,11 @@ export async function GET(
     // Build query
     let query = supabase
       .from("account_transactions")
-      .select("*, vouchers(voucher_number, voucher_date, description)", {
-        count: "exact",
-      })
+      .select(
+        "*, vouchers(voucher_number, voucher_date, description), " +
+          "gl_accounts(name), departments(name), projects(name)",
+        { count: "exact" }
+      )
       .eq("company_id", companyId)
       .order("transaction_date", { ascending: false })
       .range((page - 1) * pageSize, page * pageSize - 1);
@@ -89,8 +94,11 @@ export async function GET(
           description: t.description,
           vat_code: t.vat_code,
           vat_amount: t.vat_amount,
+          account_name: t.gl_accounts?.name ?? null,
           project_id: t.project_id,
+          project_name: t.projects?.name ?? null,
           department_id: t.department_id,
+          department_name: t.departments?.name ?? null,
           voucher_number: (t.vouchers as { voucher_number: number | null } | null)?.voucher_number ?? null,
           voucher_date: (t.vouchers as { voucher_date: string | null } | null)?.voucher_date ?? null,
         })),

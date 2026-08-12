@@ -2,17 +2,33 @@
 
 import { useState } from "react";
 import { formatCurrency, formatChange, formatDateShort } from "@/lib/format";
-import { suppliers, type Supplier } from "@/lib/mock-data";
+import { useCompanyData } from "@/lib/hooks/use-company-data";
+import {
+  NoDataState,
+  LoadingState,
+  ErrorState,
+} from "@/components/dashboard/empty-state";
 import { ArrowUpDown, TrendingUp, TrendingDown } from "lucide-react";
 
-type SortKey = keyof Pick<
-  Supplier,
-  "name" | "costYTD" | "changeYoY" | "outstanding"
->;
+interface SupplierRow {
+  id: string;
+  name: string;
+  cost_ytd: number;
+  cost_ytd_change_percent: number | null;
+  outstanding: number;
+  next_due_date: string | null;
+  next_due_amount: number | null;
+}
+
+type SortKey = "name" | "cost_ytd" | "cost_ytd_change_percent" | "outstanding";
 
 export default function LeverandorerPage() {
-  const [sortKey, setSortKey] = useState<SortKey>("costYTD");
+  const { data, isLoading, error } =
+    useCompanyData<{ suppliers: SupplierRow[] }>("suppliers");
+  const [sortKey, setSortKey] = useState<SortKey>("cost_ytd");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const suppliers = data?.suppliers ?? [];
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -24,8 +40,8 @@ export default function LeverandorerPage() {
   };
 
   const sorted = [...suppliers].sort((a, b) => {
-    const aVal = a[sortKey];
-    const bVal = b[sortKey];
+    const aVal = a[sortKey] ?? 0;
+    const bVal = b[sortKey] ?? 0;
     if (typeof aVal === "string" && typeof bVal === "string") {
       return sortDir === "asc"
         ? aVal.localeCompare(bVal, "nb")
@@ -36,8 +52,19 @@ export default function LeverandorerPage() {
       : (bVal as number) - (aVal as number);
   });
 
-  const totalCostYTD = suppliers.reduce((s, sup) => s + sup.costYTD, 0);
+  const totalCostYTD = suppliers.reduce((s, sup) => s + sup.cost_ytd, 0);
   const totalOutstanding = suppliers.reduce((s, sup) => s + sup.outstanding, 0);
+
+  if (isLoading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+  if (suppliers.length === 0) {
+    return (
+      <NoDataState
+        title="Ingen leverandører ennå"
+        description="Importer en SAF-T-fil fra regnskapssystemet ditt, så viser Elida leverandørene dine med kostnadsutvikling og forfall."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -75,12 +102,9 @@ export default function LeverandorerPage() {
                 direction={sortDir}
                 onSort={toggleSort}
               />
-              <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
-                Kategori
-              </th>
               <SortableHeader
                 label="Kostnad hittil i år"
-                sortKey="costYTD"
+                sortKey="cost_ytd"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
@@ -88,7 +112,7 @@ export default function LeverandorerPage() {
               />
               <SortableHeader
                 label="Endring YoY"
-                sortKey="changeYoY"
+                sortKey="cost_ytd_change_percent"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
@@ -116,29 +140,28 @@ export default function LeverandorerPage() {
                 <td className="px-4 py-3 font-medium text-foreground">
                   {supplier.name}
                 </td>
-                <td className="px-4 py-3 text-foreground-secondary">
-                  {supplier.category}
-                </td>
                 <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                  {formatCurrency(supplier.costYTD)}
+                  {formatCurrency(supplier.cost_ytd)}
                 </td>
                 <td className="px-4 py-3 text-right">
                   <span className="inline-flex items-center gap-1">
-                    {supplier.changeYoY > 0 ? (
+                    {(supplier.cost_ytd_change_percent ?? 0) > 0 ? (
                       <TrendingUp size={12} className="text-danger" />
                     ) : (
                       <TrendingDown size={12} className="text-success" />
                     )}
                     <span
                       className={`text-sm tabular-nums font-medium ${
-                        supplier.changeYoY > 10
+                        (supplier.cost_ytd_change_percent ?? 0) > 10
                           ? "text-danger"
-                          : supplier.changeYoY > 0
+                          : (supplier.cost_ytd_change_percent ?? 0) > 0
                             ? "text-warning"
                             : "text-success"
                       }`}
                     >
-                      {formatChange(supplier.changeYoY)}
+                      {supplier.cost_ytd_change_percent != null
+                        ? formatChange(supplier.cost_ytd_change_percent)
+                        : "—"}
                     </span>
                   </span>
                 </td>
@@ -148,12 +171,12 @@ export default function LeverandorerPage() {
                     : "—"}
                 </td>
                 <td className="px-4 py-3 text-foreground-secondary">
-                  {supplier.nextDueDate ? (
+                  {supplier.next_due_date ? (
                     <span>
-                      {formatDateShort(supplier.nextDueDate)}
-                      {supplier.nextDueAmount && (
+                      {formatDateShort(supplier.next_due_date)}
+                      {supplier.next_due_amount != null && (
                         <span className="ml-1 text-xs text-foreground-muted">
-                          ({formatCurrency(supplier.nextDueAmount)})
+                          ({formatCurrency(supplier.next_due_amount)})
                         </span>
                       )}
                     </span>
