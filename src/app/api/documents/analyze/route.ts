@@ -189,7 +189,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Document analyze error:", error);
-    return errorResponse("Failed to analyze document");
+    const message =
+      error instanceof Error ? error.message : "Ukjent feil ved dokumentanalyse";
+    return NextResponse.json({ error: message }, { status: 500 });
   } finally {
     // Always clean up temporary files
     if (tempPath) {
