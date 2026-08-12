@@ -5,17 +5,28 @@ import { InsightCard } from "@/components/dashboard/insight-card";
 import { ObligationsTable } from "@/components/dashboard/obligations-table";
 import { dashboardMetrics, insights, obligations } from "@/lib/mock-data";
 import { Calendar } from "lucide-react";
+import { useUser } from "@/lib/hooks/use-user";
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 10) return "God morgen!";
+  if (hour < 17) return "God dag!";
+  return "God kveld!";
+}
 
 export default function DashboardPage() {
+  const { company } = useUser();
+
   return (
     <div className="mx-auto max-w-7xl space-y-8">
       {/* Page header */}
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-foreground">
-          God morgen!
+          {getGreeting()}
         </h2>
         <p className="mt-1 text-sm text-foreground-secondary">
-          Her er en oppsummering av den økonomiske situasjonen til Fjordtech AS.
+          Her er en oppsummering av den økonomiske situasjonen
+          {company ? ` til ${company.name}` : ""}.
         </p>
       </div>
 

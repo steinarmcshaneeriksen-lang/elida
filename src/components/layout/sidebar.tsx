@@ -25,7 +25,12 @@ const navItems = [
   { label: "Innstillinger", href: "/innstillinger", icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  companyName?: string | null;
+  orgNumber?: string | null;
+}
+
+export function Sidebar({ companyName, orgNumber }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
@@ -114,9 +119,11 @@ export function Sidebar() {
                style={{ background: "rgba(255,255,255,0.08)" }}>
             <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Bedrift</p>
             <p className="text-sm font-semibold text-white truncate">
-              Fjordtech AS
+              {companyName ?? "Laster..."}
             </p>
-            <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>Org.nr: 923 456 789</p>
+            {orgNumber && (
+              <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>Org.nr: {orgNumber}</p>
+            )}
           </div>
         )}
         <button

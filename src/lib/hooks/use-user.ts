@@ -59,10 +59,15 @@ export function useUser(): UseUserReturn {
         if (cancelled) return;
         setProfile(userProfile);
 
+        if (!userProfile) {
+          setIsLoading(false);
+          return;
+        }
+
         const { data: access } = await supabase
           .from("user_company_access")
           .select("*")
-          .eq("user_id", authUser.id)
+          .eq("user_id", userProfile.id)
           .limit(1)
           .maybeSingle();
 
