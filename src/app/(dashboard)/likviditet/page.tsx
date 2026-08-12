@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCurrency, formatDateShort } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { useCompanyData } from "@/lib/hooks/use-company-data";
 import {
   NoDataState,
@@ -13,74 +13,50 @@ import {
   ArrowUpRight,
   AlertTriangle,
   ShieldCheck,
-  Receipt,
 } from "lucide-react";
 
-type Confidence = "high" | "medium" | "low";
-
-interface FlowItem {
-  date: string | null;
+interface Party {
+  id: string;
+  name: string;
   amount: number;
-  description: string | null;
-  confidence: string | null;
 }
 
 interface CashflowResponse {
   has_data?: boolean;
-  starting_cash: number | null;
-  daily_forecast: Array<{
-    date: string | null;
-    balance: number;
-    confidence: string | null;
-  }>;
-  inflows: FlowItem[];
-  outflows: FlowItem[];
+  current_balance: number | null;
+  period: { start: string; end: string } | null;
+  lowest_point: { month: string; balance: number } | null;
+  monthly: Array<{ month: string; movement: number; balance: number }>;
+  receivables: { total: number; top: Party[] };
+  payables: { total: number; top: Party[] };
 }
 
-interface VatResponse {
-  has_data?: boolean;
-  output_vat: number | null;
-  input_vat: number | null;
-  estimated_settlement: number | null;
-  period: string | null;
-  due_date: string | null;
-}
+const MONTHS = [
+  "jan", "feb", "mar", "apr", "mai", "jun",
+  "jul", "aug", "sep", "okt", "nov", "des",
+];
 
-/** Maps the API's confidence strings onto the three bands the dot renders. */
-function toConfidence(value: string | null): Confidence {
-  if (value === "confirmed" || value === "high_confidence") return "high";
-  if (value === "low_confidence" || value === "rough_estimate") return "low";
-  return "medium";
+function monthLabel(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${String(y).slice(2)}`;
 }
 
 export default function LikviditetPage() {
-  const cashflow = useCompanyData<CashflowResponse>("cashflow?horizon_days=60");
-  const vat = useCompanyData<VatResponse>("vat-estimate");
+  const { data, isLoading, error, isEmpty } =
+    useCompanyData<CashflowResponse>("cashflow");
 
-  if (cashflow.isLoading) return <LoadingState />;
-  if (cashflow.error) return <ErrorState message={cashflow.error} />;
-  if (cashflow.isEmpty || !cashflow.data) {
+  if (isLoading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+  if (isEmpty || !data?.has_data) {
     return (
       <NoDataState
         title="Ingen likviditetsdata ennå"
-        description="Importer en SAF-T-fil fra regnskapssystemet ditt, så beregner Elida likviditet, forventede inn- og utbetalinger og MVA-estimat."
+        description="Importer en SAF-T-fil, så viser Elida hvordan bankbeholdningen har utviklet seg, hvem som skylder deg penger og hva du skylder ut."
       />
     );
   }
 
-  const data = cashflow.data;
-  const inflows = data.inflows ?? [];
-  const outflows = data.outflows ?? [];
-  const forecast = data.daily_forecast ?? [];
-
-  const totalInflows = inflows.reduce((s, i) => s + i.amount, 0);
-  const totalOutflows = outflows.reduce((s, o) => s + o.amount, 0);
-
-  const lowestPoint =
-    forecast.length > 0
-      ? forecast.reduce((min, d) => (d.balance < min.balance ? d : min))
-      : null;
-  const bufferOk = (lowestPoint?.balance ?? 0) > 0;
+  const positive = (data.current_balance ?? 0) > 0;
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -90,8 +66,12 @@ export default function LikviditetPage() {
             <Droplets size={16} />
             <span className="text-sm">Bokført likviditet</span>
           </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-            {formatCurrency(data.starting_cash ?? 0)}
+          <p
+            className={`mt-2 text-2xl font-bold tracking-tight ${
+              positive ? "text-foreground" : "text-danger"
+            }`}
+          >
+            {formatCurrency(data.current_balance ?? 0)}
           </p>
           <p className="mt-1 text-xs text-foreground-muted">
             Bokført saldo, ikke live banksaldo
@@ -101,203 +81,152 @@ export default function LikviditetPage() {
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
           <div className="flex items-center gap-2 text-foreground-muted">
             <ArrowUpRight size={16} className="text-success" />
-            <span className="text-sm">Forventede innbetalinger</span>
+            <span className="text-sm">Kunder skylder oss</span>
           </div>
           <p className="mt-2 text-2xl font-bold tracking-tight text-success">
-            {formatCurrency(totalInflows)}
+            {formatCurrency(data.receivables.total)}
+          </p>
+          <p className="mt-1 text-xs text-foreground-muted">
+            {data.receivables.top.length} kunder med utestående
           </p>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
           <div className="flex items-center gap-2 text-foreground-muted">
             <ArrowDownRight size={16} className="text-danger" />
-            <span className="text-sm">Forventede utbetalinger</span>
+            <span className="text-sm">Vi skylder leverandører</span>
           </div>
           <p className="mt-2 text-2xl font-bold tracking-tight text-danger">
-            {formatCurrency(Math.abs(totalOutflows))}
+            {formatCurrency(data.payables.total)}
+          </p>
+          <p className="mt-1 text-xs text-foreground-muted">
+            {data.payables.top.length} leverandører med utestående
           </p>
         </div>
 
-        {lowestPoint && (
-          <div
-            className={`rounded-xl border border-border p-5 shadow-[var(--shadow)] ${
-              bufferOk ? "bg-success-light" : "bg-danger-light"
-            }`}
-          >
+        {data.lowest_point && (
+          <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
             <div className="flex items-center gap-2 text-foreground-muted">
-              {bufferOk ? (
+              {data.lowest_point.balance > 0 ? (
                 <ShieldCheck size={16} className="text-success" />
               ) : (
                 <AlertTriangle size={16} className="text-danger" />
               )}
-              <span className="text-sm">Laveste punkt (60 dager)</span>
+              <span className="text-sm">Laveste punkt i perioden</span>
             </div>
             <p
               className={`mt-2 text-2xl font-bold tracking-tight ${
-                bufferOk ? "text-success" : "text-danger"
+                data.lowest_point.balance > 0 ? "text-foreground" : "text-danger"
               }`}
             >
-              {formatCurrency(lowestPoint.balance)}
+              {formatCurrency(data.lowest_point.balance)}
             </p>
-            {lowestPoint.date && (
-              <p className="mt-1 text-xs text-foreground-secondary">
-                {formatDateShort(lowestPoint.date)}
-              </p>
-            )}
+            <p className="mt-1 text-xs text-foreground-muted">
+              {monthLabel(data.lowest_point.month)}
+            </p>
           </div>
         )}
       </div>
 
-      {forecast.length > 0 && (
-        <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-          <h3 className="mb-4 text-lg font-semibold text-foreground">
-            Likviditetsprognose
-          </h3>
-          <ForecastChart points={forecast} />
-          <p className="mt-3 text-xs text-foreground-muted">
-            Prognosen er et estimat basert på kjente fordringer og
-            forpliktelser. Den er ikke en bekreftet saldo.
-          </p>
-        </section>
-      )}
+      <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
+        <h3 className="mb-1 text-lg font-semibold text-foreground">
+          Bankbeholdning over tid
+        </h3>
+        <p className="mb-5 text-sm text-foreground-muted">
+          Bokført saldo på bankkontoer ved utgangen av hver måned.
+        </p>
+        <BalanceChart points={data.monthly} />
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <FlowSection
-          title="Forventede innbetalinger"
+        <PartyList
+          title="Største utestående kundefordringer"
           icon={<ArrowUpRight size={18} className="text-success" />}
-          items={inflows}
-          total={totalInflows}
+          parties={data.receivables.top}
           tone="success"
+          empty="Ingen kunder har utestående saldo."
         />
-        <FlowSection
-          title="Forventede utbetalinger"
+        <PartyList
+          title="Største leverandørgjeld"
           icon={<ArrowDownRight size={18} className="text-danger" />}
-          items={outflows}
-          total={Math.abs(totalOutflows)}
+          parties={data.payables.top}
           tone="danger"
+          empty="Ingen leverandørgjeld registrert."
         />
       </div>
-
-      {!vat.isEmpty && vat.data && (
-        <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
-            <Receipt size={18} className="text-foreground-muted" />
-            Merverdiavgift
-          </h3>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-lg bg-surface-hover p-4">
-              <p className="text-xs font-medium text-foreground-muted">
-                Utgående MVA
-              </p>
-              <p className="mt-1 text-xl font-bold text-foreground">
-                {formatCurrency(vat.data.output_vat ?? 0)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-surface-hover p-4">
-              <p className="text-xs font-medium text-foreground-muted">
-                Inngående MVA
-              </p>
-              <p className="mt-1 text-xl font-bold text-foreground">
-                {formatCurrency(vat.data.input_vat ?? 0)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-surface-hover p-4">
-              <p className="text-xs font-medium text-foreground-muted">
-                Estimert oppgjør
-                {vat.data.period ? ` — ${vat.data.period}` : ""}
-              </p>
-              <p className="mt-1 text-xl font-bold text-foreground">
-                {formatCurrency(vat.data.estimated_settlement ?? 0)}
-              </p>
-              {vat.data.due_date && (
-                <p className="mt-0.5 text-xs text-foreground-muted">
-                  Forfaller {formatDateShort(vat.data.due_date)}
-                </p>
-              )}
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-foreground-muted">
-            Estimat basert på bokførte MVA-koder. Avstem mot regnskapssystemet
-            før innsending.
-          </p>
-        </section>
-      )}
     </div>
   );
 }
 
-function ForecastChart({
+function BalanceChart({
   points,
 }: {
-  points: Array<{ date: string | null; balance: number }>;
+  points: Array<{ month: string; movement: number; balance: number }>;
 }) {
-  const balances = points.map((p) => p.balance);
-  const max = Math.max(...balances, 0);
-  const min = Math.min(...balances, 0);
+  if (points.length === 0) {
+    return (
+      <p className="py-8 text-center text-sm text-foreground-muted">
+        Ingen bankposteringer i perioden.
+      </p>
+    );
+  }
+
+  const max = Math.max(...points.map((p) => p.balance), 0);
+  const min = Math.min(...points.map((p) => p.balance), 0);
   const range = max - min || 1;
 
-  const width = 100;
-  const height = 40;
-
-  const coords = points.map((p, i) => {
-    const x = (i / Math.max(1, points.length - 1)) * width;
-    const y = height - ((p.balance - min) / range) * height;
-    return `${x.toFixed(2)},${y.toFixed(2)}`;
-  });
-
-  // Baseline sits where balance crosses zero, so a dip below it is visible.
-  const zeroY = height - ((0 - min) / range) * height;
-
   return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="none"
-        className="h-48 w-full"
-        role="img"
-        aria-label="Likviditetsprognose de neste 60 dagene"
-      >
-        <line
-          x1="0"
-          x2={width}
-          y1={zeroY}
-          y2={zeroY}
-          stroke="var(--danger)"
-          strokeWidth="0.3"
-          strokeDasharray="1 1"
-        />
-        <polyline
-          points={coords.join(" ")}
-          fill="none"
-          stroke="var(--primary)"
-          strokeWidth="0.8"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      <div className="mt-1 flex justify-between text-xs text-foreground-muted">
-        <span>{points[0]?.date ? formatDateShort(points[0].date) : ""}</span>
-        <span>
-          {points[points.length - 1]?.date
-            ? formatDateShort(points[points.length - 1].date!)
-            : ""}
-        </span>
-      </div>
+    <div className="space-y-1.5">
+      {points.map((p) => {
+        // Bars are drawn from the zero line so a negative balance reads as one.
+        const zeroOffset = ((0 - min) / range) * 100;
+        const barSize = (Math.abs(p.balance) / range) * 100;
+        const negative = p.balance < 0;
+
+        return (
+          <div key={p.month} className="flex items-center gap-3">
+            <span className="w-14 shrink-0 text-xs text-foreground-muted">
+              {monthLabel(p.month)}
+            </span>
+            <div className="relative h-5 flex-1 rounded bg-surface-hover">
+              <div
+                className={`absolute top-0 h-full rounded ${
+                  negative ? "bg-danger" : "bg-primary"
+                }`}
+                style={{
+                  left: negative
+                    ? `${zeroOffset - barSize}%`
+                    : `${zeroOffset}%`,
+                  width: `${barSize}%`,
+                }}
+              />
+            </div>
+            <span
+              className={`w-32 shrink-0 text-right text-sm tabular-nums ${
+                negative ? "text-danger" : "text-foreground"
+              }`}
+            >
+              {formatCurrency(p.balance)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
-function FlowSection({
+function PartyList({
   title,
   icon,
-  items,
-  total,
+  parties,
   tone,
+  empty,
 }: {
   title: string;
   icon: React.ReactNode;
-  items: FlowItem[];
-  total: number;
+  parties: Party[];
   tone: "success" | "danger";
+  empty: string;
 }) {
   const toneClass = tone === "success" ? "text-success" : "text-danger";
 
@@ -308,70 +237,27 @@ function FlowSection({
         {title}
       </h3>
 
-      {items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-foreground-muted">
-          Ingen registrert ennå.
-        </p>
+      {parties.length === 0 ? (
+        <p className="py-6 text-center text-sm text-foreground-muted">{empty}</p>
       ) : (
-        <>
-          <div className="space-y-3">
-            {items.map((item, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg border border-border-light p-3 hover:bg-surface-hover"
+        <div className="space-y-2">
+          {parties.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center justify-between rounded-lg border border-border-light px-3 py-2.5"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                {p.name}
+              </span>
+              <span
+                className={`ml-4 shrink-0 text-sm font-semibold tabular-nums ${toneClass}`}
               >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {item.description ?? "—"}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    {item.date && (
-                      <span className="text-xs text-foreground-muted">
-                        {formatDateShort(item.date)}
-                      </span>
-                    )}
-                    <ConfidenceDot confidence={toConfidence(item.confidence)} />
-                  </div>
-                </div>
-                <span
-                  className={`ml-4 text-sm font-semibold tabular-nums ${toneClass}`}
-                >
-                  {formatCurrency(Math.abs(item.amount))}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-            <span className="text-sm font-semibold text-foreground">Totalt</span>
-            <span className={`text-sm font-bold tabular-nums ${toneClass}`}>
-              {formatCurrency(total)}
-            </span>
-          </div>
-        </>
+                {formatCurrency(p.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
       )}
     </section>
-  );
-}
-
-function ConfidenceDot({ confidence }: { confidence: Confidence }) {
-  const colors = {
-    high: "bg-success",
-    medium: "bg-warning",
-    low: "bg-danger",
-  };
-  const labels = {
-    high: "Høy",
-    medium: "Middels",
-    low: "Lav",
-  };
-  return (
-    <span className="flex items-center gap-1">
-      <span
-        className={`inline-block h-1.5 w-1.5 rounded-full ${colors[confidence]}`}
-      />
-      <span className="text-xs text-foreground-muted">
-        {labels[confidence]}
-      </span>
-    </span>
   );
 }

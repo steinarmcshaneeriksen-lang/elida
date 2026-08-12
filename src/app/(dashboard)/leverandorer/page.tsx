@@ -1,31 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { formatCurrency, formatChange, formatDateShort } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 import { useCompanyData } from "@/lib/hooks/use-company-data";
 import {
   NoDataState,
   LoadingState,
   ErrorState,
 } from "@/components/dashboard/empty-state";
-import { ArrowUpDown, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowUpDown } from "lucide-react";
 
 interface SupplierRow {
   id: string;
   name: string;
-  cost_ytd: number;
-  cost_ytd_change_percent: number | null;
+  org_number: string | null;
+  cost: number;
   outstanding: number;
-  next_due_date: string | null;
-  next_due_amount: number | null;
+  posting_count: number;
+  last_activity: string | null;
+  is_possible_private_person: boolean;
 }
 
-type SortKey = "name" | "cost_ytd" | "cost_ytd_change_percent" | "outstanding";
+type SortKey = "name" | "cost" | "outstanding" | "last_activity";
 
 export default function LeverandorerPage() {
   const { data, isLoading, error } =
     useCompanyData<{ suppliers: SupplierRow[] }>("suppliers");
-  const [sortKey, setSortKey] = useState<SortKey>("cost_ytd");
+  const [sortKey, setSortKey] = useState<SortKey>("cost");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const suppliers = data?.suppliers ?? [];
@@ -52,8 +53,12 @@ export default function LeverandorerPage() {
       : (bVal as number) - (aVal as number);
   });
 
-  const totalCostYTD = suppliers.reduce((s, sup) => s + sup.cost_ytd, 0);
-  const totalOutstanding = suppliers.reduce((s, sup) => s + sup.outstanding, 0);
+  const totalCost = suppliers.reduce((s, sup) => s + sup.cost, 0);
+  const totalOutstanding = suppliers.reduce(
+    (s, sup) => s + Math.max(0, sup.outstanding),
+    0
+  );
+
 
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -71,13 +76,13 @@ export default function LeverandorerPage() {
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Totale kostnader hittil i år</p>
+          <p className="text-sm text-foreground-muted">Totale kostnader i perioden</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            {formatCurrency(totalCostYTD)}
+            {formatCurrency(totalCost)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Utestående</p>
+          <p className="text-sm text-foreground-muted">Vi skylder</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
             {formatCurrency(totalOutstanding)}
           </p>
@@ -104,15 +109,7 @@ export default function LeverandorerPage() {
               />
               <SortableHeader
                 label="Kostnad hittil i år"
-                sortKey="cost_ytd"
-                currentKey={sortKey}
-                direction={sortDir}
-                onSort={toggleSort}
-                align="right"
-              />
-              <SortableHeader
-                label="Endring YoY"
-                sortKey="cost_ytd_change_percent"
+                sortKey="cost"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
@@ -126,8 +123,8 @@ export default function LeverandorerPage() {
                 onSort={toggleSort}
                 align="right"
               />
-              <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
-                Neste forfall
+              <th className="px-4 py-3 text-right font-medium text-foreground-secondary">
+                Siste aktivitet
               </th>
             </tr>
           </thead>
@@ -141,48 +138,15 @@ export default function LeverandorerPage() {
                   {supplier.name}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                  {formatCurrency(supplier.cost_ytd)}
-                </td>
-                <td className="px-4 py-3 text-right">
-                  <span className="inline-flex items-center gap-1">
-                    {(supplier.cost_ytd_change_percent ?? 0) > 0 ? (
-                      <TrendingUp size={12} className="text-danger" />
-                    ) : (
-                      <TrendingDown size={12} className="text-success" />
-                    )}
-                    <span
-                      className={`text-sm tabular-nums font-medium ${
-                        (supplier.cost_ytd_change_percent ?? 0) > 10
-                          ? "text-danger"
-                          : (supplier.cost_ytd_change_percent ?? 0) > 0
-                            ? "text-warning"
-                            : "text-success"
-                      }`}
-                    >
-                      {supplier.cost_ytd_change_percent != null
-                        ? formatChange(supplier.cost_ytd_change_percent)
-                        : "—"}
-                    </span>
-                  </span>
+                  {formatCurrency(supplier.cost)}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-foreground">
                   {supplier.outstanding > 0
                     ? formatCurrency(supplier.outstanding)
                     : "—"}
                 </td>
-                <td className="px-4 py-3 text-foreground-secondary">
-                  {supplier.next_due_date ? (
-                    <span>
-                      {formatDateShort(supplier.next_due_date)}
-                      {supplier.next_due_amount != null && (
-                        <span className="ml-1 text-xs text-foreground-muted">
-                          ({formatCurrency(supplier.next_due_amount)})
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-foreground-muted">&mdash;</span>
-                  )}
+                <td className="px-4 py-3 text-right tabular-nums text-foreground-muted">
+                  {supplier.last_activity ?? "—"}
                 </td>
               </tr>
             ))}
@@ -190,14 +154,13 @@ export default function LeverandorerPage() {
           <tfoot>
             <tr className="border-t border-border bg-surface-hover">
               <td className="px-4 py-3 font-semibold text-foreground">Totalt</td>
-              <td />
               <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">
-                {formatCurrency(totalCostYTD)}
+                {formatCurrency(totalCost)}
               </td>
-              <td />
               <td className="px-4 py-3 text-right font-semibold tabular-nums text-foreground">
                 {formatCurrency(totalOutstanding)}
               </td>
+              <td />
               <td />
             </tr>
           </tfoot>

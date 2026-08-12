@@ -8,7 +8,7 @@ import {
   LoadingState,
   ErrorState,
 } from "@/components/dashboard/empty-state";
-import { BarChart3, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, Minus, Repeat } from "lucide-react";
 
 type Period = "month" | "quarter" | "ytd" | "rolling12";
 
@@ -87,6 +87,24 @@ function monthLabel(isoMonth: string): string {
   return MONTH_NAMES[Number(month) - 1] ?? isoMonth;
 }
 
+interface RecurringResponse {
+  has_data: boolean;
+  totals: {
+    licensed: number;
+    regular: number;
+    one_off: number;
+    total: number;
+    recurring_share: number;
+  } | null;
+  items: Array<{
+    description: string;
+    months_active: number;
+    total: number;
+    avg_per_month: number;
+    category: "licensed" | "regular" | "one_off";
+  }>;
+}
+
 export default function OkonomiPage() {
   const [period, setPeriod] = useState<Period>("ytd");
 
@@ -97,6 +115,7 @@ export default function OkonomiPage() {
 
   const { data, isLoading, error, isEmpty } =
     useCompanyData<FinancialsResponse>(path);
+  const recurring = useCompanyData<RecurringResponse>("recurring-revenue");
 
   const monthly = data?.monthly ?? [];
   const maxRevenue = Math.max(1, ...monthly.map((m) => m.revenue));
@@ -195,6 +214,10 @@ export default function OkonomiPage() {
             </section>
           )}
 
+          {recurring.data?.has_data && recurring.data.totals && (
+            <RecurringRevenue data={recurring.data} />
+          )}
+
           {costCategories.length > 0 && (
             <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
               <h3 className="mb-6 text-lg font-semibold text-foreground">
@@ -229,6 +252,132 @@ export default function OkonomiPage() {
         </>
       )}
     </div>
+  );
+}
+
+const CATEGORY_LABELS: Record<string, { label: string; hint: string; className: string }> = {
+  licensed: {
+    label: "Lisens og abonnement",
+    hint: "Teksten oppgir lisens, abonnement eller månedspris",
+    className: "bg-accent",
+  },
+  regular: {
+    label: "Gjentar seg månedlig",
+    hint: "Samme linje i tre måneder eller mer, uten at teksten sier det",
+    className: "bg-primary",
+  },
+  one_off: {
+    label: "Engangsinntekter",
+    hint: "Ingen av delene",
+    className: "bg-surface-hover",
+  },
+};
+
+/**
+ * SAF-T does not state which revenue recurs, so the two signals behind the
+ * split are named rather than hidden — the numbers are inferred, and the user
+ * needs to see on what basis.
+ */
+function RecurringRevenue({ data }: { data: RecurringResponse }) {
+  const totals = data.totals!;
+  const top = data.items
+    .filter((i) => i.category !== "one_off")
+    .slice(0, 8);
+
+  return (
+    <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
+      <div className="mb-1 flex items-center gap-2">
+        <Repeat size={18} className="text-foreground-muted" />
+        <h3 className="text-lg font-semibold text-foreground">
+          Gjentakende inntekter
+        </h3>
+      </div>
+      <p className="mb-5 text-sm text-foreground-muted">
+        {totals.recurring_share} % av omsetningen gjentar seg. Utledet fra
+        posteringstekst og månedsmønster — ikke oppgitt i regnskapet.
+      </p>
+
+      <div className="mb-5 flex h-3 overflow-hidden rounded-full">
+        {(["licensed", "regular", "one_off"] as const).map((key) => {
+          const value = key === "one_off" ? totals.one_off : totals[key];
+          const pct = totals.total > 0 ? (value / totals.total) * 100 : 0;
+          if (pct <= 0) return null;
+          return (
+            <div
+              key={key}
+              className={CATEGORY_LABELS[key].className}
+              style={{ width: `${pct}%` }}
+              title={`${CATEGORY_LABELS[key].label}: ${formatCurrency(value)}`}
+            />
+          );
+        })}
+      </div>
+
+      <div className="mb-6 grid gap-3 sm:grid-cols-3">
+        {(["licensed", "regular", "one_off"] as const).map((key) => {
+          const value = key === "one_off" ? totals.one_off : totals[key];
+          return (
+            <div key={key} className="rounded-lg bg-background px-3 py-2.5">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={`h-2 w-2 rounded-full ${CATEGORY_LABELS[key].className}`}
+                />
+                <p className="text-xs font-medium text-foreground">
+                  {CATEGORY_LABELS[key].label}
+                </p>
+              </div>
+              <p className="mt-1 text-lg font-semibold text-foreground">
+                {formatCurrency(value)}
+              </p>
+              <p className="mt-0.5 text-xs leading-snug text-foreground-muted">
+                {CATEGORY_LABELS[key].hint}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+
+      {top.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-foreground-muted">
+                <th className="py-2 font-medium">Inntektslinje</th>
+                <th className="py-2 text-right font-medium">Måneder</th>
+                <th className="py-2 text-right font-medium">Snitt/mnd</th>
+                <th className="py-2 text-right font-medium">Totalt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {top.map((item) => (
+                <tr
+                  key={item.description}
+                  className="border-b border-border-light last:border-0"
+                >
+                  <td className="py-2.5 pr-4">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={`h-2 w-2 shrink-0 rounded-full ${CATEGORY_LABELS[item.category].className}`}
+                      />
+                      <span className="text-foreground">{item.description}</span>
+                    </span>
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-foreground-muted">
+                    {item.months_active}
+                  </td>
+                  <td className="py-2.5 text-right tabular-nums text-foreground-secondary">
+                    {formatCurrency(item.avg_per_month)}
+                  </td>
+                  <td className="py-2.5 text-right font-medium tabular-nums text-foreground">
+                    {formatCurrency(item.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 

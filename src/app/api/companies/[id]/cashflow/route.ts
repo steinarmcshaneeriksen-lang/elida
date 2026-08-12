@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
-import type { Forecast, ForecastItem } from "@/lib/types/database";
 
 /**
- * GET /api/companies/[id]/cashflow?horizon_days=60
+ * GET /api/companies/[id]/cashflow
  *
- * Returns cash flow forecast: starting_cash, daily_forecast[],
- * inflows[], outflows[], obligations[].
+ * Booked liquidity, derived from postings on bank and cash accounts
+ * (1900-1999), plus what is outstanding on either side.
+ *
+ * This is history, not a forecast. A forecast needs due dates, which a SAF-T
+ * export does not reliably carry, so presenting one here would be invention.
+ * What the ledger does support is stated plainly: how the balance has moved,
+ * what customers still owe, and what is owed to suppliers.
  */
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -18,100 +22,77 @@ export async function GET(
     const auth = await verifyCompanyAccess(companyId);
     if (auth instanceof NextResponse) return auth;
 
-    const horizonDays = parseInt(
-      request.nextUrl.searchParams.get("horizon_days") ?? "60",
-      10
-    );
-
     const supabase = await createClient();
 
-    // Try to load a forecast from the database
-    const { data: forecast } = await supabase
-      .from("forecasts")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("forecast_type", "cashflow")
-      .order("calculated_at", { ascending: false })
-      .limit(1)
-      .single() as { data: Forecast | null };
+    const [{ data: series }, { data: customers }, { data: suppliers }] =
+      await Promise.all([
+        supabase.rpc("company_cash_series" as never, {
+          p_company_id: companyId,
+        } as never) as unknown as Promise<{
+          data: Array<{
+            month: string;
+            movement: number;
+            balance: number;
+          }> | null;
+        }>,
+        supabase
+          .from("customers")
+          .select("id, name, closing_balance")
+          .eq("company_id", companyId)
+          .not("closing_balance", "is", null),
+        supabase
+          .from("suppliers")
+          .select("id, name, closing_balance")
+          .eq("company_id", companyId)
+          .not("closing_balance", "is", null),
+      ]);
 
-    if (forecast) {
-      // Load forecast items
-      const { data: items } = await supabase
-        .from("forecast_items")
-        .select("*")
-        .eq("forecast_id", forecast.id)
-        .order("item_date", { ascending: true }) as { data: ForecastItem[] | null };
+    const months = (series ?? []).map((m) => ({
+      month: m.month,
+      movement: Number(m.movement),
+      balance: Number(m.balance),
+    }));
 
-      const forecastItems = items ?? [];
-
-      const dailyForecast = forecastItems
-        .filter((i) => i.category === "daily_balance")
-        .map((i) => ({
-          date: i.item_date,
-          balance: i.amount,
-          confidence: i.confidence,
-        }));
-
-      const inflows = forecastItems
-        .filter((i) => i.category === "inflow")
-        .map((i) => ({
-          date: i.item_date,
-          amount: i.amount,
-          description: i.description,
-          confidence: i.confidence,
-          source_type: i.source_type,
-        }));
-
-      const outflows = forecastItems
-        .filter((i) => i.category === "outflow")
-        .map((i) => ({
-          date: i.item_date,
-          amount: i.amount,
-          description: i.description,
-          confidence: i.confidence,
-          source_type: i.source_type,
-        }));
-
-      const obligations = forecastItems
-        .filter((i) => i.category === "obligation")
-        .map((i) => ({
-          date: i.item_date,
-          amount: i.amount,
-          description: i.description,
-          confidence: i.confidence,
-          source_type: i.source_type,
-        }));
-
+    if (months.length === 0) {
       return NextResponse.json({
-        has_data: true,
-        starting_cash: (forecast.summary as Record<string, unknown>).starting_cash ?? 0,
-        horizon_days: forecast.horizon_days,
-        forecast_date: forecast.forecast_date,
-        calculated_at: forecast.calculated_at,
-        confidence: forecast.confidence,
-        daily_forecast: dailyForecast,
-        inflows,
-        outflows,
-        obligations,
+        has_data: false,
+        current_balance: null,
+        monthly: [],
+        receivables: { total: 0, top: [] },
+        payables: { total: 0, top: [] },
       });
     }
 
-    // No forecast computed yet — return an honest empty state.
+    const receivable = (customers ?? [])
+      .map((c) => ({ id: c.id, name: c.name, amount: Number(c.closing_balance) }))
+      .filter((c) => c.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+
+    const payable = (suppliers ?? [])
+      .map((s) => ({ id: s.id, name: s.name, amount: Number(s.closing_balance) }))
+      .filter((s) => s.amount > 0)
+      .sort((a, b) => b.amount - a.amount);
+
+    const sum = (rows: { amount: number }[]) =>
+      rows.reduce((t, r) => t + r.amount, 0);
+
+    const balances = months.map((m) => m.balance);
+    const lowest = months[balances.indexOf(Math.min(...balances))];
+
     return NextResponse.json({
-      has_data: false,
-      starting_cash: null,
-      horizon_days: horizonDays,
-      forecast_date: null,
-      calculated_at: new Date().toISOString(),
-      confidence: "no_data",
-      daily_forecast: [],
-      inflows: [],
-      outflows: [],
-      obligations: [],
+      has_data: true,
+      current_balance: months[months.length - 1].balance,
+      period: {
+        start: months[0].month,
+        end: months[months.length - 1].month,
+      },
+      lowest_point: { month: lowest.month, balance: lowest.balance },
+      monthly: months,
+      receivables: { total: sum(receivable), top: receivable.slice(0, 10) },
+      payables: { total: sum(payable), top: payable.slice(0, 10) },
     });
   } catch (error) {
     console.error("Cashflow API error:", error);
-    return errorResponse("Failed to load cash flow data");
+    return errorResponse("Kunne ikke hente likviditetsdata");
   }
 }

@@ -204,6 +204,17 @@ function parseParties(container: unknown, idField: string): SaftParty[] {
     const contact = asArray(p.Contact)[0];
     const address = asArray(p.Address)[0];
 
+    // SAF-T states each party's balance as separate debit and credit figures.
+    // Netting them gives a single signed balance; which side is "owed to us"
+    // differs between customers and suppliers and is settled at import.
+    const openingDebit = num(p.OpeningDebitBalance);
+    const openingCredit = num(p.OpeningCreditBalance);
+    const closingDebit = num(p.ClosingDebitBalance);
+    const closingCredit = num(p.ClosingCreditBalance);
+
+    const net = (debit: number | null, credit: number | null) =>
+      debit == null && credit == null ? null : (debit ?? 0) - (credit ?? 0);
+
     result.push({
       partyId,
       name,
@@ -212,6 +223,8 @@ function parseParties(container: unknown, idField: string): SaftParty[] {
       phone: str(firstKey(contact, "Telephone", "Phone", "MobilePhone")),
       address: addressLine(p.Address),
       country: str(address?.Country),
+      openingBalance: net(openingDebit, openingCredit),
+      closingBalance: net(closingDebit, closingCredit),
     });
   }
   return result;

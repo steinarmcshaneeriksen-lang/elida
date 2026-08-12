@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
-import type {
-  Customer,
-  CustomerPaymentProfile,
-} from "@/lib/types/database";
 
 /**
  * GET /api/companies/[id]/customers
  *
- * Returns customer list with payment profiles and risk scores.
+ * Figures come from two places, in order of authority:
+ *
+ *   closing_balance — stated by the accounting system in the SAF-T file, so
+ *   it is what the customer actually owes.
+ *
+ *   revenue and activity — aggregated from the postings attributed to the
+ *   customer, which the file supplies through CustomerID on ledger lines.
  */
 export async function GET(
   _request: NextRequest,
@@ -22,51 +24,54 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Load customers with their payment profiles
-    const { data: customers } = await supabase
-      .from("customers")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("is_active", true)
-      .order("name", { ascending: true }) as { data: Customer[] | null };
+    const [{ data: rows }, { data: summary }] = await Promise.all([
+      supabase
+        .from("customers")
+        .select("id, name, customer_number, org_number, email, closing_balance")
+        .eq("company_id", companyId)
+        .eq("is_active", true),
+      supabase.rpc("company_customer_summary" as never, {
+        p_company_id: companyId,
+      } as never) as unknown as Promise<{
+        data:
+          | Array<{
+              customer_id: string;
+              revenue: number;
+              outstanding: number;
+              posting_count: number;
+              last_activity: string | null;
+            }>
+          | null;
+      }>,
+    ]);
 
-    const { data: profiles } = await supabase
-      .from("customer_payment_profiles")
-      .select("*")
-      .eq("company_id", companyId) as { data: CustomerPaymentProfile[] | null };
+    const byId = new Map(
+      (summary ?? []).map((s) => [s.customer_id, s])
+    );
 
-    if (customers && customers.length > 0) {
-      const profileMap = new Map(
-        (profiles ?? []).map((p) => [p.customer_id, p])
-      );
+    const customers = (rows ?? []).map((c) => {
+      const agg = byId.get(c.id);
+      return {
+        id: c.id,
+        name: c.name,
+        customer_number: c.customer_number,
+        org_number: c.org_number,
+        email: c.email,
+        // The stated balance wins; the aggregate is the fallback for files
+        // that omit party balances.
+        outstanding: c.closing_balance ?? agg?.outstanding ?? 0,
+        revenue: Number(agg?.revenue ?? 0),
+        posting_count: Number(agg?.posting_count ?? 0),
+        last_activity: agg?.last_activity ?? null,
+      };
+    });
 
-      const result = customers.map((c) => {
-        const profile = profileMap.get(c.id);
-        return {
-          id: c.id,
-          name: c.name,
-          customer_number: c.customer_number,
-          org_number: c.org_number,
-          email: c.email,
-          is_active: c.is_active,
-          outstanding: profile?.current_outstanding ?? 0,
-          overdue: profile?.current_overdue ?? 0,
-          total_invoiced_ytd: profile?.total_invoiced_amount ?? 0,
-          avg_payment_days: profile?.avg_actual_payment_days ?? null,
-          late_payment_ratio: profile?.late_payment_ratio ?? null,
-          risk_score: profile?.payment_risk_score ?? null,
-          payment_trend: profile?.payment_trend ?? null,
-          last_payment_date: profile?.last_payment_date ?? null,
-        };
-      });
+    // Largest debtors first — the question this page exists to answer.
+    customers.sort((a, b) => b.outstanding - a.outstanding);
 
-      return NextResponse.json({ customers: result });
-    }
-
-    // Nothing imported yet — return an honest empty state.
-    return NextResponse.json({ customers: [] });
+    return NextResponse.json({ customers });
   } catch (error) {
     console.error("Customers API error:", error);
-    return errorResponse("Failed to load customer data");
+    return errorResponse("Kunne ikke hente kundedata");
   }
 }

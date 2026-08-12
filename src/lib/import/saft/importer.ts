@@ -160,6 +160,10 @@ async function importCustomers(
     phone: c.phone,
     address: c.address,
     is_active: true,
+    // Receivables are debit-normal, so the netted balance is already
+    // positive when the customer owes us.
+    opening_balance: c.openingBalance,
+    closing_balance: c.closingBalance,
     source_system: SAFT_SOURCE_SYSTEM,
     source_id: c.partyId,
   }));
@@ -190,6 +194,10 @@ async function importSuppliers(
     address: s.address,
     country: s.country,
     is_active: true,
+    // Payables are credit-normal; flip so a positive figure reads as "we
+    // owe this supplier", matching how the customer balance reads.
+    opening_balance: s.openingBalance == null ? null : -s.openingBalance,
+    closing_balance: s.closingBalance == null ? null : -s.closingBalance,
     // Suppliers without a valid organisation number are usually employees
     // registered for expense reimbursement. Flagged for the user to review.
     is_possible_private_person: looksLikePrivatePerson(s.registrationNumber),
@@ -378,6 +386,10 @@ async function importLedger(
   const accountIds = await fetchAccountIdMap(supabase, companyId);
   const departmentIds = await fetchIdMap(supabase, "departments", companyId);
   const projectIds = await fetchIdMap(supabase, "projects", companyId);
+  // Ledger lines name the party by its source id; resolve to our row ids so
+  // activity can be attributed per customer and supplier.
+  const customerIds = await fetchIdMap(supabase, "customers", companyId);
+  const supplierIds = await fetchIdMap(supabase, "suppliers", companyId);
 
   // Names of parties recorded without an organisation number. These are known
   // private individuals, so they can be matched exactly in any description.
@@ -447,6 +459,12 @@ async function importLedger(
           : null,
         project_id: line.projectCode
           ? (projectIds.get(line.projectCode) ?? null)
+          : null,
+        customer_id: line.customerId
+          ? (customerIds.get(line.customerId) ?? null)
+          : null,
+        supplier_id: line.supplierId
+          ? (supplierIds.get(line.supplierId) ?? null)
           : null,
         source_system: SAFT_SOURCE_SYSTEM,
         source_id: nextLineId(sourceId, line.recordId, index),

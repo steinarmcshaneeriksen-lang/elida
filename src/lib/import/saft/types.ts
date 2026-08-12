@@ -49,6 +49,15 @@ export interface SaftParty {
   phone: string | null;
   address: string | null;
   country: string | null;
+
+  /**
+   * Balances as stated by the source system. SAF-T reports these as separate
+   * debit and credit figures; `closingBalance` is the signed net, positive
+   * when the party owes us (a customer receivable) and positive for what we
+   * owe a supplier after the sign convention is applied at import.
+   */
+  openingBalance: number | null;
+  closingBalance: number | null;
 }
 
 export interface SaftTaxCode {

@@ -14,22 +14,14 @@ import { ArrowUpDown, AlertTriangle, ChevronRight } from "lucide-react";
 interface CustomerRow {
   id: string;
   name: string;
+  org_number: string | null;
   outstanding: number;
-  overdue: number;
-  avg_payment_days: number | null;
-  late_payment_ratio: number | null;
-  risk_score: number | null;
+  revenue: number;
+  posting_count: number;
+  last_activity: string | null;
 }
 
-type SortKey = "name" | "outstanding" | "overdue" | "avg_payment_days";
-
-/** Payment risk arrives as a 0-1 score; the badge shows three bands. */
-function riskBand(score: number | null): "low" | "medium" | "high" {
-  if (score == null) return "low";
-  if (score >= 0.66) return "high";
-  if (score >= 0.33) return "medium";
-  return "low";
-}
+type SortKey = "name" | "outstanding" | "revenue" | "last_activity";
 
 export default function KunderPage() {
   const router = useRouter();
@@ -62,8 +54,12 @@ export default function KunderPage() {
       : (bVal as number) - (aVal as number);
   });
 
-  const totalOutstanding = customers.reduce((s, c) => s + c.outstanding, 0);
-  const totalOverdue = customers.reduce((s, c) => s + c.overdue, 0);
+  const totalOutstanding = customers.reduce(
+    (s, c) => s + Math.max(0, c.outstanding),
+    0
+  );
+  const totalRevenue = customers.reduce((s, c) => s + c.revenue, 0);
+  const owingCount = customers.filter((c) => c.outstanding > 0).length;
 
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -87,15 +83,18 @@ export default function KunderPage() {
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Forfalt</p>
-          <p className="mt-1 text-2xl font-bold text-danger">
-            {formatCurrency(totalOverdue)}
+          <p className="text-sm text-foreground-muted">Omsetning i perioden</p>
+          <p className="mt-1 text-2xl font-bold text-foreground">
+            {formatCurrency(totalRevenue)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Antall kunder</p>
+          <p className="text-sm text-foreground-muted">Kunder</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
             {customers.length}
+          </p>
+          <p className="mt-0.5 text-xs text-foreground-muted">
+            {owingCount} med utestående
           </p>
         </div>
       </div>
@@ -121,24 +120,21 @@ export default function KunderPage() {
                 align="right"
               />
               <SortableHeader
-                label="Forfalt"
-                sortKey="overdue"
+                label="Omsetning"
+                sortKey="revenue"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
                 align="right"
               />
               <SortableHeader
-                label="Snitt betalingstid"
-                sortKey="avg_payment_days"
+                label="Siste aktivitet"
+                sortKey="last_activity"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
                 align="right"
               />
-              <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
-                Risiko
-              </th>
               <th className="w-10" />
             </tr>
           </thead>
@@ -152,26 +148,23 @@ export default function KunderPage() {
                 <td className="px-4 py-3 font-medium text-foreground">
                   {customer.name}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                  {formatCurrency(customer.outstanding)}
-                </td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {customer.overdue > 0 ? (
-                    <span className="flex items-center justify-end gap-1 text-danger">
-                      <AlertTriangle size={12} />
-                      {formatCurrency(customer.overdue)}
+                  {customer.outstanding > 0 ? (
+                    <span className="flex items-center justify-end gap-1 font-medium text-foreground">
+                      <AlertTriangle size={12} className="text-warning" />
+                      {formatCurrency(customer.outstanding)}
                     </span>
                   ) : (
-                    <span className="text-foreground-muted">&mdash;</span>
+                    <span className="text-foreground-muted">—</span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-foreground-secondary">
-                  {customer.avg_payment_days != null
-                    ? `${Math.round(customer.avg_payment_days)} dager`
+                  {customer.revenue !== 0
+                    ? formatCurrency(customer.revenue)
                     : "—"}
                 </td>
-                <td className="px-4 py-3">
-                  <RiskBadge risk={riskBand(customer.risk_score)} />
+                <td className="px-4 py-3 text-right tabular-nums text-foreground-muted">
+                  {customer.last_activity ?? "—"}
                 </td>
                 <td className="px-4 py-3">
                   <ChevronRight
@@ -227,18 +220,3 @@ function SortableHeader({
   );
 }
 
-function RiskBadge({ risk }: { risk: "low" | "medium" | "high" }) {
-  const config = {
-    low: { label: "Lav", className: "bg-success-light text-success" },
-    medium: { label: "Medium", className: "bg-warning-light text-warning" },
-    high: { label: "Høy", className: "bg-danger-light text-danger" },
-  };
-  const c = config[risk];
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${c.className}`}
-    >
-      {c.label}
-    </span>
-  );
-}

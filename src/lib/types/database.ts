@@ -115,6 +115,7 @@ export type Database = {
           created_at: string
           currency: string
           currency_amount: number | null
+          customer_id: string | null
           department_id: string | null
           description: string | null
           gl_account_id: string | null
@@ -123,6 +124,7 @@ export type Database = {
           project_id: string | null
           source_id: string | null
           source_system: string | null
+          supplier_id: string | null
           transaction_date: string
           vat_amount: number | null
           vat_code: string | null
@@ -135,6 +137,7 @@ export type Database = {
           created_at?: string
           currency?: string
           currency_amount?: number | null
+          customer_id?: string | null
           department_id?: string | null
           description?: string | null
           gl_account_id?: string | null
@@ -143,6 +146,7 @@ export type Database = {
           project_id?: string | null
           source_id?: string | null
           source_system?: string | null
+          supplier_id?: string | null
           transaction_date: string
           vat_amount?: number | null
           vat_code?: string | null
@@ -155,6 +159,7 @@ export type Database = {
           created_at?: string
           currency?: string
           currency_amount?: number | null
+          customer_id?: string | null
           department_id?: string | null
           description?: string | null
           gl_account_id?: string | null
@@ -163,6 +168,7 @@ export type Database = {
           project_id?: string | null
           source_id?: string | null
           source_system?: string | null
+          supplier_id?: string | null
           transaction_date?: string
           vat_amount?: number | null
           vat_code?: string | null
@@ -177,10 +183,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "account_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "account_transactions_gl_account_id_fkey"
             columns: ["gl_account_id"]
             isOneToOne: false
             referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
           {
@@ -574,6 +594,7 @@ export type Database = {
       customers: {
         Row: {
           address: string | null
+          closing_balance: number | null
           company_id: string
           created_at: string
           customer_number: string | null
@@ -581,6 +602,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          opening_balance: number | null
           org_number: string | null
           phone: string | null
           source_id: string | null
@@ -589,6 +611,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          closing_balance?: number | null
           company_id: string
           created_at?: string
           customer_number?: string | null
@@ -596,6 +619,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -604,6 +628,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          closing_balance?: number | null
           company_id?: string
           created_at?: string
           customer_number?: string | null
@@ -611,6 +636,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -1855,6 +1881,7 @@ export type Database = {
       suppliers: {
         Row: {
           address: string | null
+          closing_balance: number | null
           company_id: string
           country: string | null
           created_at: string
@@ -1864,6 +1891,7 @@ export type Database = {
           is_anonymised: boolean
           is_possible_private_person: boolean
           name: string
+          opening_balance: number | null
           org_number: string | null
           phone: string | null
           source_id: string | null
@@ -1873,6 +1901,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          closing_balance?: number | null
           company_id: string
           country?: string | null
           created_at?: string
@@ -1882,6 +1911,7 @@ export type Database = {
           is_anonymised?: boolean
           is_possible_private_person?: boolean
           name: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -1891,6 +1921,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          closing_balance?: number | null
           company_id?: string
           country?: string | null
           created_at?: string
@@ -1900,6 +1931,7 @@ export type Database = {
           is_anonymised?: boolean
           is_possible_private_person?: boolean
           name?: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -2269,6 +2301,40 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      company_cash_series: {
+        Args: { p_company_id: string }
+        Returns: {
+          balance: number
+          month: string
+          movement: number
+        }[]
+      }
+      company_customer_summary: {
+        Args: { p_company_id: string }
+        Returns: {
+          customer_id: string
+          customer_number: string
+          last_activity: string
+          name: string
+          org_number: string
+          outstanding: number
+          posting_count: number
+          revenue: number
+        }[]
+      }
+      company_supplier_summary: {
+        Args: { p_company_id: string }
+        Returns: {
+          cost: number
+          last_activity: string
+          name: string
+          org_number: string
+          outstanding: number
+          posting_count: number
+          supplier_id: string
+          supplier_number: string
+        }[]
+      }
       create_company_with_access: {
         Args: {
           p_company_name: string
@@ -2279,6 +2345,10 @@ export type Database = {
         Returns: Json
       }
       get_user_company_ids: { Args: never; Returns: string[] }
+      user_administers_company: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       accounting_knowledge_level: "beginner" | "intermediate" | "advanced"
