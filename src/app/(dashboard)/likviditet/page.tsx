@@ -57,10 +57,8 @@ export default function LikviditetPage() {
         </div>
 
         <div
-          className={`rounded-xl border p-5 shadow-[var(--shadow)] ${
-            bufferOk
-              ? "border-success/30 bg-success-light"
-              : "border-danger/30 bg-danger-light"
+          className={`rounded-xl border border-border p-5 shadow-[var(--shadow)] ${
+            bufferOk ? "bg-success-light" : "bg-danger-light"
           }`}
         >
           <div className="flex items-center gap-2 text-foreground-muted">

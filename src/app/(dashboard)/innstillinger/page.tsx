@@ -79,10 +79,10 @@ export default function InnstillingerPage() {
               <button
                 key={kl.key}
                 onClick={() => setLevel(kl.key)}
-                className={`flex flex-col rounded-xl border-2 p-5 text-left transition-all ${
+                className={`flex flex-col rounded-xl border p-5 text-left transition-all ${
                   isSelected
-                    ? "border-primary bg-primary-50 shadow-[var(--shadow-md)]"
-                    : "border-border bg-surface hover:border-primary-200 hover:shadow-[var(--shadow)]"
+                    ? "border-border bg-primary-50 shadow-[var(--shadow-md)]"
+                    : "border-border bg-surface hover:shadow-[var(--shadow)]"
                 }`}
               >
                 <div className="mb-3 flex items-center gap-2">

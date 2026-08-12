@@ -67,7 +67,7 @@ export function MetricCard({
   return (
     <button
       onClick={onClick}
-      className="group flex w-full flex-col rounded-xl border border-border bg-surface p-5 text-left shadow-[var(--shadow)] hover:border-primary-200 hover:shadow-[var(--shadow-md)]"
+      className="group flex w-full flex-col rounded-xl border border-border bg-surface p-5 text-left shadow-[var(--shadow)] hover:shadow-[var(--shadow-md)]"
     >
       {/* Question */}
       <p className="mb-1 text-sm font-medium text-primary">{question}</p>

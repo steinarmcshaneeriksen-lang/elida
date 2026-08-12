@@ -39,7 +39,7 @@ export default function TransaksjonerPage() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       {/* Beginner note */}
-      <div className="flex items-start gap-3 rounded-lg border border-info/20 bg-info-light p-4">
+      <div className="flex items-start gap-3 rounded-lg border border-border bg-info-light p-4">
         <Info size={16} className="mt-0.5 shrink-0 text-info" />
         <p className="text-sm text-foreground-secondary">
           Denne visningen er tilgjengelig for brukere med mellomniva eller

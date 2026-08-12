@@ -11,10 +11,6 @@ import {
 } from "lucide-react";
 import type { ChatMessage as ChatMessageType, ToolCallInfo } from "./chat-provider";
 
-// ---------------------------------------------------------------------------
-// Tool name translations
-// ---------------------------------------------------------------------------
-
 const TOOL_LABELS: Record<string, string> = {
   get_financial_summary: "Henter okonomisammendrag",
   get_revenue_analysis: "Analyserer inntekter",
@@ -37,35 +33,22 @@ const TOOL_LABELS: Record<string, string> = {
   run_scenario: "Kjorer scenarioanalyse",
 };
 
-// ---------------------------------------------------------------------------
-// Simple markdown rendering
-// ---------------------------------------------------------------------------
-
 function renderMarkdown(text: string): string {
   let html = text
-    // Escape HTML
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    // Headers
     .replace(/^### (.+)$/gm, '<h4 class="text-sm font-semibold mt-3 mb-1">$1</h4>')
     .replace(/^## (.+)$/gm, '<h3 class="text-base font-semibold mt-4 mb-2">$1</h3>')
-    // Bold
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    // Italic
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    // Inline code
-    .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-sm">$1</code>')
-    // Blockquotes
+    .replace(/`([^`]+)`/g, '<code class="px-1 py-0.5 bg-surface-hover rounded text-sm">$1</code>')
     .replace(
       /^&gt; (.+)$/gm,
-      '<blockquote class="border-l-3 border-amber-400 pl-3 py-1 my-2 text-sm text-gray-600 dark:text-gray-400 bg-amber-50 dark:bg-amber-950/30 rounded-r">$1</blockquote>'
+      '<blockquote class="border-l-3 border-warning pl-3 py-1 my-2 text-sm text-foreground-secondary bg-warning-light rounded-r">$1</blockquote>'
     )
-    // Unordered lists
     .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
-    // Ordered lists
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
-    // Table rows (simple)
     .replace(/\|(.+)\|/g, (match) => {
       if (match.includes("---")) return "";
       const cells = match
@@ -73,39 +56,30 @@ function renderMarkdown(text: string): string {
         .filter(Boolean)
         .map((c) => c.trim());
       const cellHtml = cells
-        .map((c) => `<td class="px-2 py-1 border-b border-gray-200 dark:border-gray-700 text-sm">${c}</td>`)
+        .map((c) => `<td class="px-2 py-1 border-b border-border text-sm">${c}</td>`)
         .join("");
       return `<tr>${cellHtml}</tr>`;
     })
-    // Line breaks
     .replace(/\n\n/g, "</p><p class=\"mt-2\">")
     .replace(/\n/g, "<br/>");
 
-  // Wrap in paragraph
   html = `<p class="mt-0">${html}</p>`;
 
-  // Wrap consecutive <li> in <ul>
   html = html.replace(
     /(<li[^>]*>.*?<\/li>(?:<br\/>)?)+/g,
     (match) => `<ul class="my-2">${match.replace(/<br\/>/g, "")}</ul>`
   );
 
-  // Wrap consecutive <tr> in <table>
   html = html.replace(
     /(<tr>.*?<\/tr>)+/g,
     (match) =>
       `<table class="w-full my-2 border-collapse">${match}</table>`
   );
 
-  // Clean up empty paragraphs
   html = html.replace(/<p[^>]*><\/p>/g, "");
 
   return html;
 }
-
-// ---------------------------------------------------------------------------
-// Accounting recommendation display
-// ---------------------------------------------------------------------------
 
 interface AccountingRecommendation {
   account_number: string;
@@ -119,7 +93,6 @@ interface AccountingRecommendation {
 function parseAccountingRecommendation(
   content: string
 ): AccountingRecommendation | null {
-  // Try to detect structured accounting advice in the content
   const accountMatch = content.match(
     /(?:konto|account)[:\s]*(\d{4})\s*[-–]\s*(.+)/i
   );
@@ -155,10 +128,9 @@ function AccountingRecommendationCard({
   rec: AccountingRecommendation;
 }) {
   const confidenceColors = {
-    high: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-    medium:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-    low: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+    high: "bg-success-light text-success",
+    medium: "bg-warning-light text-warning",
+    low: "bg-danger-light text-danger",
   };
 
   const confidenceLabels = {
@@ -168,17 +140,16 @@ function AccountingRecommendationCard({
   };
 
   const riskColors = {
-    low: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-    medium:
-      "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-    high: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+    low: "bg-success-light text-success",
+    medium: "bg-warning-light text-warning",
+    high: "bg-danger-light text-danger",
   };
 
   return (
-    <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
-      <div className="bg-blue-50 dark:bg-blue-950/30 px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+    <div className="mt-3 rounded-lg border border-border overflow-hidden">
+      <div className="bg-info-light px-3 py-2 border-b border-border">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+          <span className="text-sm font-medium text-info">
             Anbefalt kontering
           </span>
           <div className="flex gap-1.5">
@@ -198,25 +169,25 @@ function AccountingRecommendationCard({
       </div>
       <div className="px-3 py-2 space-y-1.5 text-sm">
         <div className="flex justify-between">
-          <span className="text-gray-500 dark:text-gray-400">Konto:</span>
-          <span className="font-medium text-gray-900 dark:text-gray-100">
+          <span className="text-foreground-muted">Konto:</span>
+          <span className="font-medium text-foreground">
             {rec.account_number} - {rec.account_name}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-gray-500 dark:text-gray-400">
+          <span className="text-foreground-muted">
             MVA-behandling:
           </span>
-          <span className="text-gray-900 dark:text-gray-100">
+          <span className="text-foreground">
             {rec.vat_treatment}
           </span>
         </div>
         {rec.poweroffice_instructions && (
-          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          <div className="mt-2 pt-2 border-t border-border-light">
+            <span className="text-xs font-medium text-foreground-muted uppercase tracking-wide">
               Slik gjor du det i PowerOffice
             </span>
-            <p className="mt-1 text-gray-700 dark:text-gray-300">
+            <p className="mt-1 text-foreground-secondary">
               {rec.poweroffice_instructions}
             </p>
           </div>
@@ -226,10 +197,6 @@ function AccountingRecommendationCard({
   );
 }
 
-// ---------------------------------------------------------------------------
-// Tool call indicator
-// ---------------------------------------------------------------------------
-
 function ToolCallIndicator({ tools }: { tools: ToolCallInfo[] }) {
   if (tools.length === 0) return null;
 
@@ -238,14 +205,14 @@ function ToolCallIndicator({ tools }: { tools: ToolCallInfo[] }) {
       {tools.map((tool, i) => (
         <span
           key={`${tool.tool}-${i}`}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-surface-hover text-foreground-secondary"
         >
           {tool.status === "running" ? (
             <Loader2 className="w-3 h-3 animate-spin" />
           ) : tool.status === "complete" ? (
-            <CheckCircle2 className="w-3 h-3 text-green-500" />
+            <CheckCircle2 className="w-3 h-3 text-success" />
           ) : (
-            <AlertTriangle className="w-3 h-3 text-red-500" />
+            <AlertTriangle className="w-3 h-3 text-danger" />
           )}
           {TOOL_LABELS[tool.tool] || tool.tool}
         </span>
@@ -253,10 +220,6 @@ function ToolCallIndicator({ tools }: { tools: ToolCallInfo[] }) {
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -266,7 +229,6 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const [showEvidence, setShowEvidence] = useState(false);
   const isUser = message.role === "user";
 
-  // Try to parse accounting recommendation
   const recommendation =
     !isUser && message.content
       ? parseAccountingRecommendation(message.content)
@@ -277,29 +239,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
       <div
         className={`max-w-[85%] ${
           isUser
-            ? "bg-blue-600 text-white rounded-2xl rounded-br-md px-4 py-2.5"
-            : "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-2xl rounded-bl-md px-4 py-3 shadow-sm border border-gray-100 dark:border-gray-700"
+            ? "bg-primary text-white rounded-2xl rounded-br-md px-4 py-2.5"
+            : "bg-surface text-foreground rounded-2xl rounded-bl-md px-4 py-3 shadow-[var(--shadow-sm)] border border-border"
         }`}
       >
-        {/* Tool call indicators for assistant messages */}
         {!isUser && message.toolCalls && message.toolCalls.length > 0 && (
           <ToolCallIndicator tools={message.toolCalls} />
         )}
 
-        {/* Message content */}
         {isUser ? (
           <p className="text-sm whitespace-pre-wrap">{message.content}</p>
         ) : (
           <>
             {message.content ? (
               <div
-                className="text-sm prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0"
+                className="text-sm prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0"
                 dangerouslySetInnerHTML={{
                   __html: renderMarkdown(message.content),
                 }}
               />
             ) : message.isStreaming ? (
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-foreground-muted">
                 <Loader2 className="w-4 h-4 animate-spin" />
                 <span>Tenker...</span>
               </div>
@@ -307,19 +267,16 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </>
         )}
 
-        {/* Streaming cursor */}
         {!isUser && message.isStreaming && message.content && (
-          <span className="inline-block w-1.5 h-4 bg-gray-400 dark:bg-gray-500 animate-pulse ml-0.5 align-text-bottom" />
+          <span className="inline-block w-1.5 h-4 bg-foreground-muted animate-pulse ml-0.5 align-text-bottom" />
         )}
 
-        {/* Accounting recommendation card */}
         {recommendation && <AccountingRecommendationCard rec={recommendation} />}
 
-        {/* Evidence toggle for assistant messages */}
         {!isUser && message.content && !message.isStreaming && (
           <button
             onClick={() => setShowEvidence(!showEvidence)}
-            className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="flex items-center gap-1 mt-2 pt-2 border-t border-border-light text-xs text-foreground-muted hover:text-foreground-secondary transition-colors"
           >
             {showEvidence ? (
               <ChevronDown className="w-3 h-3" />
@@ -331,14 +288,14 @@ export function ChatMessage({ message }: ChatMessageProps) {
         )}
 
         {showEvidence && (
-          <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-900 rounded text-xs text-gray-500 dark:text-gray-400">
+          <div className="mt-2 p-2 bg-surface-hover rounded text-xs text-foreground-muted">
             {message.toolCalls && message.toolCalls.length > 0 ? (
               <>
                 <p className="font-medium mb-1">Verktoy brukt:</p>
                 <ul className="space-y-0.5">
                   {message.toolCalls.map((tool, i) => (
                     <li key={i} className="flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3 text-green-500" />
+                      <CheckCircle2 className="w-3 h-3 text-success" />
                       {TOOL_LABELS[tool.tool] || tool.tool}
                     </li>
                   ))}
@@ -350,12 +307,11 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </div>
         )}
 
-        {/* Timestamp */}
         <div
           className={`text-[10px] mt-1 ${
             isUser
-              ? "text-blue-200"
-              : "text-gray-400 dark:text-gray-500"
+              ? "text-white/60"
+              : "text-foreground-muted"
           }`}
         >
           {message.timestamp.toLocaleTimeString("nb-NO", {
