@@ -94,8 +94,8 @@ async function storeMessage(
       conversation_id: conversationId,
       role,
       content,
-      tool_calls: toolCalls ?? null,
-      tool_results: toolResults ?? null,
+      tool_calls: (toolCalls ?? null) as import("@/lib/types/database").Json | null,
+      tool_results: (toolResults ?? null) as import("@/lib/types/database").Json | null,
     });
   } catch {
     console.error("Failed to store assistant message");
