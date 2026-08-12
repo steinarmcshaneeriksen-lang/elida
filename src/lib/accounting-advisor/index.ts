@@ -237,7 +237,7 @@ export class AccountingAdvisor {
     if (vendorName) {
       const { data: patterns } = await supabase
         .from("vendor_posting_patterns")
-        .select("vendor_name, typical_account_number, typical_vat_code, occurrence_count")
+        .select()
         .eq("company_id", companyId)
         .ilike("vendor_name", `%${vendorName}%`)
         .order("occurrence_count", { ascending: false })
@@ -251,7 +251,7 @@ export class AccountingAdvisor {
 
         const { data: accounts } = await supabase
           .from("gl_accounts")
-          .select("account_number, name")
+          .select()
           .eq("company_id", companyId)
           .in("account_number", accountNumbers);
 
@@ -265,9 +265,7 @@ export class AccountingAdvisor {
 
           const { data: transactions } = await supabase
             .from("account_transactions")
-            .select(
-              "account_number, description, transaction_date, amount, currency, vat_code"
-            )
+            .select()
             .eq("company_id", companyId)
             .eq("account_number", pattern.typical_account_number)
             .ilike("description", `%${vendorName}%`)
@@ -301,9 +299,7 @@ export class AccountingAdvisor {
       for (const term of searchTerms) {
         const { data: transactions } = await supabase
           .from("account_transactions")
-          .select(
-            "account_number, description, transaction_date, amount, currency, vat_code"
-          )
+          .select()
           .eq("company_id", companyId)
           .ilike("description", `%${term}%`)
           .order("transaction_date", { ascending: false })
@@ -317,7 +313,7 @@ export class AccountingAdvisor {
         ];
         const { data: accounts } = await supabase
           .from("gl_accounts")
-          .select("account_number, name")
+          .select()
           .eq("company_id", companyId)
           .in("account_number", txAccountNumbers);
 
@@ -397,7 +393,7 @@ export class AccountingAdvisor {
     if (primary.typical_account_number) {
       const { data: account } = await supabase
         .from("gl_accounts")
-        .select("account_number, name")
+        .select()
         .eq("company_id", companyId)
         .eq("account_number", primary.typical_account_number)
         .single();
@@ -417,7 +413,7 @@ export class AccountingAdvisor {
 
     const { data: allAccounts } = await supabase
       .from("gl_accounts")
-      .select("account_number, name")
+      .select()
       .eq("company_id", companyId)
       .in("account_number", allAccountNumbers);
 
@@ -428,7 +424,7 @@ export class AccountingAdvisor {
     // Get transaction date range
     const { data: dateRange } = await supabase
       .from("account_transactions")
-      .select("transaction_date")
+      .select()
       .eq("company_id", companyId)
       .ilike("description", `%${vendorName}%`)
       .order("transaction_date", { ascending: true })
@@ -436,7 +432,7 @@ export class AccountingAdvisor {
 
     const { data: lastDate } = await supabase
       .from("account_transactions")
-      .select("transaction_date")
+      .select()
       .eq("company_id", companyId)
       .ilike("description", `%${vendorName}%`)
       .order("transaction_date", { ascending: false })
@@ -482,23 +478,23 @@ export class AccountingAdvisor {
       await Promise.all([
         supabase
           .from("companies")
-          .select("id, name, org_number, industry")
+          .select()
           .eq("id", companyId)
           .single(),
         supabase
           .from("vat_settings")
-          .select("vat_registered, vat_period")
+          .select()
           .eq("company_id", companyId)
           .single(),
         supabase
           .from("gl_accounts")
-          .select("account_number, name, is_active, account_type")
+          .select()
           .eq("company_id", companyId)
           .eq("is_active", true)
           .order("account_number"),
         supabase
           .from("vat_codes")
-          .select("code, name, rate, is_active")
+          .select()
           .eq("company_id", companyId)
           .eq("is_active", true),
       ]);
