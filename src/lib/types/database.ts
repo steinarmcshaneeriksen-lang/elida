@@ -196,44 +196,65 @@ export type Database = {
         Row: {
           category: string
           content_nb: string
+          content_version: number | null
           created_at: string
+          description: string | null
           effective_from: string
           effective_to: string | null
           id: string
           jurisdiction: string
           last_reviewed_at: string | null
           metadata: Json
+          parameters: Json | null
           rule_id: string
+          rule_key: string | null
+          rule_type: string | null
           source: string | null
+          title: string | null
           title_nb: string
+          updated_at: string | null
         }
         Insert: {
           category: string
           content_nb: string
+          content_version?: number | null
           created_at?: string
+          description?: string | null
           effective_from: string
           effective_to?: string | null
           id?: string
           jurisdiction?: string
           last_reviewed_at?: string | null
           metadata?: Json
+          parameters?: Json | null
           rule_id: string
+          rule_key?: string | null
+          rule_type?: string | null
           source?: string | null
+          title?: string | null
           title_nb: string
+          updated_at?: string | null
         }
         Update: {
           category?: string
           content_nb?: string
+          content_version?: number | null
           created_at?: string
+          description?: string | null
           effective_from?: string
           effective_to?: string | null
           id?: string
           jurisdiction?: string
           last_reviewed_at?: string | null
           metadata?: Json
+          parameters?: Json | null
           rule_id?: string
+          rule_key?: string | null
+          rule_type?: string | null
           source?: string | null
+          title?: string | null
           title_nb?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1208,6 +1229,167 @@ export type Database = {
           },
         ]
       }
+      knowledge_articles: {
+        Row: {
+          accounting_treatment: string
+          beginner_explanation: string
+          category: Database["public"]["Enums"]["article_category"]
+          common_mistakes: string[]
+          company_types: Database["public"]["Enums"]["company_type"][]
+          confidence: Database["public"]["Enums"]["article_confidence"]
+          content_version: number
+          created_at: string
+          documentation_requirements: string[]
+          effective_from: string
+          effective_to: string | null
+          examples: Json
+          exceptions: string[]
+          id: string
+          jurisdiction: string
+          keywords: string[]
+          last_researched_at: string
+          main_rule: string
+          poweroffice_guidance: string
+          professional_explanation: string
+          professional_review_reason: string
+          questions_to_ask_user: string[]
+          recommended_accounts: Json
+          related_topics: string[]
+          requires_professional_review: boolean
+          review_status: Database["public"]["Enums"]["review_status"]
+          risk_level: Database["public"]["Enums"]["risk_level"]
+          search_phrases: string[]
+          slug: string
+          sources: Json
+          subcategory: string
+          summary: string
+          tax_treatment: string
+          title: string
+          updated_at: string
+          vat_treatment: string
+          warning_signs: string[]
+        }
+        Insert: {
+          accounting_treatment?: string
+          beginner_explanation: string
+          category: Database["public"]["Enums"]["article_category"]
+          common_mistakes?: string[]
+          company_types?: Database["public"]["Enums"]["company_type"][]
+          confidence?: Database["public"]["Enums"]["article_confidence"]
+          content_version?: number
+          created_at?: string
+          documentation_requirements?: string[]
+          effective_from?: string
+          effective_to?: string | null
+          examples?: Json
+          exceptions?: string[]
+          id?: string
+          jurisdiction?: string
+          keywords?: string[]
+          last_researched_at?: string
+          main_rule: string
+          poweroffice_guidance?: string
+          professional_explanation: string
+          professional_review_reason?: string
+          questions_to_ask_user?: string[]
+          recommended_accounts?: Json
+          related_topics?: string[]
+          requires_professional_review?: boolean
+          review_status?: Database["public"]["Enums"]["review_status"]
+          risk_level?: Database["public"]["Enums"]["risk_level"]
+          search_phrases?: string[]
+          slug: string
+          sources?: Json
+          subcategory?: string
+          summary: string
+          tax_treatment?: string
+          title: string
+          updated_at?: string
+          vat_treatment?: string
+          warning_signs?: string[]
+        }
+        Update: {
+          accounting_treatment?: string
+          beginner_explanation?: string
+          category?: Database["public"]["Enums"]["article_category"]
+          common_mistakes?: string[]
+          company_types?: Database["public"]["Enums"]["company_type"][]
+          confidence?: Database["public"]["Enums"]["article_confidence"]
+          content_version?: number
+          created_at?: string
+          documentation_requirements?: string[]
+          effective_from?: string
+          effective_to?: string | null
+          examples?: Json
+          exceptions?: string[]
+          id?: string
+          jurisdiction?: string
+          keywords?: string[]
+          last_researched_at?: string
+          main_rule?: string
+          poweroffice_guidance?: string
+          professional_explanation?: string
+          professional_review_reason?: string
+          questions_to_ask_user?: string[]
+          recommended_accounts?: Json
+          related_topics?: string[]
+          requires_professional_review?: boolean
+          review_status?: Database["public"]["Enums"]["review_status"]
+          risk_level?: Database["public"]["Enums"]["risk_level"]
+          search_phrases?: string[]
+          slug?: string
+          sources?: Json
+          subcategory?: string
+          summary?: string
+          tax_treatment?: string
+          title?: string
+          updated_at?: string
+          vat_treatment?: string
+          warning_signs?: string[]
+        }
+        Relationships: []
+      }
+      knowledge_evaluations: {
+        Row: {
+          article_id: string
+          created_at: string
+          expected_risk_level: Database["public"]["Enums"]["risk_level"]
+          expected_topics: string[]
+          id: string
+          question: string
+          required_clarifying_questions: string[]
+          unacceptable_behavior: string[]
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          expected_risk_level?: Database["public"]["Enums"]["risk_level"]
+          expected_topics?: string[]
+          id?: string
+          question: string
+          required_clarifying_questions?: string[]
+          unacceptable_behavior?: string[]
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          expected_risk_level?: Database["public"]["Enums"]["risk_level"]
+          expected_topics?: string[]
+          id?: string
+          question?: string
+          required_clarifying_questions?: string[]
+          unacceptable_behavior?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_evaluations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outgoing_invoice_lines: {
         Row: {
           account_number: string | null
@@ -2015,11 +2197,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_company_with_access: {
+        Args: {
+          p_company_name: string
+          p_industry?: string
+          p_knowledge_level?: Database["public"]["Enums"]["accounting_knowledge_level"]
+          p_org_number?: string
+        }
+        Returns: Json
+      }
       get_user_company_ids: { Args: never; Returns: string[] }
     }
     Enums: {
       accounting_knowledge_level: "beginner" | "intermediate" | "advanced"
+      article_category:
+        | "bookkeeping"
+        | "accounting"
+        | "vat"
+        | "tax"
+        | "payroll"
+        | "travel"
+        | "representation"
+        | "employee_benefits"
+        | "assets"
+        | "depreciation"
+        | "receivables"
+        | "shareholder"
+        | "foreign_transactions"
+        | "vehicle"
+        | "documentation"
+        | "poweroffice"
+      article_confidence: "HIGH" | "MEDIUM" | "LOW"
       assistant_message_role: "user" | "assistant" | "system"
+      company_type: "AS" | "ENK" | "ANS" | "DA" | "NUF" | "SA"
       confidence_level:
         | "confirmed"
         | "high_confidence"
@@ -2033,6 +2243,8 @@ export type Database = {
         | "failed"
         | "deleted"
       integration_provider: "poweroffice"
+      review_status: "AI_GENERATED" | "NEEDS_REVIEW" | "REVIEWED" | "PUBLISHED"
+      risk_level: "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH"
       sync_status: "pending" | "running" | "completed" | "failed" | "partial"
     }
     CompositeTypes: {
@@ -2162,7 +2374,27 @@ export const Constants = {
   public: {
     Enums: {
       accounting_knowledge_level: ["beginner", "intermediate", "advanced"],
+      article_category: [
+        "bookkeeping",
+        "accounting",
+        "vat",
+        "tax",
+        "payroll",
+        "travel",
+        "representation",
+        "employee_benefits",
+        "assets",
+        "depreciation",
+        "receivables",
+        "shareholder",
+        "foreign_transactions",
+        "vehicle",
+        "documentation",
+        "poweroffice",
+      ],
+      article_confidence: ["HIGH", "MEDIUM", "LOW"],
       assistant_message_role: ["user", "assistant", "system"],
+      company_type: ["AS", "ENK", "ANS", "DA", "NUF", "SA"],
       confidence_level: [
         "confirmed",
         "high_confidence",
@@ -2178,16 +2410,16 @@ export const Constants = {
         "deleted",
       ],
       integration_provider: ["poweroffice"],
+      review_status: ["AI_GENERATED", "NEEDS_REVIEW", "REVIEWED", "PUBLISHED"],
+      risk_level: ["LOW", "MEDIUM", "HIGH", "VERY_HIGH"],
       sync_status: ["pending", "running", "completed", "failed", "partial"],
     },
   },
 } as const
 
-// ─── Named type aliases for backward compatibility ──────────────────────────
-// These provide convenient named types that can be imported directly,
-// derived from the generated Database type above.
+// ─── Named type aliases ─────────────────────────────────────────────────────
 
-// Row types (what you get back from SELECT queries)
+// Row types
 export type Company = Tables<"companies">;
 export type User = Tables<"users">;
 export type UserCompanyAccess = Tables<"user_company_access">;
@@ -2227,6 +2459,8 @@ export type EphemeralDocumentJob = Tables<"ephemeral_document_jobs">;
 export type Department = Tables<"departments">;
 export type Product = Tables<"products">;
 export type Project = Tables<"projects">;
+export type KnowledgeArticle = Tables<"knowledge_articles">;
+export type KnowledgeEvaluation = Tables<"knowledge_evaluations">;
 
 // Enum types
 export type AccountingKnowledgeLevel = Enums<"accounting_knowledge_level">;
@@ -2235,3 +2469,5 @@ export type SyncStatus = Enums<"sync_status">;
 export type ConfidenceLevel = Enums<"confidence_level">;
 export type DocumentJobStatus = Enums<"document_job_status">;
 export type AssistantMessageRole = Enums<"assistant_message_role">;
+export type ReviewStatusEnum = Enums<"review_status">;
+export type RiskLevelEnum = Enums<"risk_level">;
