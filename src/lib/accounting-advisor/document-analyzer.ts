@@ -141,7 +141,7 @@ export class DocumentAnalyzer {
 
       const response = await this.client.chat.completions.create({
         model: VISION_MODEL,
-        max_tokens: MAX_TOKENS,
+        max_completion_tokens: MAX_TOKENS,
         messages: [
           { role: "system", content: EXTRACTION_SYSTEM_PROMPT },
           {
