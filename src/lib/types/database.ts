@@ -1,830 +1,2237 @@
-// ─── Enums ──────────────────────────────────────────────────────────────────
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export type AccountingKnowledgeLevel = "beginner" | "intermediate" | "advanced";
-
-export type IntegrationProvider = "poweroffice";
-
-export type SyncStatus = "pending" | "running" | "completed" | "failed" | "partial";
-
-export type ConfidenceLevel =
-  | "confirmed"
-  | "high_confidence"
-  | "estimated"
-  | "low_confidence"
-  | "rough_estimate";
-
-export type DocumentJobStatus =
-  | "uploading"
-  | "analyzing"
-  | "completed"
-  | "failed"
-  | "deleted";
-
-export type AssistantMessageRole = "user" | "assistant" | "system";
-
-// ─── Row types ──────────────────────────────────────────────────────────────
-
-export interface Company {
-  id: string;
-  name: string;
-  org_number: string | null;
-  industry: string | null;
-  employer_tax_zone: string | null;
-  normal_payroll_date: number | null;
-  min_liquidity_buffer: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface User {
-  id: string;
-  email: string;
-  full_name: string | null;
-  auth_user_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface UserCompanyAccess {
-  id: string;
-  user_id: string;
-  company_id: string;
-  role: string;
-  accounting_knowledge_level: AccountingKnowledgeLevel;
-  created_at: string;
-}
-
-export interface UserPreferences {
-  id: string;
-  user_id: string;
-  language: string;
-  theme: string;
-  settings: Record<string, unknown>;
-  updated_at: string;
-}
-
-export interface Integration {
-  id: string;
-  company_id: string;
-  provider: IntegrationProvider;
-  is_active: boolean;
-  settings: Record<string, unknown>;
-  connected_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface IntegrationCredential {
-  id: string;
-  integration_id: string;
-  encrypted_client_key: string;
-  application_key: string | null;
-  subscription_key: string | null;
-  access_token: string | null;
-  token_expires_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface IntegrationSyncState {
-  id: string;
-  company_id: string;
-  resource_type: string;
-  last_voucher_number: number | null;
-  last_created_at: string | null;
-  last_changed_at: string | null;
-  last_sync_started_at: string | null;
-  last_sync_completed_at: string | null;
-  sync_status: SyncStatus;
-  error_message: string | null;
-  metadata: Record<string, unknown>;
-}
-
-export interface FinancialYear {
-  id: string;
-  company_id: string;
-  year: number;
-  start_date: string;
-  end_date: string;
-  is_closed: boolean;
-  source_system: string | null;
-  source_id: string | null;
-}
-
-export interface GLAccount {
-  id: string;
-  company_id: string;
-  account_number: string;
-  name: string;
-  description: string | null;
-  account_type: string | null;
-  is_active: boolean;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AccountCategory {
-  id: string;
-  key: string;
-  name_nb: string;
-  name_en: string | null;
-  parent_key: string | null;
-  display_order: number;
-}
-
-export interface AccountMapping {
-  id: string;
-  company_id: string;
-  gl_account_id: string;
-  category_key: string;
-  confidence: number;
-  source: string;
-  is_user_override: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface VatCode {
-  id: string;
-  company_id: string;
-  code: string;
-  name: string | null;
-  rate: number | null;
-  description: string | null;
-  is_active: boolean;
-  saft_code: string | null;
-  source_system: string | null;
-  source_id: string | null;
-}
-
-export interface VatSettings {
-  id: string;
-  company_id: string;
-  vat_registered: boolean;
-  vat_period: string | null;
-  settings: Record<string, unknown>;
-  source_system: string | null;
-  source_id: string | null;
-}
-
-export interface Voucher {
-  id: string;
-  company_id: string;
-  voucher_number: number | null;
-  voucher_date: string | null;
-  description: string | null;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-}
-
-export interface AccountTransaction {
-  id: string;
-  company_id: string;
-  voucher_id: string | null;
-  gl_account_id: string | null;
-  account_number: string;
-  transaction_date: string;
-  amount: number;
-  currency: string;
-  currency_amount: number | null;
-  description: string | null;
-  vat_code: string | null;
-  vat_amount: number | null;
-  project_id: string | null;
-  department_id: string | null;
-  product_id: string | null;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-}
-
-export interface TrialBalanceSnapshot {
-  id: string;
-  company_id: string;
-  snapshot_date: string;
-  account_number: string;
-  opening_balance: number;
-  period_debit: number;
-  period_credit: number;
-  closing_balance: number;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-}
-
-export interface Customer {
-  id: string;
-  company_id: string;
-  name: string;
-  customer_number: string | null;
-  org_number: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  is_active: boolean;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface CustomerLedgerEntry {
-  id: string;
-  company_id: string;
-  customer_id: string | null;
-  entry_date: string;
-  due_date: string | null;
-  entry_type: string | null;
-  invoice_number: string | null;
-  amount: number;
-  remaining_amount: number | null;
-  currency: string;
-  is_open: boolean;
-  match_status: string | null;
-  description: string | null;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-}
-
-export interface OutgoingInvoice {
-  id: string;
-  company_id: string;
-  customer_id: string | null;
-  invoice_number: string | null;
-  invoice_date: string | null;
-  due_date: string | null;
-  total_amount: number | null;
-  remaining_amount: number | null;
-  currency: string;
-  status: string | null;
-  invoice_type: string | null;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface OutgoingInvoiceLine {
-  id: string;
-  invoice_id: string;
-  line_number: number | null;
-  description: string | null;
-  quantity: number | null;
-  unit_price: number | null;
-  amount: number | null;
-  vat_code: string | null;
-  vat_amount: number | null;
-  account_number: string | null;
-  product_id: string | null;
-  project_id: string | null;
-  department_id: string | null;
-}
-
-export interface Supplier {
-  id: string;
-  company_id: string;
-  name: string;
-  supplier_number: string | null;
-  org_number: string | null;
-  email: string | null;
-  phone: string | null;
-  address: string | null;
-  country: string | null;
-  is_active: boolean;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface SupplierLedgerEntry {
-  id: string;
-  company_id: string;
-  supplier_id: string | null;
-  entry_date: string;
-  due_date: string | null;
-  entry_type: string | null;
-  invoice_number: string | null;
-  amount: number;
-  remaining_amount: number | null;
-  currency: string;
-  is_open: boolean;
-  match_status: string | null;
-  description: string | null;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-}
-
-export interface IncomingInvoice {
-  id: string;
-  company_id: string;
-  supplier_id: string | null;
-  invoice_number: string | null;
-  invoice_date: string | null;
-  due_date: string | null;
-  total_amount: number | null;
-  remaining_amount: number | null;
-  currency: string;
-  status: string | null;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Payment {
-  id: string;
-  company_id: string;
-  payment_date: string;
-  amount: number;
-  currency: string;
-  payment_type: string | null;
-  reference_type: string | null;
-  reference_id: string | null;
-  description: string | null;
-  source_system: string | null;
-  source_id: string | null;
-  created_at: string;
-}
-
-export interface Project {
-  id: string;
-  company_id: string;
-  name: string;
-  code: string | null;
-  is_active: boolean;
-  source_system: string | null;
-  source_id: string | null;
-}
-
-export interface Department {
-  id: string;
-  company_id: string;
-  name: string;
-  code: string | null;
-  is_active: boolean;
-  source_system: string | null;
-  source_id: string | null;
-}
-
-export interface Product {
-  id: string;
-  company_id: string;
-  name: string;
-  code: string | null;
-  is_active: boolean;
-  source_system: string | null;
-  source_id: string | null;
-}
-
-export interface FinancialMetricSnapshot {
-  id: string;
-  company_id: string;
-  metric: string;
-  value: number;
-  period_type: string;
-  period_start: string;
-  period_end: string;
-  comparison_value: number | null;
-  comparison_period_start: string | null;
-  comparison_period_end: string | null;
-  change_amount: number | null;
-  change_percent: number | null;
-  confidence: ConfidenceLevel;
-  calculation_version: string;
-  calculated_at: string;
-  metadata: Record<string, unknown>;
-}
-
-export interface FinancialInsight {
-  id: string;
-  company_id: string;
-  insight_type: string;
-  severity: string;
-  title_nb: string;
-  description_nb: string | null;
-  metric_current: number | null;
-  metric_reference: number | null;
-  period: string | null;
-  evidence: unknown[];
-  is_active: boolean;
-  created_at: string;
-  expires_at: string | null;
-}
-
-export interface Forecast {
-  id: string;
-  company_id: string;
-  forecast_type: string;
-  horizon_days: number;
-  forecast_date: string;
-  calculated_at: string;
-  calculation_version: string;
-  confidence: ConfidenceLevel;
-  summary: Record<string, unknown>;
-  metadata: Record<string, unknown>;
-}
-
-export interface ForecastItem {
-  id: string;
-  forecast_id: string;
-  item_date: string;
-  category: string;
-  description: string | null;
-  amount: number;
-  confidence: ConfidenceLevel;
-  source_type: string | null;
-  source_id: string | null;
-  metadata: Record<string, unknown>;
-}
-
-export interface CustomerPaymentProfile {
-  id: string;
-  company_id: string;
-  customer_id: string;
-  total_invoices: number;
-  total_invoiced_amount: number;
-  current_outstanding: number;
-  current_overdue: number;
-  avg_agreed_terms_days: number | null;
-  avg_actual_payment_days: number | null;
-  avg_days_after_due: number | null;
-  late_payment_ratio: number | null;
-  max_delay_days: number | null;
-  payment_risk_score: number | null;
-  last_payment_date: string | null;
-  payment_trend: string | null;
-  calculated_at: string;
-}
-
-export interface RecurringCostPattern {
-  id: string;
-  company_id: string;
-  supplier_id: string | null;
-  supplier_name: string | null;
-  description: string | null;
-  category_key: string | null;
-  avg_amount: number;
-  frequency: string;
-  last_occurrence_date: string | null;
-  next_expected_date: string | null;
-  confidence: ConfidenceLevel;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface VendorPostingPattern {
-  id: string;
-  company_id: string;
-  supplier_id: string | null;
-  vendor_name: string;
-  typical_account_number: string | null;
-  typical_vat_code: string | null;
-  typical_category_key: string | null;
-  occurrence_count: number;
-  last_occurrence_date: string | null;
-  confidence: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AssistantConversation {
-  id: string;
-  company_id: string;
-  user_id: string;
-  title: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AssistantMessage {
-  id: string;
-  conversation_id: string;
-  role: AssistantMessageRole;
-  content: string;
-  tool_calls: unknown[] | null;
-  tool_results: unknown[] | null;
-  structured_response: Record<string, unknown> | null;
-  created_at: string;
-}
-
-export interface AssistantEvidence {
-  id: string;
-  message_id: string;
-  metric_id: string | null;
-  transaction_ids: string[] | null;
-  invoice_ids: string[] | null;
-  calculation_version: string | null;
-  source_period_start: string | null;
-  source_period_end: string | null;
-  comparison_period_start: string | null;
-  comparison_period_end: string | null;
-  evidence_data: Record<string, unknown>;
-}
-
-export interface EphemeralDocumentJob {
-  id: string;
-  company_id: string;
-  user_id: string;
-  status: DocumentJobStatus;
-  mime_type: string | null;
-  file_size: number | null;
-  analysis_result: Record<string, unknown> | null;
-  recommendation: Record<string, unknown> | null;
-  created_at: string;
-  completed_at: string | null;
-  deleted_at: string | null;
-}
-
-export interface AccountingRule {
-  id: string;
-  rule_id: string;
-  category: string;
-  title_nb: string;
-  content_nb: string;
-  effective_from: string;
-  effective_to: string | null;
-  jurisdiction: string;
-  source: string | null;
-  last_reviewed_at: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
-// ─── Insert types (omit server-generated fields) ────────────────────────────
-
-export type CompanyInsert = Omit<Company, "id" | "created_at" | "updated_at">;
-export type UserInsert = Omit<User, "id" | "created_at" | "updated_at">;
-export type UserCompanyAccessInsert = Omit<UserCompanyAccess, "id" | "created_at">;
-export type UserPreferencesInsert = Omit<UserPreferences, "id" | "updated_at">;
-export type IntegrationInsert = Omit<Integration, "id" | "created_at" | "updated_at">;
-export type IntegrationCredentialInsert = Omit<IntegrationCredential, "id" | "created_at" | "updated_at">;
-export type VoucherInsert = Omit<Voucher, "id" | "created_at">;
-export type AccountTransactionInsert = Omit<AccountTransaction, "id" | "created_at">;
-export type CustomerInsert = Omit<Customer, "id" | "created_at" | "updated_at">;
-export type SupplierInsert = Omit<Supplier, "id" | "created_at" | "updated_at">;
-export type OutgoingInvoiceInsert = Omit<OutgoingInvoice, "id" | "created_at" | "updated_at">;
-export type IncomingInvoiceInsert = Omit<IncomingInvoice, "id" | "created_at" | "updated_at">;
-export type PaymentInsert = Omit<Payment, "id" | "created_at">;
-export type AssistantConversationInsert = Omit<AssistantConversation, "id" | "created_at" | "updated_at">;
-export type AssistantMessageInsert = Omit<AssistantMessage, "id" | "created_at">;
-export type EphemeralDocumentJobInsert = Omit<EphemeralDocumentJob, "id" | "created_at" | "completed_at" | "deleted_at">;
-
-// ─── Database schema type for Supabase client generics ──────────────────────
-
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.15"
+  }
   public: {
     Tables: {
-      companies: {
-        Row: Company;
-        Insert: Partial<Pick<Company, "id" | "created_at" | "updated_at">> & Omit<Company, "id" | "created_at" | "updated_at">;
-        Update: Partial<Company>;
-        Relationships: [];
-      };
-      users: {
-        Row: User;
-        Insert: Partial<Pick<User, "id" | "created_at" | "updated_at">> & Omit<User, "id" | "created_at" | "updated_at">;
-        Update: Partial<User>;
-        Relationships: [];
-      };
-      user_company_access: {
-        Row: UserCompanyAccess;
-        Insert: Partial<Pick<UserCompanyAccess, "id" | "created_at" | "role" | "accounting_knowledge_level">> & Omit<UserCompanyAccess, "id" | "created_at" | "role" | "accounting_knowledge_level">;
-        Update: Partial<UserCompanyAccess>;
-        Relationships: [];
-      };
-      user_preferences: {
-        Row: UserPreferences;
-        Insert: Partial<Pick<UserPreferences, "id" | "updated_at" | "language" | "theme" | "settings">> & Omit<UserPreferences, "id" | "updated_at" | "language" | "theme" | "settings">;
-        Update: Partial<UserPreferences>;
-        Relationships: [];
-      };
-      integrations: {
-        Row: Integration;
-        Insert: Partial<Pick<Integration, "id" | "is_active" | "settings" | "created_at" | "updated_at">> & Omit<Integration, "id" | "is_active" | "settings" | "created_at" | "updated_at">;
-        Update: Partial<Integration>;
-        Relationships: [];
-      };
-      integration_credentials: {
-        Row: IntegrationCredential;
-        Insert: Partial<Pick<IntegrationCredential, "id" | "created_at" | "updated_at">> & Omit<IntegrationCredential, "id" | "created_at" | "updated_at">;
-        Update: Partial<IntegrationCredential>;
-        Relationships: [];
-      };
-      integration_sync_state: {
-        Row: IntegrationSyncState;
-        Insert: Partial<Pick<IntegrationSyncState, "id" | "sync_status" | "metadata">> & Omit<IntegrationSyncState, "id" | "sync_status" | "metadata">;
-        Update: Partial<IntegrationSyncState>;
-        Relationships: [];
-      };
-      financial_years: {
-        Row: FinancialYear;
-        Insert: Partial<Pick<FinancialYear, "id" | "is_closed">> & Omit<FinancialYear, "id" | "is_closed">;
-        Update: Partial<FinancialYear>;
-        Relationships: [];
-      };
-      gl_accounts: {
-        Row: GLAccount;
-        Insert: Partial<Pick<GLAccount, "id" | "is_active" | "created_at" | "updated_at">> & Omit<GLAccount, "id" | "is_active" | "created_at" | "updated_at">;
-        Update: Partial<GLAccount>;
-        Relationships: [];
-      };
       account_categories: {
-        Row: AccountCategory;
-        Insert: Partial<Pick<AccountCategory, "id" | "display_order">> & Omit<AccountCategory, "id" | "display_order">;
-        Update: Partial<AccountCategory>;
-        Relationships: [];
-      };
+        Row: {
+          display_order: number
+          id: string
+          key: string
+          name_en: string | null
+          name_nb: string
+          parent_key: string | null
+        }
+        Insert: {
+          display_order?: number
+          id?: string
+          key: string
+          name_en?: string | null
+          name_nb: string
+          parent_key?: string | null
+        }
+        Update: {
+          display_order?: number
+          id?: string
+          key?: string
+          name_en?: string | null
+          name_nb?: string
+          parent_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_categories_parent_key_fkey"
+            columns: ["parent_key"]
+            isOneToOne: false
+            referencedRelation: "account_categories"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       account_mappings: {
-        Row: AccountMapping;
-        Insert: Partial<Pick<AccountMapping, "id" | "confidence" | "source" | "is_user_override" | "created_at" | "updated_at">> & Omit<AccountMapping, "id" | "confidence" | "source" | "is_user_override" | "created_at" | "updated_at">;
-        Update: Partial<AccountMapping>;
-        Relationships: [];
-      };
-      vat_codes: {
-        Row: VatCode;
-        Insert: Partial<Pick<VatCode, "id" | "is_active">> & Omit<VatCode, "id" | "is_active">;
-        Update: Partial<VatCode>;
-        Relationships: [];
-      };
-      vat_settings: {
-        Row: VatSettings;
-        Insert: Partial<Pick<VatSettings, "id" | "vat_registered" | "settings">> & Omit<VatSettings, "id" | "vat_registered" | "settings">;
-        Update: Partial<VatSettings>;
-        Relationships: [];
-      };
-      vouchers: {
-        Row: Voucher;
-        Insert: Partial<Pick<Voucher, "id" | "created_at">> & Omit<Voucher, "id" | "created_at">;
-        Update: Partial<Voucher>;
-        Relationships: [];
-      };
+        Row: {
+          category_key: string
+          company_id: string
+          confidence: number
+          created_at: string
+          gl_account_id: string
+          id: string
+          is_user_override: boolean
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          category_key: string
+          company_id: string
+          confidence?: number
+          created_at?: string
+          gl_account_id: string
+          id?: string
+          is_user_override?: boolean
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          category_key?: string
+          company_id?: string
+          confidence?: number
+          created_at?: string
+          gl_account_id?: string
+          id?: string
+          is_user_override?: boolean
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_mappings_category_key_fkey"
+            columns: ["category_key"]
+            isOneToOne: false
+            referencedRelation: "account_categories"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "account_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_mappings_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       account_transactions: {
-        Row: AccountTransaction;
-        Insert: Partial<Pick<AccountTransaction, "id" | "currency" | "created_at">> & Omit<AccountTransaction, "id" | "currency" | "created_at">;
-        Update: Partial<AccountTransaction>;
-        Relationships: [];
-      };
-      trial_balance_snapshots: {
-        Row: TrialBalanceSnapshot;
-        Insert: Partial<Pick<TrialBalanceSnapshot, "id" | "opening_balance" | "period_debit" | "period_credit" | "closing_balance" | "created_at">> & Omit<TrialBalanceSnapshot, "id" | "opening_balance" | "period_debit" | "period_credit" | "closing_balance" | "created_at">;
-        Update: Partial<TrialBalanceSnapshot>;
-        Relationships: [];
-      };
-      customers: {
-        Row: Customer;
-        Insert: Partial<Pick<Customer, "id" | "is_active" | "created_at" | "updated_at">> & Omit<Customer, "id" | "is_active" | "created_at" | "updated_at">;
-        Update: Partial<Customer>;
-        Relationships: [];
-      };
-      customer_ledger_entries: {
-        Row: CustomerLedgerEntry;
-        Insert: Partial<Pick<CustomerLedgerEntry, "id" | "currency" | "is_open" | "created_at">> & Omit<CustomerLedgerEntry, "id" | "currency" | "is_open" | "created_at">;
-        Update: Partial<CustomerLedgerEntry>;
-        Relationships: [];
-      };
-      outgoing_invoices: {
-        Row: OutgoingInvoice;
-        Insert: Partial<Pick<OutgoingInvoice, "id" | "currency" | "created_at" | "updated_at">> & Omit<OutgoingInvoice, "id" | "currency" | "created_at" | "updated_at">;
-        Update: Partial<OutgoingInvoice>;
-        Relationships: [];
-      };
-      outgoing_invoice_lines: {
-        Row: OutgoingInvoiceLine;
-        Insert: Partial<Pick<OutgoingInvoiceLine, "id">> & Omit<OutgoingInvoiceLine, "id">;
-        Update: Partial<OutgoingInvoiceLine>;
-        Relationships: [];
-      };
-      suppliers: {
-        Row: Supplier;
-        Insert: Partial<Pick<Supplier, "id" | "is_active" | "created_at" | "updated_at">> & Omit<Supplier, "id" | "is_active" | "created_at" | "updated_at">;
-        Update: Partial<Supplier>;
-        Relationships: [];
-      };
-      supplier_ledger_entries: {
-        Row: SupplierLedgerEntry;
-        Insert: Partial<Pick<SupplierLedgerEntry, "id" | "currency" | "is_open" | "created_at">> & Omit<SupplierLedgerEntry, "id" | "currency" | "is_open" | "created_at">;
-        Update: Partial<SupplierLedgerEntry>;
-        Relationships: [];
-      };
-      incoming_invoices: {
-        Row: IncomingInvoice;
-        Insert: Partial<Pick<IncomingInvoice, "id" | "currency" | "created_at" | "updated_at">> & Omit<IncomingInvoice, "id" | "currency" | "created_at" | "updated_at">;
-        Update: Partial<IncomingInvoice>;
-        Relationships: [];
-      };
-      payments: {
-        Row: Payment;
-        Insert: Partial<Pick<Payment, "id" | "currency" | "created_at">> & Omit<Payment, "id" | "currency" | "created_at">;
-        Update: Partial<Payment>;
-        Relationships: [];
-      };
-      projects: {
-        Row: Project;
-        Insert: Partial<Pick<Project, "id" | "is_active">> & Omit<Project, "id" | "is_active">;
-        Update: Partial<Project>;
-        Relationships: [];
-      };
-      departments: {
-        Row: Department;
-        Insert: Partial<Pick<Department, "id" | "is_active">> & Omit<Department, "id" | "is_active">;
-        Update: Partial<Department>;
-        Relationships: [];
-      };
-      products: {
-        Row: Product;
-        Insert: Partial<Pick<Product, "id" | "is_active">> & Omit<Product, "id" | "is_active">;
-        Update: Partial<Product>;
-        Relationships: [];
-      };
-      financial_metric_snapshots: {
-        Row: FinancialMetricSnapshot;
-        Insert: Partial<Pick<FinancialMetricSnapshot, "id" | "confidence" | "calculation_version" | "calculated_at" | "metadata">> & Omit<FinancialMetricSnapshot, "id" | "confidence" | "calculation_version" | "calculated_at" | "metadata">;
-        Update: Partial<FinancialMetricSnapshot>;
-        Relationships: [];
-      };
-      financial_insights: {
-        Row: FinancialInsight;
-        Insert: Partial<Pick<FinancialInsight, "id" | "severity" | "evidence" | "is_active" | "created_at">> & Omit<FinancialInsight, "id" | "severity" | "evidence" | "is_active" | "created_at">;
-        Update: Partial<FinancialInsight>;
-        Relationships: [];
-      };
-      forecasts: {
-        Row: Forecast;
-        Insert: Partial<Pick<Forecast, "id" | "calculated_at" | "calculation_version" | "confidence" | "summary" | "metadata">> & Omit<Forecast, "id" | "calculated_at" | "calculation_version" | "confidence" | "summary" | "metadata">;
-        Update: Partial<Forecast>;
-        Relationships: [];
-      };
-      forecast_items: {
-        Row: ForecastItem;
-        Insert: Partial<Pick<ForecastItem, "id" | "confidence" | "metadata">> & Omit<ForecastItem, "id" | "confidence" | "metadata">;
-        Update: Partial<ForecastItem>;
-        Relationships: [];
-      };
-      customer_payment_profiles: {
-        Row: CustomerPaymentProfile;
-        Insert: Partial<Pick<CustomerPaymentProfile, "id" | "total_invoices" | "total_invoiced_amount" | "current_outstanding" | "current_overdue" | "calculated_at">> & Omit<CustomerPaymentProfile, "id" | "total_invoices" | "total_invoiced_amount" | "current_outstanding" | "current_overdue" | "calculated_at">;
-        Update: Partial<CustomerPaymentProfile>;
-        Relationships: [];
-      };
-      recurring_cost_patterns: {
-        Row: RecurringCostPattern;
-        Insert: Partial<Pick<RecurringCostPattern, "id" | "confidence" | "is_active" | "created_at">> & Omit<RecurringCostPattern, "id" | "confidence" | "is_active" | "created_at">;
-        Update: Partial<RecurringCostPattern>;
-        Relationships: [];
-      };
-      vendor_posting_patterns: {
-        Row: VendorPostingPattern;
-        Insert: Partial<Pick<VendorPostingPattern, "id" | "occurrence_count" | "confidence" | "created_at" | "updated_at">> & Omit<VendorPostingPattern, "id" | "occurrence_count" | "confidence" | "created_at" | "updated_at">;
-        Update: Partial<VendorPostingPattern>;
-        Relationships: [];
-      };
-      assistant_conversations: {
-        Row: AssistantConversation;
-        Insert: Partial<Pick<AssistantConversation, "id" | "created_at" | "updated_at">> & Omit<AssistantConversation, "id" | "created_at" | "updated_at">;
-        Update: Partial<AssistantConversation>;
-        Relationships: [];
-      };
-      assistant_messages: {
-        Row: AssistantMessage;
-        Insert: Partial<Pick<AssistantMessage, "id" | "created_at">> & Omit<AssistantMessage, "id" | "created_at">;
-        Update: Partial<AssistantMessage>;
-        Relationships: [];
-      };
-      assistant_evidence: {
-        Row: AssistantEvidence;
-        Insert: Partial<Pick<AssistantEvidence, "id" | "evidence_data">> & Omit<AssistantEvidence, "id" | "evidence_data">;
-        Update: Partial<AssistantEvidence>;
-        Relationships: [];
-      };
-      ephemeral_document_jobs: {
-        Row: EphemeralDocumentJob;
-        Insert: Partial<Pick<EphemeralDocumentJob, "id" | "status" | "created_at">> & Omit<EphemeralDocumentJob, "id" | "status" | "created_at">;
-        Update: Partial<EphemeralDocumentJob>;
-        Relationships: [];
-      };
+        Row: {
+          account_number: string
+          amount: number
+          company_id: string
+          created_at: string
+          currency: string
+          currency_amount: number | null
+          department_id: string | null
+          description: string | null
+          gl_account_id: string | null
+          id: string
+          product_id: string | null
+          project_id: string | null
+          source_id: string | null
+          source_system: string | null
+          transaction_date: string
+          vat_amount: number | null
+          vat_code: string | null
+          voucher_id: string | null
+        }
+        Insert: {
+          account_number: string
+          amount: number
+          company_id: string
+          created_at?: string
+          currency?: string
+          currency_amount?: number | null
+          department_id?: string | null
+          description?: string | null
+          gl_account_id?: string | null
+          id?: string
+          product_id?: string | null
+          project_id?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          transaction_date: string
+          vat_amount?: number | null
+          vat_code?: string | null
+          voucher_id?: string | null
+        }
+        Update: {
+          account_number?: string
+          amount?: number
+          company_id?: string
+          created_at?: string
+          currency?: string
+          currency_amount?: number | null
+          department_id?: string | null
+          description?: string | null
+          gl_account_id?: string | null
+          id?: string
+          product_id?: string | null
+          project_id?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          transaction_date?: string
+          vat_amount?: number | null
+          vat_code?: string | null
+          voucher_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_gl_account_id_fkey"
+            columns: ["gl_account_id"]
+            isOneToOne: false
+            referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       accounting_rules: {
-        Row: AccountingRule;
-        Insert: Partial<Pick<AccountingRule, "id" | "jurisdiction" | "metadata" | "created_at">> & Omit<AccountingRule, "id" | "jurisdiction" | "metadata" | "created_at">;
-        Update: Partial<AccountingRule>;
-        Relationships: [];
-      };
-    };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
+        Row: {
+          category: string
+          content_nb: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          jurisdiction: string
+          last_reviewed_at: string | null
+          metadata: Json
+          rule_id: string
+          source: string | null
+          title_nb: string
+        }
+        Insert: {
+          category: string
+          content_nb: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          jurisdiction?: string
+          last_reviewed_at?: string | null
+          metadata?: Json
+          rule_id: string
+          source?: string | null
+          title_nb: string
+        }
+        Update: {
+          category?: string
+          content_nb?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          jurisdiction?: string
+          last_reviewed_at?: string | null
+          metadata?: Json
+          rule_id?: string
+          source?: string | null
+          title_nb?: string
+        }
+        Relationships: []
+      }
+      assistant_conversations: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_conversations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assistant_conversations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_evidence: {
+        Row: {
+          calculation_version: string | null
+          comparison_period_end: string | null
+          comparison_period_start: string | null
+          evidence_data: Json
+          id: string
+          invoice_ids: string[] | null
+          message_id: string
+          metric_id: string | null
+          source_period_end: string | null
+          source_period_start: string | null
+          transaction_ids: string[] | null
+        }
+        Insert: {
+          calculation_version?: string | null
+          comparison_period_end?: string | null
+          comparison_period_start?: string | null
+          evidence_data?: Json
+          id?: string
+          invoice_ids?: string[] | null
+          message_id: string
+          metric_id?: string | null
+          source_period_end?: string | null
+          source_period_start?: string | null
+          transaction_ids?: string[] | null
+        }
+        Update: {
+          calculation_version?: string | null
+          comparison_period_end?: string | null
+          comparison_period_start?: string | null
+          evidence_data?: Json
+          id?: string
+          invoice_ids?: string[] | null
+          message_id?: string
+          metric_id?: string | null
+          source_period_end?: string | null
+          source_period_start?: string | null
+          transaction_ids?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_evidence_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assistant_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["assistant_message_role"]
+          structured_response: Json | null
+          tool_calls: Json | null
+          tool_results: Json | null
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["assistant_message_role"]
+          structured_response?: Json | null
+          tool_calls?: Json | null
+          tool_results?: Json | null
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["assistant_message_role"]
+          structured_response?: Json | null
+          tool_calls?: Json | null
+          tool_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assistant_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "assistant_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          created_at: string
+          employer_tax_zone: string | null
+          id: string
+          industry: string | null
+          min_liquidity_buffer: number | null
+          name: string
+          normal_payroll_date: number | null
+          org_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employer_tax_zone?: string | null
+          id?: string
+          industry?: string | null
+          min_liquidity_buffer?: number | null
+          name: string
+          normal_payroll_date?: number | null
+          org_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employer_tax_zone?: string | null
+          id?: string
+          industry?: string | null
+          min_liquidity_buffer?: number | null
+          name?: string
+          normal_payroll_date?: number | null
+          org_number?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      customer_ledger_entries: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          currency: string
+          customer_id: string | null
+          description: string | null
+          due_date: string | null
+          entry_date: string
+          entry_type: string | null
+          id: string
+          invoice_number: string | null
+          is_open: boolean
+          match_status: string | null
+          remaining_amount: number | null
+          source_id: string | null
+          source_system: string | null
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          entry_date: string
+          entry_type?: string | null
+          id?: string
+          invoice_number?: string | null
+          is_open?: boolean
+          match_status?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          entry_date?: string
+          entry_type?: string | null
+          id?: string
+          invoice_number?: string | null
+          is_open?: boolean
+          match_status?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_ledger_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_ledger_entries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customer_payment_profiles: {
+        Row: {
+          avg_actual_payment_days: number | null
+          avg_agreed_terms_days: number | null
+          avg_days_after_due: number | null
+          calculated_at: string
+          company_id: string
+          current_outstanding: number
+          current_overdue: number
+          customer_id: string
+          id: string
+          last_payment_date: string | null
+          late_payment_ratio: number | null
+          max_delay_days: number | null
+          payment_risk_score: number | null
+          payment_trend: string | null
+          total_invoiced_amount: number
+          total_invoices: number
+        }
+        Insert: {
+          avg_actual_payment_days?: number | null
+          avg_agreed_terms_days?: number | null
+          avg_days_after_due?: number | null
+          calculated_at?: string
+          company_id: string
+          current_outstanding?: number
+          current_overdue?: number
+          customer_id: string
+          id?: string
+          last_payment_date?: string | null
+          late_payment_ratio?: number | null
+          max_delay_days?: number | null
+          payment_risk_score?: number | null
+          payment_trend?: string | null
+          total_invoiced_amount?: number
+          total_invoices?: number
+        }
+        Update: {
+          avg_actual_payment_days?: number | null
+          avg_agreed_terms_days?: number | null
+          avg_days_after_due?: number | null
+          calculated_at?: string
+          company_id?: string
+          current_outstanding?: number
+          current_overdue?: number
+          customer_id?: string
+          id?: string
+          last_payment_date?: string | null
+          late_payment_ratio?: number | null
+          max_delay_days?: number | null
+          payment_risk_score?: number | null
+          payment_trend?: string | null
+          total_invoiced_amount?: number
+          total_invoices?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customer_payment_profiles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_payment_profiles_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      customers: {
+        Row: {
+          address: string | null
+          company_id: string
+          created_at: string
+          customer_number: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          org_number: string | null
+          phone: string | null
+          source_id: string | null
+          source_system: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          company_id: string
+          created_at?: string
+          customer_number?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          org_number?: string | null
+          phone?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          company_id?: string
+          created_at?: string
+          customer_number?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_number?: string | null
+          phone?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      departments: {
+        Row: {
+          code: string | null
+          company_id: string
+          id: string
+          is_active: boolean
+          name: string
+          source_id: string | null
+          source_system: string | null
+        }
+        Insert: {
+          code?: string | null
+          company_id: string
+          id?: string
+          is_active?: boolean
+          name: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          code?: string | null
+          company_id?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "departments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ephemeral_document_jobs: {
+        Row: {
+          analysis_result: Json | null
+          company_id: string
+          completed_at: string | null
+          created_at: string
+          deleted_at: string | null
+          file_size: number | null
+          id: string
+          mime_type: string | null
+          recommendation: Json | null
+          status: Database["public"]["Enums"]["document_job_status"]
+          user_id: string
+        }
+        Insert: {
+          analysis_result?: Json | null
+          company_id: string
+          completed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          recommendation?: Json | null
+          status?: Database["public"]["Enums"]["document_job_status"]
+          user_id: string
+        }
+        Update: {
+          analysis_result?: Json | null
+          company_id?: string
+          completed_at?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          file_size?: number | null
+          id?: string
+          mime_type?: string | null
+          recommendation?: Json | null
+          status?: Database["public"]["Enums"]["document_job_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ephemeral_document_jobs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ephemeral_document_jobs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_insights: {
+        Row: {
+          company_id: string
+          created_at: string
+          description_nb: string | null
+          evidence: Json
+          expires_at: string | null
+          id: string
+          insight_type: string
+          is_active: boolean
+          metric_current: number | null
+          metric_reference: number | null
+          period: string | null
+          severity: string
+          title_nb: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description_nb?: string | null
+          evidence?: Json
+          expires_at?: string | null
+          id?: string
+          insight_type: string
+          is_active?: boolean
+          metric_current?: number | null
+          metric_reference?: number | null
+          period?: string | null
+          severity?: string
+          title_nb: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description_nb?: string | null
+          evidence?: Json
+          expires_at?: string | null
+          id?: string
+          insight_type?: string
+          is_active?: boolean
+          metric_current?: number | null
+          metric_reference?: number | null
+          period?: string | null
+          severity?: string
+          title_nb?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_insights_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_metric_snapshots: {
+        Row: {
+          calculated_at: string
+          calculation_version: string
+          change_amount: number | null
+          change_percent: number | null
+          company_id: string
+          comparison_period_end: string | null
+          comparison_period_start: string | null
+          comparison_value: number | null
+          confidence: Database["public"]["Enums"]["confidence_level"]
+          id: string
+          metadata: Json
+          metric: string
+          period_end: string
+          period_start: string
+          period_type: string
+          value: number
+        }
+        Insert: {
+          calculated_at?: string
+          calculation_version?: string
+          change_amount?: number | null
+          change_percent?: number | null
+          company_id: string
+          comparison_period_end?: string | null
+          comparison_period_start?: string | null
+          comparison_value?: number | null
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          id?: string
+          metadata?: Json
+          metric: string
+          period_end: string
+          period_start: string
+          period_type: string
+          value: number
+        }
+        Update: {
+          calculated_at?: string
+          calculation_version?: string
+          change_amount?: number | null
+          change_percent?: number | null
+          company_id?: string
+          comparison_period_end?: string | null
+          comparison_period_start?: string | null
+          comparison_value?: number | null
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          id?: string
+          metadata?: Json
+          metric?: string
+          period_end?: string
+          period_start?: string
+          period_type?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_metric_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_years: {
+        Row: {
+          company_id: string
+          end_date: string
+          id: string
+          is_closed: boolean
+          source_id: string | null
+          source_system: string | null
+          start_date: string
+          year: number
+        }
+        Insert: {
+          company_id: string
+          end_date: string
+          id?: string
+          is_closed?: boolean
+          source_id?: string | null
+          source_system?: string | null
+          start_date: string
+          year: number
+        }
+        Update: {
+          company_id?: string
+          end_date?: string
+          id?: string
+          is_closed?: boolean
+          source_id?: string | null
+          source_system?: string | null
+          start_date?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_years_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forecast_items: {
+        Row: {
+          amount: number
+          category: string
+          confidence: Database["public"]["Enums"]["confidence_level"]
+          description: string | null
+          forecast_id: string
+          id: string
+          item_date: string
+          metadata: Json
+          source_id: string | null
+          source_type: string | null
+        }
+        Insert: {
+          amount: number
+          category: string
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          description?: string | null
+          forecast_id: string
+          id?: string
+          item_date: string
+          metadata?: Json
+          source_id?: string | null
+          source_type?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          description?: string | null
+          forecast_id?: string
+          id?: string
+          item_date?: string
+          metadata?: Json
+          source_id?: string | null
+          source_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecast_items_forecast_id_fkey"
+            columns: ["forecast_id"]
+            isOneToOne: false
+            referencedRelation: "forecasts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      forecasts: {
+        Row: {
+          calculated_at: string
+          calculation_version: string
+          company_id: string
+          confidence: Database["public"]["Enums"]["confidence_level"]
+          forecast_date: string
+          forecast_type: string
+          horizon_days: number
+          id: string
+          metadata: Json
+          summary: Json
+        }
+        Insert: {
+          calculated_at?: string
+          calculation_version?: string
+          company_id: string
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          forecast_date: string
+          forecast_type: string
+          horizon_days: number
+          id?: string
+          metadata?: Json
+          summary?: Json
+        }
+        Update: {
+          calculated_at?: string
+          calculation_version?: string
+          company_id?: string
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          forecast_date?: string
+          forecast_type?: string
+          horizon_days?: number
+          id?: string
+          metadata?: Json
+          summary?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "forecasts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gl_accounts: {
+        Row: {
+          account_number: string
+          account_type: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          source_id: string | null
+          source_system: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_number: string
+          account_type?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          source_id?: string | null
+          source_system?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_number?: string
+          account_type?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          source_id?: string | null
+          source_system?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gl_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incoming_invoices: {
+        Row: {
+          company_id: string
+          created_at: string
+          currency: string
+          due_date: string | null
+          id: string
+          invoice_date: string | null
+          invoice_number: string | null
+          remaining_amount: number | null
+          source_id: string | null
+          source_system: string | null
+          status: string | null
+          supplier_id: string | null
+          total_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          currency?: string
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          supplier_id?: string | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incoming_invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incoming_invoices_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_credentials: {
+        Row: {
+          access_token: string | null
+          application_key: string | null
+          created_at: string
+          encrypted_client_key: string
+          id: string
+          integration_id: string
+          subscription_key: string | null
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          application_key?: string | null
+          created_at?: string
+          encrypted_client_key: string
+          id?: string
+          integration_id: string
+          subscription_key?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          application_key?: string | null
+          created_at?: string
+          encrypted_client_key?: string
+          id?: string
+          integration_id?: string
+          subscription_key?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_credentials_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: true
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integration_sync_state: {
+        Row: {
+          company_id: string
+          error_message: string | null
+          id: string
+          last_changed_at: string | null
+          last_created_at: string | null
+          last_sync_completed_at: string | null
+          last_sync_started_at: string | null
+          last_voucher_number: number | null
+          metadata: Json
+          resource_type: string
+          sync_status: Database["public"]["Enums"]["sync_status"]
+        }
+        Insert: {
+          company_id: string
+          error_message?: string | null
+          id?: string
+          last_changed_at?: string | null
+          last_created_at?: string | null
+          last_sync_completed_at?: string | null
+          last_sync_started_at?: string | null
+          last_voucher_number?: number | null
+          metadata?: Json
+          resource_type: string
+          sync_status?: Database["public"]["Enums"]["sync_status"]
+        }
+        Update: {
+          company_id?: string
+          error_message?: string | null
+          id?: string
+          last_changed_at?: string | null
+          last_created_at?: string | null
+          last_sync_completed_at?: string | null
+          last_sync_started_at?: string | null
+          last_voucher_number?: number | null
+          metadata?: Json
+          resource_type?: string
+          sync_status?: Database["public"]["Enums"]["sync_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integration_sync_state_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integrations: {
+        Row: {
+          company_id: string
+          connected_at: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          provider: Database["public"]["Enums"]["integration_provider"]
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          provider: Database["public"]["Enums"]["integration_provider"]
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          connected_at?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          provider?: Database["public"]["Enums"]["integration_provider"]
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outgoing_invoice_lines: {
+        Row: {
+          account_number: string | null
+          amount: number | null
+          department_id: string | null
+          description: string | null
+          id: string
+          invoice_id: string
+          line_number: number | null
+          product_id: string | null
+          project_id: string | null
+          quantity: number | null
+          unit_price: number | null
+          vat_amount: number | null
+          vat_code: string | null
+        }
+        Insert: {
+          account_number?: string | null
+          amount?: number | null
+          department_id?: string | null
+          description?: string | null
+          id?: string
+          invoice_id: string
+          line_number?: number | null
+          product_id?: string | null
+          project_id?: string | null
+          quantity?: number | null
+          unit_price?: number | null
+          vat_amount?: number | null
+          vat_code?: string | null
+        }
+        Update: {
+          account_number?: string | null
+          amount?: number | null
+          department_id?: string | null
+          description?: string | null
+          id?: string
+          invoice_id?: string
+          line_number?: number | null
+          product_id?: string | null
+          project_id?: string | null
+          quantity?: number | null
+          unit_price?: number | null
+          vat_amount?: number | null
+          vat_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outgoing_invoice_lines_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "outgoing_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outgoing_invoices: {
+        Row: {
+          company_id: string
+          created_at: string
+          currency: string
+          customer_id: string | null
+          due_date: string | null
+          id: string
+          invoice_date: string | null
+          invoice_number: string | null
+          invoice_type: string | null
+          remaining_amount: number | null
+          source_id: string | null
+          source_system: string | null
+          status: string | null
+          total_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          invoice_type?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          currency?: string
+          customer_id?: string | null
+          due_date?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          invoice_type?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+          status?: string | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outgoing_invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outgoing_invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          currency: string
+          description: string | null
+          id: string
+          payment_date: string
+          payment_type: string | null
+          reference_id: string | null
+          reference_type: string | null
+          source_id: string | null
+          source_system: string | null
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          payment_date: string
+          payment_type?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          payment_date?: string
+          payment_type?: string | null
+          reference_id?: string | null
+          reference_type?: string | null
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          code: string | null
+          company_id: string
+          id: string
+          is_active: boolean
+          name: string
+          source_id: string | null
+          source_system: string | null
+        }
+        Insert: {
+          code?: string | null
+          company_id: string
+          id?: string
+          is_active?: boolean
+          name: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          code?: string | null
+          company_id?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          code: string | null
+          company_id: string
+          id: string
+          is_active: boolean
+          name: string
+          source_id: string | null
+          source_system: string | null
+        }
+        Insert: {
+          code?: string | null
+          company_id: string
+          id?: string
+          is_active?: boolean
+          name: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          code?: string | null
+          company_id?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_cost_patterns: {
+        Row: {
+          avg_amount: number
+          category_key: string | null
+          company_id: string
+          confidence: Database["public"]["Enums"]["confidence_level"]
+          created_at: string
+          description: string | null
+          frequency: string
+          id: string
+          is_active: boolean
+          last_occurrence_date: string | null
+          next_expected_date: string | null
+          supplier_id: string | null
+          supplier_name: string | null
+        }
+        Insert: {
+          avg_amount: number
+          category_key?: string | null
+          company_id: string
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          description?: string | null
+          frequency: string
+          id?: string
+          is_active?: boolean
+          last_occurrence_date?: string | null
+          next_expected_date?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+        }
+        Update: {
+          avg_amount?: number
+          category_key?: string | null
+          company_id?: string
+          confidence?: Database["public"]["Enums"]["confidence_level"]
+          created_at?: string
+          description?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_occurrence_date?: string | null
+          next_expected_date?: string | null
+          supplier_id?: string | null
+          supplier_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_cost_patterns_category_key_fkey"
+            columns: ["category_key"]
+            isOneToOne: false
+            referencedRelation: "account_categories"
+            referencedColumns: ["key"]
+          },
+          {
+            foreignKeyName: "recurring_cost_patterns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_cost_patterns_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      supplier_ledger_entries: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          currency: string
+          description: string | null
+          due_date: string | null
+          entry_date: string
+          entry_type: string | null
+          id: string
+          invoice_number: string | null
+          is_open: boolean
+          match_status: string | null
+          remaining_amount: number | null
+          source_id: string | null
+          source_system: string | null
+          supplier_id: string | null
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          entry_date: string
+          entry_type?: string | null
+          id?: string
+          invoice_number?: string | null
+          is_open?: boolean
+          match_status?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+          supplier_id?: string | null
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          currency?: string
+          description?: string | null
+          due_date?: string | null
+          entry_date?: string
+          entry_type?: string | null
+          id?: string
+          invoice_number?: string | null
+          is_open?: boolean
+          match_status?: string | null
+          remaining_amount?: number | null
+          source_id?: string | null
+          source_system?: string | null
+          supplier_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "supplier_ledger_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "supplier_ledger_entries_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          address: string | null
+          company_id: string
+          country: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          org_number: string | null
+          phone: string | null
+          source_id: string | null
+          source_system: string | null
+          supplier_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          company_id: string
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          org_number?: string | null
+          phone?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          supplier_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          company_id?: string
+          country?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_number?: string | null
+          phone?: string | null
+          source_id?: string | null
+          source_system?: string | null
+          supplier_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trial_balance_snapshots: {
+        Row: {
+          account_number: string
+          closing_balance: number
+          company_id: string
+          created_at: string
+          id: string
+          opening_balance: number
+          period_credit: number
+          period_debit: number
+          snapshot_date: string
+          source_id: string | null
+          source_system: string | null
+        }
+        Insert: {
+          account_number: string
+          closing_balance?: number
+          company_id: string
+          created_at?: string
+          id?: string
+          opening_balance?: number
+          period_credit?: number
+          period_debit?: number
+          snapshot_date: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          account_number?: string
+          closing_balance?: number
+          company_id?: string
+          created_at?: string
+          id?: string
+          opening_balance?: number
+          period_credit?: number
+          period_debit?: number
+          snapshot_date?: string
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trial_balance_snapshots_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_company_access: {
+        Row: {
+          accounting_knowledge_level: Database["public"]["Enums"]["accounting_knowledge_level"]
+          company_id: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          accounting_knowledge_level?: Database["public"]["Enums"]["accounting_knowledge_level"]
+          company_id: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id: string
+        }
+        Update: {
+          accounting_knowledge_level?: Database["public"]["Enums"]["accounting_knowledge_level"]
+          company_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_company_access_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_company_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_preferences: {
+        Row: {
+          id: string
+          language: string
+          settings: Json
+          theme: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          language?: string
+          settings?: Json
+          theme?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          language?: string
+          settings?: Json
+          theme?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          auth_user_id: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          auth_user_id?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          auth_user_id?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      vat_codes: {
+        Row: {
+          code: string
+          company_id: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string | null
+          rate: number | null
+          saft_code: string | null
+          source_id: string | null
+          source_system: string | null
+        }
+        Insert: {
+          code: string
+          company_id: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          rate?: number | null
+          saft_code?: string | null
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Update: {
+          code?: string
+          company_id?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string | null
+          rate?: number | null
+          saft_code?: string | null
+          source_id?: string | null
+          source_system?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vat_codes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vat_settings: {
+        Row: {
+          company_id: string
+          id: string
+          settings: Json
+          source_id: string | null
+          source_system: string | null
+          vat_period: string | null
+          vat_registered: boolean
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          settings?: Json
+          source_id?: string | null
+          source_system?: string | null
+          vat_period?: string | null
+          vat_registered?: boolean
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          settings?: Json
+          source_id?: string | null
+          source_system?: string | null
+          vat_period?: string | null
+          vat_registered?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vat_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_posting_patterns: {
+        Row: {
+          company_id: string
+          confidence: number
+          created_at: string
+          id: string
+          last_occurrence_date: string | null
+          occurrence_count: number
+          supplier_id: string | null
+          typical_account_number: string | null
+          typical_category_key: string | null
+          typical_vat_code: string | null
+          updated_at: string
+          vendor_name: string
+        }
+        Insert: {
+          company_id: string
+          confidence?: number
+          created_at?: string
+          id?: string
+          last_occurrence_date?: string | null
+          occurrence_count?: number
+          supplier_id?: string | null
+          typical_account_number?: string | null
+          typical_category_key?: string | null
+          typical_vat_code?: string | null
+          updated_at?: string
+          vendor_name: string
+        }
+        Update: {
+          company_id?: string
+          confidence?: number
+          created_at?: string
+          id?: string
+          last_occurrence_date?: string | null
+          occurrence_count?: number
+          supplier_id?: string | null
+          typical_account_number?: string | null
+          typical_category_key?: string | null
+          typical_vat_code?: string | null
+          updated_at?: string
+          vendor_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_posting_patterns_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_posting_patterns_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_posting_patterns_typical_category_key_fkey"
+            columns: ["typical_category_key"]
+            isOneToOne: false
+            referencedRelation: "account_categories"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
+      vouchers: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          source_id: string | null
+          source_system: string | null
+          voucher_date: string | null
+          voucher_number: number | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          source_id?: string | null
+          source_system?: string | null
+          voucher_date?: string | null
+          voucher_number?: number | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          source_id?: string | null
+          source_system?: string | null
+          voucher_date?: string | null
+          voucher_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vouchers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      get_user_company_ids: { Args: never; Returns: string[] }
+    }
     Enums: {
-      accounting_knowledge_level: AccountingKnowledgeLevel;
-      integration_provider: IntegrationProvider;
-      sync_status: SyncStatus;
-      confidence_level: ConfidenceLevel;
-      document_job_status: DocumentJobStatus;
-      assistant_message_role: AssistantMessageRole;
-    };
-    CompositeTypes: Record<string, never>;
-  };
+      accounting_knowledge_level: "beginner" | "intermediate" | "advanced"
+      assistant_message_role: "user" | "assistant" | "system"
+      confidence_level:
+        | "confirmed"
+        | "high_confidence"
+        | "estimated"
+        | "low_confidence"
+        | "rough_estimate"
+      document_job_status:
+        | "uploading"
+        | "analyzing"
+        | "completed"
+        | "failed"
+        | "deleted"
+      integration_provider: "poweroffice"
+      sync_status: "pending" | "running" | "completed" | "failed" | "partial"
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      accounting_knowledge_level: ["beginner", "intermediate", "advanced"],
+      assistant_message_role: ["user", "assistant", "system"],
+      confidence_level: [
+        "confirmed",
+        "high_confidence",
+        "estimated",
+        "low_confidence",
+        "rough_estimate",
+      ],
+      document_job_status: [
+        "uploading",
+        "analyzing",
+        "completed",
+        "failed",
+        "deleted",
+      ],
+      integration_provider: ["poweroffice"],
+      sync_status: ["pending", "running", "completed", "failed", "partial"],
+    },
+  },
+} as const
+
+// ─── Named type aliases for backward compatibility ──────────────────────────
+// These provide convenient named types that can be imported directly,
+// derived from the generated Database type above.
+
+// Row types (what you get back from SELECT queries)
+export type Company = Tables<"companies">;
+export type User = Tables<"users">;
+export type UserCompanyAccess = Tables<"user_company_access">;
+export type UserPreferences = Tables<"user_preferences">;
+export type Integration = Tables<"integrations">;
+export type IntegrationCredential = Tables<"integration_credentials">;
+export type IntegrationSyncState = Tables<"integration_sync_state">;
+export type FinancialYear = Tables<"financial_years">;
+export type GLAccount = Tables<"gl_accounts">;
+export type AccountCategory = Tables<"account_categories">;
+export type AccountMapping = Tables<"account_mappings">;
+export type VatCode = Tables<"vat_codes">;
+export type VatSettings = Tables<"vat_settings">;
+export type Voucher = Tables<"vouchers">;
+export type AccountTransaction = Tables<"account_transactions">;
+export type TrialBalanceSnapshot = Tables<"trial_balance_snapshots">;
+export type Customer = Tables<"customers">;
+export type CustomerLedgerEntry = Tables<"customer_ledger_entries">;
+export type CustomerPaymentProfile = Tables<"customer_payment_profiles">;
+export type OutgoingInvoice = Tables<"outgoing_invoices">;
+export type OutgoingInvoiceLine = Tables<"outgoing_invoice_lines">;
+export type Supplier = Tables<"suppliers">;
+export type SupplierLedgerEntry = Tables<"supplier_ledger_entries">;
+export type IncomingInvoice = Tables<"incoming_invoices">;
+export type Payment = Tables<"payments">;
+export type FinancialMetricSnapshot = Tables<"financial_metric_snapshots">;
+export type FinancialInsight = Tables<"financial_insights">;
+export type Forecast = Tables<"forecasts">;
+export type ForecastItem = Tables<"forecast_items">;
+export type RecurringCostPattern = Tables<"recurring_cost_patterns">;
+export type VendorPostingPattern = Tables<"vendor_posting_patterns">;
+export type AccountingRule = Tables<"accounting_rules">;
+export type AssistantConversation = Tables<"assistant_conversations">;
+export type AssistantMessage = Tables<"assistant_messages">;
+export type AssistantEvidence = Tables<"assistant_evidence">;
+export type EphemeralDocumentJob = Tables<"ephemeral_document_jobs">;
+export type Department = Tables<"departments">;
+export type Product = Tables<"products">;
+export type Project = Tables<"projects">;
+
+// Enum types
+export type AccountingKnowledgeLevel = Enums<"accounting_knowledge_level">;
+export type IntegrationProvider = Enums<"integration_provider">;
+export type SyncStatus = Enums<"sync_status">;
+export type ConfidenceLevel = Enums<"confidence_level">;
+export type DocumentJobStatus = Enums<"document_job_status">;
+export type AssistantMessageRole = Enums<"assistant_message_role">;

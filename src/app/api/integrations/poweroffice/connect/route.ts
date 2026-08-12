@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     if (existing) {
       // Update existing integration
-      const { error: updateError } = await supabase
+      const { error: updateError } = (await supabase
         .from("integrations")
         .update({
           is_active: true,
@@ -84,8 +84,8 @@ export async function POST(request: NextRequest) {
             company_name: connectionResult.companyName,
             organization_number: connectionResult.organizationNumber,
           },
-        })
-        .eq("id", existing.id);
+        } as never)
+        .eq("id", existing.id)) as { error: { message: string } | null };
 
       if (updateError) {
         console.error("Failed to update integration:", updateError);
@@ -95,17 +95,17 @@ export async function POST(request: NextRequest) {
       integrationId = existing.id;
 
       // Update credentials
-      await supabase
+      await (supabase
         .from("integration_credentials")
         .update({
           encrypted_client_key: client_key, // In production, encrypt this
           application_key: effectiveAppKey,
           subscription_key: effectiveSubKey,
-        })
-        .eq("integration_id", existing.id);
+        } as never)
+        .eq("integration_id", existing.id) as never);
     } else {
       // Create new integration record
-      const { data: integration, error: insertError } = await supabase
+      const { data: integration, error: insertError } = (await supabase
         .from("integrations")
         .insert({
           company_id,
@@ -116,9 +116,9 @@ export async function POST(request: NextRequest) {
             company_name: connectionResult.companyName,
             organization_number: connectionResult.organizationNumber,
           },
-        })
+        } as never)
         .select("id")
-        .single() as { data: { id: string } | null; error: { message: string } | null };
+        .single()) as { data: { id: string } | null; error: { message: string } | null };
 
       if (insertError || !integration) {
         console.error("Failed to create integration:", insertError);
@@ -128,14 +128,14 @@ export async function POST(request: NextRequest) {
       integrationId = integration.id;
 
       // Store credentials (in production, the client_key should be encrypted)
-      const { error: credError } = await supabase
+      const { error: credError } = (await supabase
         .from("integration_credentials")
         .insert({
           integration_id: integrationId,
           encrypted_client_key: client_key,
           application_key: effectiveAppKey,
           subscription_key: effectiveSubKey,
-        });
+        } as never)) as { error: { message: string } | null };
 
       if (credError) {
         console.error("Failed to store credentials:", credError);
@@ -169,16 +169,16 @@ export async function POST(request: NextRequest) {
         .single() as { data: { id: string } | null };
 
       if (!existingState) {
-        await supabase.from("integration_sync_state").insert({
+        await (supabase.from("integration_sync_state").insert({
           company_id,
           resource_type: resourceType,
           sync_status: "pending" as const,
-        });
+        } as never) as never);
       } else {
-        await supabase
+        await (supabase
           .from("integration_sync_state")
-          .update({ sync_status: "pending" as const })
-          .eq("id", existingState.id);
+          .update({ sync_status: "pending" as const } as never)
+          .eq("id", existingState.id) as never);
       }
     }
 

@@ -74,14 +74,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Mark all sync states as pending (the sync worker will pick them up)
-    const { error: updateError } = await supabase
+    const { error: updateError } = (await supabase
       .from("integration_sync_state")
       .update({
         sync_status: "pending" as const,
         last_sync_started_at: new Date().toISOString(),
         error_message: null,
-      })
-      .eq("company_id", company_id);
+      } as never)
+      .eq("company_id", company_id)) as { error: { message: string } | null };
 
     if (updateError) {
       console.error("Failed to update sync states:", updateError);

@@ -21,6 +21,14 @@
 
 import { createClient } from "@/lib/supabase/server";
 import type {
+  VendorPostingPattern,
+  GLAccount,
+  AccountTransaction,
+  Company,
+  VatSettings,
+  VatCode,
+} from "@/lib/types/database";
+import type {
   AccountingQuery,
   AccountingRecommendation,
   AccountRef,
@@ -241,7 +249,8 @@ export class AccountingAdvisor {
         .eq("company_id", companyId)
         .ilike("vendor_name", `%${vendorName}%`)
         .order("occurrence_count", { ascending: false })
-        .limit(5);
+        .limit(5)
+        .returns<VendorPostingPattern[]>();
 
       if (patterns && patterns.length > 0) {
         // Get account names for the typical accounts
@@ -253,7 +262,8 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
-          .in("account_number", accountNumbers);
+          .in("account_number", accountNumbers)
+          .returns<GLAccount[]>();
 
         const accountMap = new Map(
           (accounts ?? []).map((a) => [a.account_number, a.name])
@@ -270,7 +280,8 @@ export class AccountingAdvisor {
             .eq("account_number", pattern.typical_account_number)
             .ilike("description", `%${vendorName}%`)
             .order("transaction_date", { ascending: false })
-            .limit(5);
+            .limit(5)
+            .returns<AccountTransaction[]>();
 
           for (const tx of transactions ?? []) {
             results.push({
@@ -303,7 +314,8 @@ export class AccountingAdvisor {
           .eq("company_id", companyId)
           .ilike("description", `%${term}%`)
           .order("transaction_date", { ascending: false })
-          .limit(3);
+          .limit(3)
+          .returns<AccountTransaction[]>();
 
         if (!transactions) continue;
 
@@ -315,7 +327,8 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
-          .in("account_number", txAccountNumbers);
+          .in("account_number", txAccountNumbers)
+          .returns<GLAccount[]>();
 
         const accountMap = new Map(
           (accounts ?? []).map((a) => [a.account_number, a.name])
@@ -368,10 +381,11 @@ export class AccountingAdvisor {
     // Get vendor posting patterns
     const { data: patterns } = await supabase
       .from("vendor_posting_patterns")
-      .select("*")
+      .select()
       .eq("company_id", companyId)
       .ilike("vendor_name", `%${vendorName}%`)
-      .order("occurrence_count", { ascending: false });
+      .order("occurrence_count", { ascending: false })
+      .returns<VendorPostingPattern[]>();
 
     if (!patterns || patterns.length === 0) {
       return {
@@ -396,6 +410,7 @@ export class AccountingAdvisor {
         .select()
         .eq("company_id", companyId)
         .eq("account_number", primary.typical_account_number)
+        .returns<GLAccount[]>()
         .single();
 
       if (account) {
@@ -415,7 +430,8 @@ export class AccountingAdvisor {
       .from("gl_accounts")
       .select()
       .eq("company_id", companyId)
-      .in("account_number", allAccountNumbers);
+      .in("account_number", allAccountNumbers)
+      .returns<GLAccount[]>();
 
     const accountNameMap = new Map(
       (allAccounts ?? []).map((a) => [a.account_number, a.name])
@@ -428,7 +444,8 @@ export class AccountingAdvisor {
       .eq("company_id", companyId)
       .ilike("description", `%${vendorName}%`)
       .order("transaction_date", { ascending: true })
-      .limit(1);
+      .limit(1)
+      .returns<AccountTransaction[]>();
 
     const { data: lastDate } = await supabase
       .from("account_transactions")
@@ -436,7 +453,8 @@ export class AccountingAdvisor {
       .eq("company_id", companyId)
       .ilike("description", `%${vendorName}%`)
       .order("transaction_date", { ascending: false })
-      .limit(1);
+      .limit(1)
+      .returns<AccountTransaction[]>();
 
     const totalCount = patterns.reduce(
       (sum, p) => sum + p.occurrence_count,
@@ -480,23 +498,27 @@ export class AccountingAdvisor {
           .from("companies")
           .select()
           .eq("id", companyId)
+          .returns<Company[]>()
           .single(),
         supabase
           .from("vat_settings")
           .select()
           .eq("company_id", companyId)
+          .returns<VatSettings[]>()
           .single(),
         supabase
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
           .eq("is_active", true)
-          .order("account_number"),
+          .order("account_number")
+          .returns<GLAccount[]>(),
         supabase
           .from("vat_codes")
           .select()
           .eq("company_id", companyId)
-          .eq("is_active", true),
+          .eq("is_active", true)
+          .returns<VatCode[]>(),
       ]);
 
     const company = companyResult.data;

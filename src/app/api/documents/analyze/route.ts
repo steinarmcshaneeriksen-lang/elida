@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
 
     // Create job tracking record (NO document content stored)
-    const { data: job, error: jobError } = await supabase
+    const { data: job, error: jobError } = (await supabase
       .from("ephemeral_document_jobs")
       .insert({
         company_id: companyId,
@@ -81,9 +81,9 @@ export async function POST(request: NextRequest) {
         status: "analyzing" as const,
         mime_type: file.type,
         file_size: file.size,
-      })
+      } as never)
       .select("id")
-      .single() as { data: { id: string } | null; error: { message: string } | null };
+      .single()) as { data: { id: string } | null; error: { message: string } | null };
 
     if (jobError || !job) {
       console.error("Failed to create document job:", jobError);
@@ -107,15 +107,15 @@ export async function POST(request: NextRequest) {
     const analysisResult = generateMockAnalysis(file.name, file.type, file.size);
 
     // Update job record with results (still no document content stored)
-    await supabase
+    await (supabase
       .from("ephemeral_document_jobs")
       .update({
         status: "completed" as const,
         completed_at: new Date().toISOString(),
         analysis_result: analysisResult.extraction,
         recommendation: analysisResult.recommendation,
-      })
-      .eq("id", job.id);
+      } as never)
+      .eq("id", job.id) as never);
 
     return NextResponse.json({
       job_id: job.id,
