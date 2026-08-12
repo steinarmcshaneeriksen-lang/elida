@@ -1028,6 +1028,72 @@ export type Database = {
           },
         ]
       }
+      import_runs: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          counts: Json | null
+          error_message: string | null
+          file_name: string | null
+          file_size: number | null
+          id: string
+          period_end: string | null
+          period_start: string | null
+          source_format: string
+          started_at: string
+          status: string
+          user_id: string | null
+          warnings: Json | null
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          counts?: Json | null
+          error_message?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          source_format?: string
+          started_at?: string
+          status?: string
+          user_id?: string | null
+          warnings?: Json | null
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          counts?: Json | null
+          error_message?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          source_format?: string
+          started_at?: string
+          status?: string
+          user_id?: string | null
+          warnings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       incoming_invoices: {
         Row: {
           company_id: string
@@ -2461,6 +2527,7 @@ export type Product = Tables<"products">;
 export type Project = Tables<"projects">;
 export type KnowledgeArticle = Tables<"knowledge_articles">;
 export type KnowledgeEvaluation = Tables<"knowledge_evaluations">;
+export type ImportRun = Tables<"import_runs">;
 
 // Enum types
 export type AccountingKnowledgeLevel = Enums<"accounting_knowledge_level">;
