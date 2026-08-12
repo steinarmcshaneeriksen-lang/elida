@@ -1008,12 +1008,14 @@ export type Database = {
         Row: {
           account_number: string
           account_type: string | null
+          closing_balance: number | null
           company_id: string
           created_at: string
           description: string | null
           id: string
           is_active: boolean
           name: string
+          opening_balance: number | null
           source_id: string | null
           source_system: string | null
           updated_at: string
@@ -1021,12 +1023,14 @@ export type Database = {
         Insert: {
           account_number: string
           account_type?: string | null
+          closing_balance?: number | null
           company_id: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          opening_balance?: number | null
           source_id?: string | null
           source_system?: string | null
           updated_at?: string
@@ -1034,12 +1038,14 @@ export type Database = {
         Update: {
           account_number?: string
           account_type?: string | null
+          closing_balance?: number | null
           company_id?: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          opening_balance?: number | null
           source_id?: string | null
           source_system?: string | null
           updated_at?: string
@@ -1664,29 +1670,53 @@ export type Database = {
         Row: {
           code: string | null
           company_id: string
+          cost_price: number | null
           id: string
           is_active: boolean
+          is_recurring: boolean
           name: string
+          price_updated_at: string | null
+          product_group: string | null
+          sales_account: string | null
+          sales_price: number | null
           source_id: string | null
           source_system: string | null
+          unit: string | null
+          updated_at: string
         }
         Insert: {
           code?: string | null
           company_id: string
+          cost_price?: number | null
           id?: string
           is_active?: boolean
+          is_recurring?: boolean
           name: string
+          price_updated_at?: string | null
+          product_group?: string | null
+          sales_account?: string | null
+          sales_price?: number | null
           source_id?: string | null
           source_system?: string | null
+          unit?: string | null
+          updated_at?: string
         }
         Update: {
           code?: string | null
           company_id?: string
+          cost_price?: number | null
           id?: string
           is_active?: boolean
+          is_recurring?: boolean
           name?: string
+          price_updated_at?: string | null
+          product_group?: string | null
+          sales_account?: string | null
+          sales_price?: number | null
           source_id?: string | null
           source_system?: string | null
+          unit?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -2301,10 +2331,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      company_balance_totals: {
+        Args: { p_company_id: string }
+        Returns: {
+          cash: number
+          is_stated: boolean
+          payables: number
+          receivables: number
+        }[]
+      }
       company_cash_series: {
         Args: { p_company_id: string }
         Returns: {
           balance: number
+          is_estimated: boolean
           month: string
           movement: number
         }[]
@@ -2318,8 +2358,35 @@ export type Database = {
           name: string
           org_number: string
           outstanding: number
+          outstanding_is_stated: boolean
           posting_count: number
           revenue: number
+        }[]
+      }
+      company_mrr: {
+        Args: { p_company_id: string }
+        Returns: {
+          is_complete: boolean
+          month: string
+          normalised_mrr: number
+          one_off: number
+          recurring: number
+          total: number
+        }[]
+      }
+      company_recurring_revenue: {
+        Args: { p_company_id: string }
+        Returns: {
+          avg_per_month: number
+          description: string
+          first_month: string
+          has_cadence: boolean
+          has_keyword: boolean
+          last_month: string
+          matched_product: string
+          months_active: number
+          posting_count: number
+          total: number
         }[]
       }
       company_supplier_summary: {
@@ -2330,6 +2397,7 @@ export type Database = {
           name: string
           org_number: string
           outstanding: number
+          outstanding_is_stated: boolean
           posting_count: number
           supplier_id: string
           supplier_number: string
@@ -2558,8 +2626,6 @@ export const Constants = {
     },
   },
 } as const
-
-// ─── Named type aliases ─────────────────────────────────────────────────────
 
 export type Company = Tables<"companies">;
 export type User = Tables<"users">;

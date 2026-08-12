@@ -51,6 +51,10 @@ function tool(name: string, description: string, parameters: { properties: Recor
 }
 
 export const TOOLS: ToolDefinition[] = [
+  tool("get_data_coverage",
+    "Hvilke regnskapsdata selskapet faktisk har: hvilken periode bokføringen dekker, hvilke regnskapsår som er importert, antall posteringer, kontoer, kunder og leverandører. Bruk denne FØRST hvis du er usikker på om en periode finnes, eller hvis et annet verktøy melder at det mangler data.",
+    { properties: {} }),
+
   tool("get_financial_summary",
     "Henter en helhetlig finansiell oppsummering for en gitt periode: omsetning, kostnader, resultat, kontantbeholdning, utestående fordringer og gjeld. Bruk denne for generelle spørsmål om hvordan det går.",
     { properties: { period: periodParam }, required: ["period"] }),
@@ -75,12 +79,32 @@ export const TOOLS: ToolDefinition[] = [
     "Oversikt over utestående kundefordringer: total, aldersfordelt (0-30, 31-60, 61-90, 90+ dager), største debitorer.",
     { properties: {} }),
 
-  tool("get_customer_payment_profile",
-    "Betalingsprofil for en bestemt kunde: gjennomsnittlig betalingstid, forfalte fakturaer, betalingshistorikk, risikoscore.",
-    { properties: { customer_id: { type: "string", description: "Kunde-ID fra databasen." } }, required: ["customer_id"] }),
+  tool("get_customer_detail",
+    "Alt om én kunde, slått opp på navn: utestående saldo, omsetning i perioden, omsetning per måned, hva kunden kjøper og siste aktivitet.",
+    { properties: { name: { type: "string", description: "Kundens navn slik brukeren skriver det. Delvis treff støttes." } }, required: ["name"] }),
+
+  tool("list_customers",
+    "Selskapets kunder med omsetning og utestående saldo. Bruk denne for spørsmål som «hvem er våre største kunder» eller «hvem skylder oss mest».",
+    { properties: { sort_by: { type: "string", description: '"revenue" (standard) eller "outstanding".' }, limit: { type: "number", description: "Antall kunder å returnere (standard 20, maks 100)." } } }),
+
+  tool("get_recurring_revenue",
+    "Gjentakende inntekter: MRR per måned, ARR, endring fra forrige måned, og hvor stor andel av omsetningen som er gjentakende. Kvartals-, halvårs- og årskontrakter er normalisert ned til månedsbeløp.",
+    { properties: {} }),
+
+  tool("get_cash_position",
+    "Bokført bankbeholdning: saldo per bankkonto ved periodens slutt og utviklingen måned for måned.",
+    { properties: {} }),
+
+  tool("get_account_balances",
+    "Inngående og utgående saldo per konto — balansen slik regnskapet oppgir den. Kan avgrenses til en kontoklasse.",
+    { properties: { account_prefix: { type: "string", description: "Valgfritt kontoprefiks, f.eks. \"15\" for kundefordringer eller \"19\" for bank." } } }),
+
+  tool("search_transactions",
+    "Fritekstsøk i posteringene. Bruk denne for spørsmål som «hva har vi betalt til X» eller «finn alle posteringer med Y i teksten».",
+    { properties: { text: { type: "string", description: "Søketekst mot posteringsbeskrivelse." }, period: periodParam, limit: { type: "number", description: "Antall treff (standard 50, maks 200)." } } }),
 
   tool("get_overdue_invoices",
-    "Liste over alle forfalte fakturaer med detaljer: kunde, beløp, forfallsdato, dager over forfall.",
+    "Sjekker om forfalte fakturaer kan beregnes. Merk: en SAF-T-import inneholder ikke forfallsdato per faktura, så dette verktøyet vil normalt svare at forfallsinformasjon ikke finnes. Bruk get_customer_receivables for utestående saldo.",
     { properties: {} }),
 
   tool("get_supplier_payables",

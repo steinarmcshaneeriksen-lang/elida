@@ -11,6 +11,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeFilterTerm } from "@/lib/supabase/filter";
+import {
+  clampToCoverage,
+  coverageNote,
+  getCoverage,
+  type Coverage,
+} from "./coverage";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +29,65 @@ type ToolHandler = (companyId: string, params: ToolParams) => Promise<ToolResult
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * The one no-data response. It always states what the books do contain, so the
+ * assistant never tells someone to import a file they have already imported.
+ */
+function noData(coverage: Coverage): ToolResult {
+  if (coverage.has_data) {
+    return {
+      data_source: "saft_import",
+      note:
+        `Regnskapet dekker ${coverage.first_date}–${coverage.last_date}, men dette ` +
+        "verktøyet fant ingen tall å returnere. Si hva regnskapet dekker framfor " +
+        "å be brukeren importere på nytt.",
+    };
+  }
+
+  return {
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
+  };
+}
+
+function inRange(accountNumber: string, from: number, to: number): boolean {
+  const account = parseInt(accountNumber, 10);
+  return account >= from && account <= to;
+}
+
+async function customerSummary(companyId: string) {
+  const supabase = await createClient();
+  return supabase.rpc("company_customer_summary" as never, {
+    p_company_id: companyId,
+  } as never) as unknown as Promise<{
+    data: Array<{
+      customer_id: string;
+      revenue: number;
+      outstanding: number;
+      posting_count: number;
+      last_activity: string | null;
+    }> | null;
+  }>;
+}
+
+async function supplierSummary(companyId: string) {
+  const supabase = await createClient();
+  return supabase.rpc("company_supplier_summary" as never, {
+    p_company_id: companyId,
+  } as never) as unknown as Promise<{
+    data: Array<{
+      supplier_id: string;
+      cost: number;
+      outstanding: number;
+      posting_count: number;
+      last_activity: string | null;
+    }> | null;
+  }>;
+}
 
 function parsePeriodDates(period: string): { start: string; end: string } {
   const now = new Date();
@@ -95,442 +160,896 @@ function fmt(d: Date): string {
 // Handlers
 // ---------------------------------------------------------------------------
 
+/**
+ * Computed from the ledger for whatever period is asked for, rather than
+ * looked up among precomputed snapshots. The snapshot lookup only matched
+ * whole accounting years, so "hvordan går det denne måneden" fell through to
+ * a no-data answer even with six months of postings loaded.
+ */
 const getFinancialSummary: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
+  const supabase = await createClient();
 
-    // Try to get metric snapshots for the period
-    const { data: metrics } = await supabase
-      .from("financial_metric_snapshots")
-      .select("*")
-      .eq("company_id", companyId)
-      .gte("period_start", start)
-      .lte("period_end", end);
+  const { data: rows } = await supabase
+    .from("account_transactions")
+    .select("account_number, amount")
+    .eq("company_id", companyId)
+    .gte("transaction_date", resolved.start)
+    .lte("transaction_date", resolved.end)
+    .gte("account_number", "3000")
+    .lt("account_number", "9000");
 
-    if (metrics && metrics.length > 0) {
-      const metricMap: Record<string, unknown> = {};
-      for (const m of metrics) {
-        metricMap[m.metric] = {
-          value: m.value,
-          comparison_value: m.comparison_value,
-          change_percent: m.change_percent,
-          confidence: m.confidence,
-        };
-      }
-      return {
-        period: { start, end },
-        metrics: metricMap,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through to the no-data response
+  // Revenue is credited and so carries a negative sign in a debit-positive
+  // ledger; costs are debited. Both are reported as the positive figures a
+  // person expects to read.
+  let revenue = 0;
+  let costs = 0;
+  for (const r of rows ?? []) {
+    const amount = Number(r.amount);
+    if (inRange(r.account_number, 3000, 3999)) revenue -= amount;
+    else if (inRange(r.account_number, 4000, 7999)) costs += amount;
   }
 
+  const cash = (await getCashPosition(companyId, {})) as { booked_cash?: number };
+  const receivables = (await getCustomerReceivables(companyId, {})) as {
+    total_outstanding?: { amount: number };
+  };
+  const payables = (await getSupplierPayables(companyId, {})) as {
+    total_payables?: { amount: number };
+  };
+
   return {
-    data_source: "no_data",
-    note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+    period: { start: resolved.start, end: resolved.end },
+    requested_period: requested,
+    books_cover: { start: coverage.first_date, end: coverage.last_date },
+    revenue: Math.round(revenue),
+    costs: Math.round(costs),
+    operating_profit: Math.round(revenue - costs),
+    operating_margin:
+      revenue !== 0 ? Math.round(((revenue - costs) / revenue) * 1000) / 10 : null,
+    booked_cash: cash.booked_cash ?? null,
+    receivables: receivables.total_outstanding?.amount ?? null,
+    payables: payables.total_payables?.amount ?? null,
+    transaction_count: rows?.length ?? 0,
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
 const getRevenueAnalysis: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
 
-    // Get revenue accounts (3xxx range in Norwegian chart of accounts)
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("*, gl_accounts!inner(account_number, name)")
-      .eq("company_id", companyId)
-      .gte("transaction_date", start)
-      .lte("transaction_date", end)
-      .gte("account_number", "3000")
-      .lt("account_number", "4000");
+  const supabase = await createClient();
+  const { data: transactions } = await supabase
+    .from("account_transactions")
+    .select("account_number, amount, transaction_date, description")
+    .eq("company_id", companyId)
+    .gte("transaction_date", resolved.start)
+    .lte("transaction_date", resolved.end)
+    .gte("account_number", "3000")
+    .lt("account_number", "4000");
 
-    if (transactions && transactions.length > 0) {
-      const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const byAccount: Record<string, number> = {};
-      for (const t of transactions) {
-        const key = t.account_number;
-        byAccount[key] = (byAccount[key] || 0) + Math.abs(t.amount);
-      }
-      return {
-        period: { start, end },
-        total_revenue: { amount: total, currency: "NOK" },
-        by_account: byAccount,
-        transaction_count: transactions.length,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
+  const rows = transactions ?? [];
+  const total = rows.reduce((sum, t) => sum - Number(t.amount), 0);
+
+  const byAccount = new Map<string, number>();
+  const byMonth = new Map<string, number>();
+  for (const t of rows) {
+    byAccount.set(
+      t.account_number,
+      (byAccount.get(t.account_number) ?? 0) - Number(t.amount)
+    );
+    const month = t.transaction_date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) - Number(t.amount));
   }
 
+  // Account names, so the answer can say "Salgsinntekt" rather than "3000".
+  const { data: accounts } = await supabase
+    .from("gl_accounts")
+    .select("account_number, name")
+    .eq("company_id", companyId)
+    .in("account_number", [...byAccount.keys()].slice(0, 200));
+
+  const names = new Map((accounts ?? []).map((a) => [a.account_number, a.name]));
+
   return {
-    data_source: "no_data",
-    note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+    period: { start: resolved.start, end: resolved.end },
+    requested_period: requested,
+    total_revenue: { amount: Math.round(total), currency: "NOK" },
+    by_account: [...byAccount.entries()]
+      .map(([account_number, amount]) => ({
+        account_number,
+        name: names.get(account_number) ?? null,
+        amount: Math.round(amount),
+      }))
+      .sort((a, b) => b.amount - a.amount),
+    by_month: [...byMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month, amount: Math.round(amount) })),
+    transaction_count: rows.length,
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
+/**
+ * Profit for the asked-for period, with the same period a year earlier
+ * alongside it when the books reach that far back — the comparison is what
+ * makes the figure mean something.
+ */
 const getProfitAnalysis: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: metrics } = await supabase
-      .from("financial_metric_snapshots")
-      .select("*")
-      .eq("company_id", companyId)
-      .in("metric", [
-        "gross_profit",
-        "operating_profit",
-        "net_profit",
-        "gross_margin",
-        "operating_margin",
-      ])
-      .gte("period_start", start)
-      .lte("period_end", end);
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
 
-    if (metrics && metrics.length > 0) {
-      const result: Record<string, unknown> = { period: { start, end } };
-      for (const m of metrics) {
-        result[m.metric] = {
-          value: m.value,
-          change_percent: m.change_percent,
-          confidence: m.confidence,
-        };
-      }
-      result.data_source = "regnskapssystem";
-      return result;
-    }
-  } catch {
-    // Fall through
+  const current = await profitFor(companyId, resolved.start, resolved.end);
+
+  const priorRange = {
+    start: shiftYear(resolved.start, -1),
+    end: shiftYear(resolved.end, -1),
+  };
+  const priorInBooks =
+    coverage.first_date != null &&
+    coverage.last_date != null &&
+    priorRange.end >= coverage.first_date &&
+    priorRange.start <= coverage.last_date;
+
+  const prior = priorInBooks
+    ? await profitFor(companyId, priorRange.start, priorRange.end)
+    : null;
+
+  const change =
+    prior && prior.operating_profit !== 0
+      ? Math.round(
+          ((current.operating_profit - prior.operating_profit) /
+            Math.abs(prior.operating_profit)) *
+            1000
+        ) / 10
+      : null;
+
+  return {
+    period: { start: resolved.start, end: resolved.end },
+    revenue: current.revenue,
+    cost_of_goods: current.cogs,
+    gross_profit: current.revenue - current.cogs,
+    payroll_costs: current.payroll,
+    other_operating_costs: current.other,
+    operating_profit: current.operating_profit,
+    operating_margin:
+      current.revenue !== 0
+        ? Math.round((current.operating_profit / current.revenue) * 1000) / 10
+        : null,
+    comparison: prior
+      ? {
+          period: priorRange,
+          revenue: prior.revenue,
+          operating_profit: prior.operating_profit,
+          change_percent: change,
+        }
+      : null,
+    comparison_available: prior != null,
+    note:
+      coverageNote(requested, resolved, coverage) ??
+      (prior
+        ? undefined
+        : "Fjoråret er ikke importert, så det finnes ingen sammenligning. Ikke " +
+          "presenter en endring i prosent."),
+    data_source: "saft_import",
+  };
+};
+
+/** Revenue and cost totals for a date range, split the way a P&L reads. */
+async function profitFor(companyId: string, start: string, end: string) {
+  const supabase = await createClient();
+  const { data: rows } = await supabase
+    .from("account_transactions")
+    .select("account_number, amount")
+    .eq("company_id", companyId)
+    .gte("transaction_date", start)
+    .lte("transaction_date", end)
+    .gte("account_number", "3000")
+    .lt("account_number", "8000");
+
+  let revenue = 0;
+  let cogs = 0;
+  let payroll = 0;
+  let other = 0;
+
+  for (const r of rows ?? []) {
+    const amount = Number(r.amount);
+    if (inRange(r.account_number, 3000, 3999)) revenue -= amount;
+    else if (inRange(r.account_number, 4000, 4999)) cogs += amount;
+    else if (inRange(r.account_number, 5000, 5999)) payroll += amount;
+    else other += amount;
   }
 
   return {
-    data_source: "no_data",
-    note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+    revenue: Math.round(revenue),
+    cogs: Math.round(cogs),
+    payroll: Math.round(payroll),
+    other: Math.round(other),
+    operating_profit: Math.round(revenue - cogs - payroll - other),
   };
-};
+}
+
+function shiftYear(date: string, years: number): string {
+  const [y, m, d] = date.split("-");
+  return `${Number(y) + years}-${m}-${d}`;
+}
+
+const COST_CATEGORIES: Array<{ from: number; to: number; label: string }> = [
+  { from: 4000, to: 4999, label: "Varekostnad" },
+  { from: 5000, to: 5999, label: "Lønnskostnader" },
+  { from: 6000, to: 6099, label: "Avskrivninger" },
+  { from: 6100, to: 6399, label: "Lokaler, leie og drift" },
+  { from: 6400, to: 6799, label: "Utstyr, verktøy og tjenester" },
+  { from: 6800, to: 6999, label: "Kontor, telefon og porto" },
+  { from: 7000, to: 7099, label: "Bil og transport" },
+  { from: 7100, to: 7299, label: "Reise, diett og representasjon" },
+  { from: 7300, to: 7499, label: "Salg, reklame og kontingenter" },
+  { from: 7500, to: 7999, label: "Forsikring og andre kostnader" },
+];
 
 const getCostAnalysis: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
 
-    // Cost accounts (4xxx-7xxx in Norwegian chart of accounts)
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount")
-      .eq("company_id", companyId)
-      .gte("transaction_date", start)
-      .lte("transaction_date", end)
-      .gte("account_number", "4000")
-      .lt("account_number", "8000");
+  const supabase = await createClient();
+  const { data: transactions } = await supabase
+    .from("account_transactions")
+    .select("account_number, amount")
+    .eq("company_id", companyId)
+    .gte("transaction_date", resolved.start)
+    .lte("transaction_date", resolved.end)
+    .gte("account_number", "4000")
+    .lt("account_number", "8000");
 
-    if (transactions && transactions.length > 0) {
-      const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const byRange: Record<string, number> = {};
-      for (const t of transactions) {
-        const num = parseInt(t.account_number);
-        let category: string;
-        if (num < 5000) category = "Varekostnad";
-        else if (num < 6000) category = "Lønnskostnader";
-        else if (num < 7000) category = "Avskrivninger og nedskrivninger";
-        else category = "Andre driftskostnader";
-        byRange[category] = (byRange[category] || 0) + Math.abs(t.amount);
-      }
-      return {
-        period: { start, end },
-        total_costs: { amount: total, currency: "NOK" },
-        by_category: byRange,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
+  const rows = transactions ?? [];
+  const total = rows.reduce((sum, t) => sum + Number(t.amount), 0);
+
+  const byCategory = new Map<string, number>();
+  const byAccount = new Map<string, number>();
+  for (const t of rows) {
+    const num = parseInt(t.account_number, 10);
+    const category =
+      COST_CATEGORIES.find((c) => num >= c.from && num <= c.to)?.label ??
+      "Andre driftskostnader";
+    byCategory.set(category, (byCategory.get(category) ?? 0) + Number(t.amount));
+    byAccount.set(
+      t.account_number,
+      (byAccount.get(t.account_number) ?? 0) + Number(t.amount)
+    );
   }
 
+  const { data: accounts } = await supabase
+    .from("gl_accounts")
+    .select("account_number, name")
+    .eq("company_id", companyId)
+    .in("account_number", [...byAccount.keys()].slice(0, 200));
+
+  const names = new Map((accounts ?? []).map((a) => [a.account_number, a.name]));
+
   return {
-    data_source: "no_data",
-    note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+    period: { start: resolved.start, end: resolved.end },
+    total_costs: { amount: Math.round(total), currency: "NOK" },
+    by_category: [...byCategory.entries()]
+      .map(([category, amount]) => ({ category, amount: Math.round(amount) }))
+      .sort((a, b) => b.amount - a.amount),
+    largest_accounts: [...byAccount.entries()]
+      .map(([account_number, amount]) => ({
+        account_number,
+        name: names.get(account_number) ?? null,
+        amount: Math.round(amount),
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 20),
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
+/**
+ * Accepts a single account, an account range like "6000-6999", or a named
+ * category. The previous version matched on an exact account number only, so
+ * every category name the tool description advertised returned nothing.
+ */
 const getAccountBreakdown: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
-  const accountOrCategory = params.account_or_category as string;
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("account_number", accountOrCategory)
-      .gte("transaction_date", start)
-      .lte("transaction_date", end)
-      .order("transaction_date", { ascending: false })
-      .limit(50);
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
+  const raw = String(params.account_or_category ?? "").trim();
 
-    if (transactions && transactions.length > 0) {
-      const total = transactions.reduce((sum, t) => sum + t.amount, 0);
-      return {
-        account: accountOrCategory,
-        period: { start, end },
-        total: { amount: total, currency: "NOK" },
-        transaction_count: transactions.length,
-        transactions: transactions.map((t) => ({
-          date: t.transaction_date,
-          description: t.description,
-          amount: t.amount,
-          vat_code: t.vat_code,
-        })),
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
+  const named: Record<string, [number, number]> = {
+    revenue: [3000, 3999],
+    inntekter: [3000, 3999],
+    omsetning: [3000, 3999],
+    varekostnad: [4000, 4999],
+    salary_costs: [5000, 5999],
+    lonn: [5000, 5999],
+    lønn: [5000, 5999],
+    driftskostnader: [6000, 7999],
+    bank: [1900, 1999],
+    kundefordringer: [1500, 1599],
+    leverandorgjeld: [2400, 2499],
+    leverandørgjeld: [2400, 2499],
+  };
+
+  let from: string;
+  let to: string;
+
+  const rangeMatch = raw.match(/^(\d{4})\s*-\s*(\d{4})$/);
+  const singleMatch = raw.match(/^(\d{4})$/);
+  const key = raw.toLowerCase().replace(/\s+/g, "_");
+
+  if (singleMatch) {
+    from = to = singleMatch[1];
+  } else if (rangeMatch) {
+    from = rangeMatch[1];
+    to = rangeMatch[2];
+  } else if (named[key]) {
+    from = String(named[key][0]);
+    to = String(named[key][1]);
+  } else {
+    return {
+      error: `Forsto ikke «${raw}». Oppgi et kontonummer (f.eks. 6300), et intervall (6000-6999) eller en kategori: ${Object.keys(named).join(", ")}.`,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: transactions } = await supabase
+    .from("account_transactions")
+    .select("transaction_date, account_number, description, amount, vat_code")
+    .eq("company_id", companyId)
+    .gte("account_number", from)
+    .lte("account_number", to)
+    .gte("transaction_date", resolved.start)
+    .lte("transaction_date", resolved.end)
+    .order("transaction_date", { ascending: false })
+    .limit(200);
+
+  const rows = transactions ?? [];
+  const byMonth = new Map<string, number>();
+  for (const t of rows) {
+    const month = t.transaction_date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) + Number(t.amount));
   }
 
   return {
-    data_source: "no_data",
-    note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+    accounts: from === to ? from : `${from}-${to}`,
+    period: { start: resolved.start, end: resolved.end },
+    total: {
+      amount: Math.round(rows.reduce((sum, t) => sum + Number(t.amount), 0)),
+      currency: "NOK",
+    },
+    transaction_count: rows.length,
+    by_month: [...byMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month, amount: Math.round(amount) })),
+    transactions: rows.slice(0, 50).map((t) => ({
+      date: t.transaction_date,
+      account: t.account_number,
+      description: t.description,
+      amount: Number(t.amount),
+      vat_code: t.vat_code,
+    })),
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
+/**
+ * Receivables come from the balance the accounting system states per customer
+ * in the SAF-T file, which is what they actually owe. The older version read
+ * customer_ledger_entries — a table a SAF-T import never writes — so it always
+ * reported that nothing had been imported.
+ *
+ * SAF-T states a balance, not the invoices behind it, so there is no due date
+ * to age against. Saying so is more useful than an ageing bucket built on a
+ * guess.
+ */
 const getCustomerReceivables: ToolHandler = async (companyId) => {
-  try {
-    const supabase = await createClient();
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-    const { data: entries } = await supabase
-      .from("customer_ledger_entries")
-      .select("*, customers!inner(name)")
+  const supabase = await createClient();
+
+  const [{ data: customers }, { data: summary }] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("id, name, customer_number, org_number, closing_balance")
       .eq("company_id", companyId)
-      .eq("is_open", true);
+      .eq("is_active", true),
+    customerSummary(companyId),
+  ]);
 
-    if (entries && entries.length > 0) {
-      const total = entries.reduce(
-        (sum, e) => sum + (e.remaining_amount ?? e.amount),
-        0
-      );
-      const now = new Date();
-      const aging = { "0_30": 0, "31_60": 0, "61_90": 0, "90_plus": 0 };
-      for (const e of entries) {
-        const due = e.due_date ? new Date(e.due_date) : new Date(e.entry_date);
-        const daysOver = Math.floor(
-          (now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        const amt = e.remaining_amount ?? e.amount;
-        if (daysOver <= 30) aging["0_30"] += amt;
-        else if (daysOver <= 60) aging["31_60"] += amt;
-        else if (daysOver <= 90) aging["61_90"] += amt;
-        else aging["90_plus"] += amt;
-      }
-      return {
-        total_outstanding: { amount: total, currency: "NOK" },
-        aging,
-        customer_count: new Set(entries.map((e) => e.customer_id)).size,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
+  const byId = new Map((summary ?? []).map((s) => [s.customer_id, s]));
+
+  const rows = (customers ?? [])
+    .map((c) => ({
+      customer_id: c.id,
+      name: c.name,
+      customer_number: c.customer_number,
+      outstanding: c.closing_balance ?? null,
+      outstanding_is_stated: c.closing_balance != null,
+      revenue_in_period: Number(byId.get(c.id)?.revenue ?? 0),
+      last_activity: byId.get(c.id)?.last_activity ?? null,
+    }))
+    .filter((r) => (r.outstanding ?? 0) !== 0)
+    .sort((a, b) => (b.outstanding ?? 0) - (a.outstanding ?? 0));
 
   return {
-    data_source: "no_data",
+    as_of: coverage.last_date,
+    total_outstanding: {
+      amount: Math.round(rows.reduce((t, r) => t + (r.outstanding ?? 0), 0)),
+      currency: "NOK",
+    },
+    customer_count: rows.length,
+    customers: rows.slice(0, 25),
+    ageing_available: false,
     note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+      "Saldoene er kundesaldoene regnskapssystemet oppgir i SAF-T-filen per " +
+      `${coverage.last_date}. Filen inneholder ikke forfallsdato per faktura, ` +
+      "så aldersfordeling (0–30, 31–60 dager) kan ikke beregnes. Ikke oppgi " +
+      "aldersfordeling eller antall dager over forfall.",
+    data_source: "saft_import",
   };
 };
 
-const getCustomerPaymentProfile: ToolHandler = async (companyId, params) => {
-  const customerId = params.customer_id as string;
+/**
+ * Looks a customer up by name — the assistant has a name from the user, never
+ * a database id, so the previous id-only tool could not be called at all.
+ */
+const getCustomerDetail: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: profile } = await supabase
-      .from("customer_payment_profiles")
-      .select("*, customers!inner(name)")
-      .eq("company_id", companyId)
-      .eq("customer_id", customerId)
-      .single();
+  const name = String(params.name ?? "").trim();
+  if (!name) return { error: "Mangler kundenavn." };
 
-    if (profile) {
+  const supabase = await createClient();
+
+  const { data: matches } = await supabase
+    .from("customers")
+    .select("id, name, customer_number, org_number, email, phone, closing_balance")
+    .eq("company_id", companyId)
+    .ilike("name", `%${sanitizeFilterTerm(name)}%`)
+    .limit(10);
+
+  if (!matches || matches.length === 0) {
+    return {
+      found: false,
+      note: `Ingen kunde med navn som ligner «${name}». Bruk list_customers for å se hvilke kunder som finnes.`,
+    };
+  }
+
+  if (matches.length > 1) {
+    const exact = matches.find(
+      (m) => m.name.toLowerCase() === name.toLowerCase()
+    );
+    if (!exact) {
       return {
-        customer_id: customerId,
-        total_invoices: profile.total_invoices,
-        total_invoiced: profile.total_invoiced_amount,
-        outstanding: profile.current_outstanding,
-        overdue: profile.current_overdue,
-        avg_payment_days: profile.avg_actual_payment_days,
-        avg_days_after_due: profile.avg_days_after_due,
-        late_payment_ratio: profile.late_payment_ratio,
-        risk_score: profile.payment_risk_score,
-        payment_trend: profile.payment_trend,
-        data_source: "regnskapssystem",
+        found: false,
+        ambiguous: true,
+        candidates: matches.map((m) => m.name),
+        note: "Flere kunder matcher. Spør brukeren hvilken de mener.",
       };
     }
-  } catch {
-    // Fall through
+    matches.splice(0, matches.length, exact);
+  }
+
+  const customer = matches[0];
+
+  const { data: postings } = await supabase
+    .from("account_transactions")
+    .select("transaction_date, account_number, amount, description")
+    .eq("company_id", companyId)
+    .eq("customer_id", customer.id)
+    .order("transaction_date", { ascending: false })
+    .limit(400);
+
+  const rows = postings ?? [];
+  const revenueRows = rows.filter((r) => inRange(r.account_number, 3000, 3999));
+
+  const byMonth = new Map<string, number>();
+  for (const r of revenueRows) {
+    const month = r.transaction_date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) - r.amount);
+  }
+
+  const byProduct = new Map<string, number>();
+  for (const r of revenueRows) {
+    const key = r.description?.trim() || "(uten beskrivelse)";
+    byProduct.set(key, (byProduct.get(key) ?? 0) - r.amount);
   }
 
   return {
-    data_source: "no_data",
-    note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+    found: true,
+    customer: {
+      name: customer.name,
+      customer_number: customer.customer_number,
+      org_number: customer.org_number,
+      email: customer.email,
+    },
+    outstanding: customer.closing_balance ?? null,
+    outstanding_is_stated: customer.closing_balance != null,
+    revenue_in_period: Math.round(
+      revenueRows.reduce((t, r) => t - r.amount, 0)
+    ),
+    period: { start: coverage.first_date, end: coverage.last_date },
+    posting_count: rows.length,
+    last_activity: rows[0]?.transaction_date ?? null,
+    revenue_by_month: [...byMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month, amount: Math.round(amount) })),
+    buys: [...byProduct.entries()]
+      .map(([description, amount]) => ({ description, amount: Math.round(amount) }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 15),
+    data_source: "saft_import",
   };
 };
 
+/** The customer list, so the assistant can answer "hvem er våre største kunder". */
+const listCustomers: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const sortBy = params.sort_by === "outstanding" ? "outstanding" : "revenue";
+  const limit = Math.min(Number(params.limit ?? 20) || 20, 100);
+
+  const supabase = await createClient();
+  const [{ data: customers }, { data: summary }] = await Promise.all([
+    supabase
+      .from("customers")
+      .select("id, name, customer_number, org_number, closing_balance")
+      .eq("company_id", companyId)
+      .eq("is_active", true),
+    customerSummary(companyId),
+  ]);
+
+  const byId = new Map((summary ?? []).map((s) => [s.customer_id, s]));
+
+  const rows = (customers ?? [])
+    .map((c) => ({
+      name: c.name,
+      customer_number: c.customer_number,
+      revenue: Math.round(Number(byId.get(c.id)?.revenue ?? 0)),
+      outstanding: c.closing_balance ?? null,
+      last_activity: byId.get(c.id)?.last_activity ?? null,
+    }))
+    .sort((a, b) =>
+      sortBy === "outstanding"
+        ? (b.outstanding ?? 0) - (a.outstanding ?? 0)
+        : b.revenue - a.revenue
+    );
+
+  return {
+    period: { start: coverage.first_date, end: coverage.last_date },
+    total_customers: rows.length,
+    total_revenue: rows.reduce((t, r) => t + r.revenue, 0),
+    customers: rows.slice(0, limit),
+    data_source: "saft_import",
+  };
+};
+
+/**
+ * SAF-T does not carry invoice-level due dates, so "forfalt" cannot be
+ * derived. Reporting that plainly stops the assistant inventing an ageing
+ * profile out of posting dates.
+ */
 const getOverdueInvoices: ToolHandler = async (companyId) => {
-  try {
-    const supabase = await createClient();
-    const today = fmt(new Date());
-
-    const { data: invoices } = await supabase
-      .from("outgoing_invoices")
-      .select("*, customers!inner(name)")
-      .eq("company_id", companyId)
-      .lt("due_date", today)
-      .gt("remaining_amount", 0)
-      .order("due_date", { ascending: true });
-
-    if (invoices && invoices.length > 0) {
-      const now = new Date();
-      return {
-        count: invoices.length,
-        total_overdue: invoices.reduce(
-          (sum, inv) => sum + (inv.remaining_amount ?? 0),
-          0
-        ),
-        currency: "NOK",
-        invoices: invoices.map((inv) => ({
-          invoice_number: inv.invoice_number,
-          customer: (inv as Record<string, unknown>).customers,
-          amount: inv.remaining_amount,
-          due_date: inv.due_date,
-          days_overdue: Math.floor(
-            (now.getTime() - new Date(inv.due_date!).getTime()) /
-              (1000 * 60 * 60 * 24)
-          ),
-        })),
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
   return {
-    data_source: "no_data",
+    available: false,
     note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+      "Regnskapsdataene kommer fra en SAF-T-fil. Den oppgir saldo per kunde, " +
+      "men ikke enkeltfakturaer med forfallsdato, så det går ikke å si hva " +
+      "som er forfalt. Fortell brukeren dette, og bruk get_customer_receivables " +
+      "for å vise hvem som har utestående saldo. Ikke oppgi forfalte beløp " +
+      "eller dager over forfall.",
+    data_source: "saft_import",
   };
 };
 
 const getSupplierPayables: ToolHandler = async (companyId) => {
-  try {
-    const supabase = await createClient();
-    const { data: entries } = await supabase
-      .from("supplier_ledger_entries")
-      .select("*, suppliers!inner(name)")
-      .eq("company_id", companyId)
-      .eq("is_open", true);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-    if (entries && entries.length > 0) {
-      const total = entries.reduce(
-        (sum, e) => sum + Math.abs(e.remaining_amount ?? e.amount),
-        0
-      );
-      return {
-        total_payables: { amount: total, currency: "NOK" },
-        supplier_count: new Set(entries.map((e) => e.supplier_id)).size,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
+  const supabase = await createClient();
+
+  const [{ data: suppliers }, { data: summary }] = await Promise.all([
+    supabase
+      .from("suppliers")
+      .select("id, name, supplier_number, org_number, closing_balance")
+      .eq("company_id", companyId)
+      .eq("is_active", true),
+    supplierSummary(companyId),
+  ]);
+
+  const byId = new Map((summary ?? []).map((s) => [s.supplier_id, s]));
+
+  const rows = (suppliers ?? [])
+    .map((s) => ({
+      name: s.name,
+      supplier_number: s.supplier_number,
+      owed: s.closing_balance ?? null,
+      cost_in_period: Math.round(Number(byId.get(s.id)?.cost ?? 0)),
+      last_activity: byId.get(s.id)?.last_activity ?? null,
+    }))
+    .sort((a, b) => (b.owed ?? 0) - (a.owed ?? 0));
+
+  const withBalance = rows.filter((r) => (r.owed ?? 0) !== 0);
 
   return {
-    data_source: "no_data",
+    as_of: coverage.last_date,
+    total_payables: {
+      amount: Math.round(withBalance.reduce((t, r) => t + (r.owed ?? 0), 0)),
+      currency: "NOK",
+    },
+    supplier_count: withBalance.length,
+    suppliers_by_balance: withBalance.slice(0, 25),
+    suppliers_by_cost: [...rows]
+      .sort((a, b) => b.cost_in_period - a.cost_in_period)
+      .slice(0, 25),
+    period: { start: coverage.first_date, end: coverage.last_date },
+    ageing_available: false,
     note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+      "Saldoene er leverandørsaldoene SAF-T-filen oppgir per " +
+      `${coverage.last_date}. Filen har ikke forfallsdato per faktura, så ` +
+      "aldersfordeling og forfallsoversikt kan ikke beregnes.",
+    data_source: "saft_import",
   };
 };
 
 const getUpcomingObligations: ToolHandler = async (companyId, params) => {
   const days = (params.days as number) || 30;
-  const now = new Date();
-  const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: invoices } = await supabase
-      .from("incoming_invoices")
-      .select("*, suppliers!inner(name)")
-      .eq("company_id", companyId)
-      .gte("due_date", fmt(now))
-      .lte("due_date", fmt(futureDate))
-      .gt("remaining_amount", 0);
-
-    if (invoices && invoices.length > 0) {
-      return {
-        horizon_days: days,
-        obligations: invoices.map((inv) => ({
-          type: "leverandørfaktura",
-          supplier: (inv as Record<string, unknown>).suppliers,
-          amount: inv.remaining_amount ?? inv.total_amount,
-          due_date: inv.due_date,
-          currency: inv.currency,
-        })),
-        total: invoices.reduce(
-          (sum, inv) =>
-            sum + Math.abs(inv.remaining_amount ?? inv.total_amount ?? 0),
-          0
-        ),
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
+  const payables = (await getSupplierPayables(companyId, {})) as {
+    total_payables?: { amount: number };
+  };
 
   return {
-    data_source: "no_data",
+    horizon_days: days,
+    scheduled_obligations_available: false,
+    total_payables_outstanding: payables.total_payables?.amount ?? 0,
     note:
-      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
-      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
-      "«Importer data». Ikke oppgi tall.",
+      "SAF-T-filen inneholder ikke forfallsdatoer, så konkrete forfall de " +
+      `neste ${days} dagene kan ikke listes. Det som er kjent er samlet ` +
+      "leverandørgjeld per siste dag i regnskapet. Si dette tydelig framfor " +
+      "å anslå et forfallsbilde.",
+    data_source: "saft_import",
+  };
+};
+
+/**
+ * Recurring revenue — the figure this business is run on, and previously
+ * unreachable for the assistant even though the dashboard showed it.
+ */
+const getRecurringRevenue: ToolHandler = async (companyId) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const supabase = await createClient();
+  const { data } = (await supabase.rpc("company_mrr" as never, {
+    p_company_id: companyId,
+  } as never)) as unknown as {
+    data: Array<{
+      month: string;
+      recurring: number;
+      normalised_mrr: number;
+      one_off: number;
+      total: number;
+      is_complete: boolean;
+    }> | null;
+  };
+
+  const months = (data ?? []).map((m) => ({
+    month: m.month.slice(0, 7),
+    normalised_mrr: Math.round(Number(m.normalised_mrr)),
+    billed_recurring: Math.round(Number(m.recurring)),
+    one_off: Math.round(Number(m.one_off)),
+    total_revenue: Math.round(Number(m.total)),
+    is_complete: m.is_complete,
+  }));
+
+  const complete = months.filter((m) => m.is_complete);
+  const latest = complete[complete.length - 1] ?? null;
+  const previous = complete[complete.length - 2] ?? null;
+
+  return {
+    mrr: latest
+      ? {
+          month: latest.month,
+          value: latest.normalised_mrr,
+          arr: latest.normalised_mrr * 12,
+          previous_month: previous?.normalised_mrr ?? null,
+          change_percent:
+            previous && previous.normalised_mrr
+              ? Math.round(
+                  ((latest.normalised_mrr - previous.normalised_mrr) /
+                    previous.normalised_mrr) *
+                    10000
+                ) / 100
+              : null,
+          share_of_revenue: latest.total_revenue
+            ? Math.round((latest.normalised_mrr / latest.total_revenue) * 100)
+            : null,
+        }
+      : null,
+    months,
+    based_on_product_list: coverage.counts.recurring_products > 0,
+    note:
+      coverage.counts.recurring_products > 0
+        ? "MRR er beregnet fra produktlisten: kvartals-, halvårs- og årskontrakter " +
+          "er normalisert ned til månedsbeløp. Ufullstendige måneder teller ikke med."
+        : "Ingen produktliste er lastet opp, så gjentakende inntekter er utledet fra " +
+          "posteringstekst og er usikre. Nevn at en produktliste gir et sikrere tall.",
+    data_source: "saft_import",
+  };
+};
+
+/** Bank balances and their movement — what the liquidity page shows. */
+const getCashPosition: ToolHandler = async (companyId) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const supabase = await createClient();
+
+  const [{ data: series }, { data: accounts }] = await Promise.all([
+    supabase.rpc("company_cash_series" as never, {
+      p_company_id: companyId,
+    } as never) as unknown as Promise<{
+      data: Array<{ month: string; movement: number; balance: number }> | null;
+    }>,
+    supabase
+      .from("gl_accounts")
+      .select("account_number, name, closing_balance")
+      .eq("company_id", companyId)
+      .gte("account_number", "1900")
+      .lt("account_number", "2000"),
+  ]);
+
+  const bank = (accounts ?? []).filter((a) => a.closing_balance != null);
+
+  return {
+    as_of: coverage.last_date,
+    booked_cash: Math.round(
+      bank.reduce((t, a) => t + Number(a.closing_balance ?? 0), 0)
+    ),
+    accounts: bank.map((a) => ({
+      account_number: a.account_number,
+      name: a.name,
+      balance: Math.round(Number(a.closing_balance ?? 0)),
+    })),
+    monthly: (series ?? []).map((s) => ({
+      month: String(s.month).slice(0, 7),
+      movement: Math.round(Number(s.movement)),
+      balance: Math.round(Number(s.balance)),
+    })),
+    note:
+      "Dette er bokført bankbeholdning fra regnskapet, ikke live banksaldo. " +
+      "Bruk «bokført likviditet».",
+    data_source: "saft_import",
+  };
+};
+
+/** Account balances — the closing balance per account, i.e. the balance sheet. */
+const getAccountBalances: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("gl_accounts")
+    .select("account_number, name, account_type, opening_balance, closing_balance")
+    .eq("company_id", companyId)
+    .order("account_number");
+
+  const prefix = params.account_prefix
+    ? String(params.account_prefix).replace(/\D/g, "")
+    : null;
+
+  if (prefix) {
+    const padded = prefix.padEnd(4, "0");
+    const upper = String(Number(prefix) + 1).padEnd(4, "0");
+    query = query.gte("account_number", padded).lt("account_number", upper);
+  }
+
+  const { data: accounts } = await query;
+
+  const rows = (accounts ?? [])
+    .filter((a) => a.closing_balance != null || a.opening_balance != null)
+    .map((a) => ({
+      account_number: a.account_number,
+      name: a.name,
+      opening_balance: a.opening_balance == null ? null : Math.round(Number(a.opening_balance)),
+      closing_balance: a.closing_balance == null ? null : Math.round(Number(a.closing_balance)),
+    }));
+
+  return {
+    as_of: coverage.last_date,
+    account_count: rows.length,
+    accounts: rows.slice(0, 200),
+    note:
+      "Saldoene er inngående og utgående balanse slik SAF-T-filen oppgir dem. " +
+      "Debet er positiv, kredit negativ.",
+    data_source: "saft_import",
+  };
+};
+
+/** Free-text search across the ledger, for "hva betalte vi til X". */
+const searchTransactions: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const supabase = await createClient();
+  const text = params.text ? sanitizeFilterTerm(String(params.text)) : null;
+  const limit = Math.min(Number(params.limit ?? 50) || 50, 200);
+
+  let query = supabase
+    .from("account_transactions")
+    .select("transaction_date, account_number, amount, description, vat_code")
+    .eq("company_id", companyId)
+    .order("transaction_date", { ascending: false })
+    .limit(limit);
+
+  if (text) query = query.ilike("description", `%${text}%`);
+  if (params.period) {
+    const resolved = clampToCoverage(
+      parsePeriodDates(String(params.period)),
+      coverage
+    );
+    query = query
+      .gte("transaction_date", resolved.start)
+      .lte("transaction_date", resolved.end);
+  }
+
+  const { data: rows } = await query;
+
+  return {
+    match_count: rows?.length ?? 0,
+    total_amount: Math.round(
+      (rows ?? []).reduce((t, r) => t + Number(r.amount), 0)
+    ),
+    transactions: (rows ?? []).map((r) => ({
+      date: r.transaction_date,
+      account: r.account_number,
+      amount: Number(r.amount),
+      description: r.description,
+      vat_code: r.vat_code,
+    })),
+    data_source: "saft_import",
+  };
+};
+
+/** What the books hold, so the assistant can answer scope questions directly. */
+const getDataCoverage: ToolHandler = async (companyId) => {
+  const coverage = await getCoverage(companyId);
+  return {
+    ...coverage,
+    note: coverage.has_data
+      ? `Regnskapet dekker ${coverage.first_date} til ${coverage.last_date}. ` +
+        "Spørsmål om perioder utenfor dette kan ikke besvares med tall."
+      : "Ingen regnskapsdata er importert ennå.",
   };
 };
 
@@ -968,7 +1487,13 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_cost_analysis: getCostAnalysis,
   get_account_breakdown: getAccountBreakdown,
   get_customer_receivables: getCustomerReceivables,
-  get_customer_payment_profile: getCustomerPaymentProfile,
+  get_customer_detail: getCustomerDetail,
+  list_customers: listCustomers,
+  get_recurring_revenue: getRecurringRevenue,
+  get_cash_position: getCashPosition,
+  get_account_balances: getAccountBalances,
+  search_transactions: searchTransactions,
+  get_data_coverage: getDataCoverage,
   get_overdue_invoices: getOverdueInvoices,
   get_supplier_payables: getSupplierPayables,
   get_upcoming_obligations: getUpcomingObligations,

@@ -6,6 +6,7 @@ import { checkRateLimit, rateLimitResponse } from "@/app/api/_lib/rate-limit";
 import { TOOLS } from "@/lib/assistant/tools";
 import { executeTool } from "@/lib/assistant/tool-handlers";
 import { getSystemPrompt } from "@/lib/assistant/system-prompt";
+import { getCoverage } from "@/lib/assistant/coverage";
 import { classifyIntent } from "@/lib/assistant/intent-classifier";
 import { routeToModel } from "@/lib/assistant/model-router";
 import type { DataQuality } from "@/lib/assistant/system-prompt";
@@ -211,7 +212,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { companyName, dataQuality } = await getCompanyContext(company_id);
+    const [{ companyName, dataQuality }, coverage] = await Promise.all([
+      getCompanyContext(company_id),
+      // Stated up front so the assistant knows which periods exist before it
+      // reaches for a tool, rather than reporting 'no data' for a month the
+      // books simply do not reach.
+      getCoverage(company_id),
+    ]);
     const convId = await getOrCreateConversation(
       company_id,
       auth.userId,
@@ -223,7 +230,8 @@ export async function POST(request: NextRequest) {
     const systemPrompt = getSystemPrompt(
       knowledge_level || "intermediate",
       companyName,
-      dataQuality
+      dataQuality,
+      coverage
     );
 
     const intent = classifyIntent(message);
