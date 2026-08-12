@@ -5,6 +5,7 @@ import { writeFile, unlink } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { randomUUID } from "crypto";
+import { DocumentAnalyzer } from "@/lib/accounting-advisor/document-analyzer";
 
 /**
  * POST /api/documents/analyze
@@ -96,17 +97,80 @@ export async function POST(request: NextRequest) {
     tempPath = join(tmpdir(), `elida-doc-${randomUUID()}${ext}`);
     await writeFile(tempPath, fileBuffer);
 
-    // --- Document analysis ---
-    // For MVP, return a mock analysis result.
-    // In production, this would call an AI model (e.g., Claude) to:
-    // 1. OCR/extract text from the document
-    // 2. Classify the document type (invoice, receipt, credit note, etc.)
-    // 3. Extract structured fields
-    // 4. Provide an accounting recommendation
+    const apiKey = process.env.OPENAI_API_KEY;
+    const hasRealKey = apiKey && apiKey !== "" && !apiKey.startsWith("sk-placeholder") && apiKey !== "your-api-key-here";
 
+    if (hasRealKey) {
+      const analyzer = new DocumentAnalyzer(apiKey);
+      const base64Content = fileBuffer.toString("base64");
+      const extraction = await analyzer.analyzeDocument(base64Content, file.type);
+
+      const docTypeLabels: Record<string, string> = {
+        invoice: "Faktura",
+        receipt: "Kvittering",
+        credit_note: "Kreditnota",
+        unknown: "Ukjent",
+      };
+
+      const extractionResult = {
+        document_type: extraction.document_type,
+        document_type_label: docTypeLabels[extraction.document_type] ?? "Ukjent",
+        confidence: extraction.extraction_confidence,
+        fields: {
+          supplier_name: extraction.supplier.name,
+          supplier_org_number: extraction.supplier.org_number,
+          invoice_number: extraction.invoice_number,
+          invoice_date: extraction.invoice_date,
+          due_date: extraction.due_date,
+          total_amount: extraction.total_amount,
+          vat_amount: extraction.total_vat,
+          net_amount: extraction.subtotal,
+          currency: extraction.currency,
+          payment_reference: extraction.payment_reference,
+          line_items: extraction.lines.map((l) => ({
+            description: l.description,
+            quantity: l.quantity,
+            unit_price: l.unit_price,
+            amount: l.amount,
+            vat_rate: l.vat_rate,
+          })),
+        },
+      };
+
+      const notes: string[] = [];
+      if (extraction.supplier.name) {
+        notes.push(`Leverandør identifisert: ${extraction.supplier.name}`);
+      }
+      if (extraction.supplier.org_number) {
+        notes.push(`Org.nr: ${extraction.supplier.org_number}`);
+      }
+      if (extraction.extraction_confidence === "rough_estimate" || extraction.extraction_confidence === "low_confidence") {
+        notes.push("Lav konfidens på uttrekket. Kontroller feltene manuelt.");
+      }
+
+      const recommendation = { notes };
+
+      await (supabase
+        .from("ephemeral_document_jobs")
+        .update({
+          status: "completed" as const,
+          completed_at: new Date().toISOString(),
+          analysis_result: extractionResult,
+          recommendation,
+        } as never)
+        .eq("id", job.id) as never);
+
+      return NextResponse.json({
+        job_id: job.id,
+        status: "completed",
+        extraction: extractionResult,
+        recommendation,
+      });
+    }
+
+    // Fallback: mock analysis when no API key is configured
     const analysisResult = generateMockAnalysis(file.name, file.type, file.size);
 
-    // Update job record with results (still no document content stored)
     await (supabase
       .from("ephemeral_document_jobs")
       .update({

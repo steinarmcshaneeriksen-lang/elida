@@ -300,10 +300,17 @@ export function ChatProvider({
 
         let content = "## Dokumentanalyse\n\n";
 
+        if (extraction?.document_type_label) {
+          content += `**Type:** ${extraction.document_type_label}\n`;
+        }
+
         if (extraction?.fields) {
           const fields = extraction.fields;
           if (fields.supplier_name || fields.vendor_name) {
             content += `**Leverandør:** ${fields.supplier_name ?? fields.vendor_name}\n`;
+          }
+          if (fields.supplier_org_number) {
+            content += `**Org.nr:** ${fields.supplier_org_number}\n`;
           }
           if (fields.invoice_number) {
             content += `**Fakturanr:** ${fields.invoice_number}\n`;
@@ -311,13 +318,35 @@ export function ChatProvider({
           if (fields.invoice_date ?? fields.date) {
             content += `**Dato:** ${fields.invoice_date ?? fields.date}\n`;
           }
-          if (fields.total_amount) {
-            content += `**Totalbeløp:** ${Number(fields.total_amount).toLocaleString("nb-NO")} kr\n`;
+          if (fields.due_date) {
+            content += `**Forfallsdato:** ${fields.due_date}\n`;
+          }
+          if (fields.net_amount) {
+            content += `**Nettobeløp:** ${Number(fields.net_amount).toLocaleString("nb-NO")} kr\n`;
           }
           if (fields.vat_amount) {
             content += `**MVA:** ${Number(fields.vat_amount).toLocaleString("nb-NO")} kr\n`;
           }
+          if (fields.total_amount) {
+            content += `**Totalbeløp:** ${Number(fields.total_amount).toLocaleString("nb-NO")} kr\n`;
+          }
+          if (fields.payment_reference) {
+            content += `**Betalingsreferanse:** ${fields.payment_reference}\n`;
+          }
           content += "\n";
+
+          if (fields.line_items?.length > 0) {
+            content += "### Linjer\n\n";
+            content += "| Beskrivelse | Antall | Beløp | MVA |\n|---|---|---|---|\n";
+            for (const line of fields.line_items) {
+              const desc = line.description ?? "—";
+              const qty = line.quantity != null ? String(line.quantity) : "—";
+              const amt = line.amount != null ? `${Number(line.amount).toLocaleString("nb-NO")} kr` : "—";
+              const vat = line.vat_rate != null ? `${(line.vat_rate * 100).toFixed(0)} %` : "—";
+              content += `| ${desc} | ${qty} | ${amt} | ${vat} |\n`;
+            }
+            content += "\n";
+          }
         }
 
         if (recommendation?.posting_suggestion) {
