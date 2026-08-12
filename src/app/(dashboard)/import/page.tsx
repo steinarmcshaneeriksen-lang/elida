@@ -12,6 +12,7 @@ import {
   Repeat,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/use-user";
+import { refreshCompanyData } from "@/lib/hooks/use-company-data";
 import { formatRelativeTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
@@ -163,6 +164,9 @@ export default function ImportPage() {
 
         setResult((await res.json()) as ImportResult);
         setHistoryVersion((v) => v + 1);
+        // Every figure on every page was just rewritten; drop the cache so the
+        // next page visit reads the new numbers rather than the pre-import ones.
+        refreshCompanyData();
       } catch (err) {
         setError(
           err instanceof Error

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
 import { createClient } from "@/lib/supabase/client";
 import { UserPlus, Eye, EyeOff, Loader2 } from "lucide-react";
 
@@ -70,10 +71,7 @@ export default function SignupPage() {
       <div className="w-full max-w-md">
         {/* Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-               style={{ background: "var(--primary)", color: "#fff" }}>
-            <span className="text-2xl font-bold tracking-tight">E</span>
-          </div>
+          <Logo size={40} className="mb-5 inline-block" />
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
             Opprett konto
           </h1>

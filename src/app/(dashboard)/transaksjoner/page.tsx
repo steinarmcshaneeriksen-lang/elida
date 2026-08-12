@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { formatCurrency, formatDateNumeric } from "@/lib/format";
-import { useUser } from "@/lib/hooks/use-user";
+import { useCompanyData } from "@/lib/hooks/use-company-data";
 import {
   NoDataState,
   LoadingState,
@@ -36,19 +36,10 @@ interface TransactionsResponse {
 }
 
 export default function TransaksjonerPage() {
-  const { company, isLoading: isLoadingUser } = useUser();
-  const companyId = company?.id;
-
   const [searchQuery, setSearchQuery] = useState("");
   // Debounced copy of searchQuery — avoids a request per keystroke.
   const [activeSearch, setActiveSearch] = useState("");
   const [page, setPage] = useState(1);
-
-  const [result, setResult] = useState<{
-    key: string;
-    data: TransactionsResponse | null;
-    error: string | null;
-  } | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -58,66 +49,15 @@ export default function TransaksjonerPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const key = companyId
-    ? `${companyId}:${page}:${activeSearch}`
-    : null;
+  const query = new URLSearchParams({
+    page: String(page),
+    page_size: String(PAGE_SIZE),
+  });
+  if (activeSearch) query.set("text", activeSearch);
 
-  useEffect(() => {
-    if (!key || !companyId) return;
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const params = new URLSearchParams({
-          page: String(page),
-          page_size: String(PAGE_SIZE),
-        });
-        if (activeSearch) params.set("text", activeSearch);
-
-        const res = await fetch(
-          `/api/companies/${companyId}/transactions?${params}`
-        );
-        if (cancelled) return;
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          if (!cancelled) {
-            setResult({
-              key: key!,
-              data: null,
-              error: body?.error ?? `Forespørselen feilet (${res.status})`,
-            });
-          }
-          return;
-        }
-
-        const json = (await res.json()) as TransactionsResponse;
-        if (!cancelled) setResult({ key: key!, data: json, error: null });
-      } catch (err) {
-        if (!cancelled) {
-          setResult({
-            key: key!,
-            data: null,
-            error:
-              err instanceof Error
-                ? err.message
-                : "Kunne ikke hente transaksjoner",
-          });
-        }
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [key, companyId, page, activeSearch]);
-
-  // Derived, so the effect never writes loading state synchronously.
-  const isFresh = result?.key === key;
-  const isLoading = isLoadingUser || (key != null && !isFresh);
-  const data = isFresh ? result.data : null;
-  const error = isFresh ? result.error : null;
+  const { data, isLoading, error } = useCompanyData<TransactionsResponse>(
+    `transactions?${query}`
+  );
 
   const transactions = data?.transactions ?? [];
   const total = data?.pagination.total ?? 0;

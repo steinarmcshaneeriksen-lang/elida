@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { formatCurrency, formatDateShort } from "@/lib/format";
-import { useUser } from "@/lib/hooks/use-user";
+import { useCompanyData } from "@/lib/hooks/use-company-data";
 import { LoadingState, ErrorState } from "@/components/dashboard/empty-state";
 import { ArrowLeft, Mail, Phone, MapPin, Building2, Info } from "lucide-react";
 
@@ -57,61 +56,9 @@ export default function KundeDetaljPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const customerId = params?.id;
-  const { company, isLoading: isLoadingUser } = useUser();
-  const companyId = company?.id;
-
-  const key = companyId && customerId ? `${companyId}/${customerId}` : null;
-  const [result, setResult] = useState<{
-    key: string;
-    data: CustomerDetail | null;
-    error: string | null;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!key || !companyId || !customerId) return;
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const res = await fetch(
-          `/api/companies/${companyId}/customers/${customerId}`
-        );
-        if (cancelled) return;
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          if (!cancelled) {
-            setResult({
-              key: key!,
-              data: null,
-              error:
-                res.status === 404
-                  ? "Fant ikke kunden."
-                  : (body?.error ?? `Forespørselen feilet (${res.status})`),
-            });
-          }
-          return;
-        }
-
-        const json = (await res.json()) as CustomerDetail;
-        if (!cancelled) setResult({ key: key!, data: json, error: null });
-      } catch {
-        if (!cancelled) {
-          setResult({ key: key!, data: null, error: "Kunne ikke koble til." });
-        }
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [key, companyId, customerId]);
-
-  const isFresh = result?.key === key;
-  const isLoading = isLoadingUser || (key != null && !isFresh);
-  const data = isFresh ? result.data : null;
-  const error = isFresh ? result.error : null;
+  const { data, isLoading, error } = useCompanyData<CustomerDetail>(
+    `customers/${customerId}`
+  );
 
   const maxMonth = Math.max(
     1,

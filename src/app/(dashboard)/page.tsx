@@ -53,13 +53,6 @@ function getGreeting(): string {
   return "God kveld!";
 }
 
-/** Data derived from a partial period is an estimate, not a confirmed figure. */
-function confidenceFor(freshness: string): "high" | "medium" | "low" {
-  if (freshness === "live" || freshness === "recent") return "high";
-  if (freshness === "stale") return "medium";
-  return "low";
-}
-
 function direction(percent: number): "up" | "down" | "flat" {
   if (percent > 0.5) return "up";
   if (percent < -0.5) return "down";
@@ -101,16 +94,18 @@ export default function DashboardPage() {
           {mrr.data?.has_data && <MrrCard data={mrr.data} />}
 
           <section>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {buildMetrics(data).map((metric, index) => (
+            {/* One row of equal cards. A three-column grid left the fourth
+                card alone on a second row, which read as a mistake. */}
+            <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {buildMetrics(data).map((metric) => (
                 <MetricCard
-                  key={index}
+                  key={metric.question}
                   question={metric.question}
                   label={metric.label}
                   value={metric.value}
                   comparison={metric.comparison}
-                  confidence={metric.confidence}
                   detail={metric.detail}
+                  href={metric.href}
                 />
               ))}
             </div>
@@ -167,47 +162,50 @@ function formatPeriod(start: string, end: string): string {
   return sy === ey ? `${from}–${to} ${ey}` : `${from} ${sy} – ${to} ${ey}`;
 }
 
-function buildMetrics(data: SummaryResponse) {
-  const confidence = confidenceFor(data.data_quality.freshness);
-  const metrics: {
-    question: string;
+interface DashboardMetric {
+  question: string;
+  label: string;
+  value: string;
+  comparison: {
+    percent: number;
+    direction: "up" | "down" | "flat";
     label: string;
-    value: string;
-    comparison: {
-      value: number;
-      percent: number;
-      direction: "up" | "down" | "flat";
-      label: string;
-    };
-    confidence: "high" | "medium" | "low";
-    detail?: string;
-  }[] = [];
+  };
+  detail?: string;
+  href: string;
+}
+
+function buildMetrics(data: SummaryResponse): DashboardMetric[] {
+  const metrics: DashboardMetric[] = [];
 
   if (data.profit) {
+    const margin =
+      data.revenue?.ytd && data.profit
+        ? (data.profit.ytd / data.revenue.ytd) * 100
+        : null;
     metrics.push({
       question: "Går bedriften med overskudd?",
       label: "Driftsresultat i perioden",
       value: formatCurrency(data.profit.ytd),
       comparison: comparisonFor(data.profit),
-      confidence,
+      detail:
+        margin != null
+          ? `Driftsmargin ${margin.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} %`
+          : undefined,
+      href: "/okonomi",
     });
   }
 
   if (data.revenue) {
-    const margin =
-      data.revenue.ytd && data.profit
-        ? (data.profit.ytd / data.revenue.ytd) * 100
-        : null;
     metrics.push({
       question: "Vokser bedriften?",
       label: "Omsetning i perioden",
       value: formatCurrency(data.revenue.ytd),
       comparison: comparisonFor(data.revenue),
-      confidence,
-      detail:
-        margin != null
-          ? `Driftsmargin: ${margin.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} %`
-          : undefined,
+      detail: data.revenue.has_comparison
+        ? `I fjor: ${formatCurrency(data.revenue.comparison_ytd ?? 0)}`
+        : undefined,
+      href: "/okonomi",
     });
   }
 
@@ -217,13 +215,12 @@ function buildMetrics(data: SummaryResponse) {
       label: "Bokført likviditet",
       value: formatCurrency(data.cash.current),
       comparison: {
-        value: 0,
         percent: 0,
         direction: "flat",
         label: "ved periodens slutt",
       },
-      confidence,
       detail: "Bokført saldo, ikke live banksaldo.",
+      href: "/likviditet",
     });
   }
 
@@ -233,12 +230,11 @@ function buildMetrics(data: SummaryResponse) {
       label: "Utestående kundefordringer",
       value: formatCurrency(data.receivables.total),
       comparison: {
-        value: 0,
         percent: 0,
         direction: "flat",
         label: "bokført ved periodens slutt",
       },
-      confidence,
+      href: "/kunder",
     });
   }
 
@@ -252,16 +248,14 @@ function buildMetrics(data: SummaryResponse) {
 function comparisonFor(metric: Metric) {
   if (!metric.has_comparison || metric.change_percent == null) {
     return {
-      value: 0,
       percent: 0,
       direction: "flat" as const,
       label: "ingen sammenligning ennå",
     };
   }
   return {
-    value: metric.ytd - (metric.comparison_ytd ?? 0),
     percent: metric.change_percent,
     direction: direction(metric.change_percent),
-    label: "vs. samme periode i fjor",
+    label: "vs. i fjor",
   };
 }

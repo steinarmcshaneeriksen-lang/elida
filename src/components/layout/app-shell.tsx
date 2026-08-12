@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Sidebar } from "./sidebar";
 import { Header } from "./header";
 import { ChatProvider } from "@/components/chat/chat-provider";
@@ -23,11 +24,24 @@ export function AppShell({
   orgNumber,
   knowledgeLevel = "intermediate",
 }: AppShellProps) {
+  // Held here rather than inside the sidebar so the content column moves with
+  // it; previously collapsing left a 190px strip of empty background.
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
     <div className="flex min-h-screen">
-      <Sidebar companyName={companyName} orgNumber={orgNumber} />
+      <Sidebar
+        companyName={companyName}
+        orgNumber={orgNumber}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      />
 
-      <div className="flex flex-1 flex-col pl-[260px] transition-all duration-300">
+      <div
+        className={`flex min-w-0 flex-1 flex-col transition-all duration-300 ${
+          collapsed ? "pl-[72px]" : "pl-[260px]"
+        }`}
+      >
         <Header title={title} />
         <main className="flex-1 p-6">{children}</main>
       </div>

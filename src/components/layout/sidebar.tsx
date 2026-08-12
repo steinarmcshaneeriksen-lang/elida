@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Logo, LogoMark } from "@/components/brand/logo";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -30,11 +30,22 @@ const navItems = [
 interface SidebarProps {
   companyName?: string | null;
   orgNumber?: string | null;
+  collapsed: boolean;
+  onToggle: () => void;
 }
 
-export function Sidebar({ companyName, orgNumber }: SidebarProps) {
+/**
+ * The navigation sits on the same light ground as the rest of the app, with
+ * the wordmark at the top. A dark slab down the left competed with the content
+ * and did not belong to the brand.
+ */
+export function Sidebar({
+  companyName,
+  orgNumber,
+  collapsed,
+  onToggle,
+}: SidebarProps) {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -43,32 +54,22 @@ export function Sidebar({ companyName, orgNumber }: SidebarProps) {
 
   return (
     <aside
-      className={`
-        fixed left-0 top-0 z-40 flex h-full flex-col
-        transition-all duration-300 ease-in-out
-        ${collapsed ? "w-[72px]" : "w-[260px]"}
-      `}
-      style={{ background: "var(--primary-900)" }}
+      className={`fixed left-0 top-0 z-40 flex h-full flex-col border-r border-border bg-surface transition-all duration-300 ease-in-out ${
+        collapsed ? "w-[72px]" : "w-[260px]"
+      }`}
     >
-      {/* Logo */}
       <div
-        className="flex h-16 items-center gap-3 px-5"
-        style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}
+        className={`flex h-16 items-center border-b border-border ${
+          collapsed ? "justify-center px-3" : "px-6"
+        }`}
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg font-bold text-sm"
-             style={{ background: "var(--primary)", color: "#fff" }}>
-          E
-        </div>
-        {!collapsed && (
-          <span className="text-lg font-semibold tracking-tight text-white">
-            Elida
-          </span>
-        )}
+        <Link href="/" aria-label="Elida — til oversikten">
+          {collapsed ? <LogoMark size={24} /> : <Logo size={26} />}
+        </Link>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-0.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
@@ -77,34 +78,23 @@ export function Sidebar({ companyName, orgNumber }: SidebarProps) {
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={`
-                    group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
-                    transition-colors duration-150
-                    ${collapsed ? "justify-center" : ""}
-                  `}
-                  style={
-                    active
-                      ? { background: "rgba(255,255,255,0.12)", color: "#fff" }
-                      : { color: "rgba(255,255,255,0.65)" }
-                  }
-                  onMouseEnter={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-                      e.currentTarget.style.color = "#fff";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!active) {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "rgba(255,255,255,0.65)";
-                    }
-                  }}
                   title={collapsed ? item.label : undefined}
+                  aria-current={active ? "page" : undefined}
+                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                    collapsed ? "justify-center" : ""
+                  } ${
+                    active
+                      ? "bg-primary-50 font-semibold text-primary"
+                      : "font-medium text-foreground-secondary hover:bg-surface-hover hover:text-foreground"
+                  }`}
                 >
                   <Icon
-                    size={20}
-                    className="shrink-0"
-                    style={{ color: active ? "#fff" : "rgba(255,255,255,0.5)" }}
+                    size={19}
+                    className={`shrink-0 ${
+                      active
+                        ? "text-primary"
+                        : "text-foreground-muted group-hover:text-foreground-secondary"
+                    }`}
                   />
                   {!collapsed && <span>{item.label}</span>}
                 </Link>
@@ -114,32 +104,22 @@ export function Sidebar({ companyName, orgNumber }: SidebarProps) {
         </ul>
       </nav>
 
-      {/* Company info & collapse button */}
-      <div className="p-3" style={{ borderTop: "1px solid rgba(255,255,255,0.1)" }}>
-        {!collapsed && (
-          <div className="mb-3 rounded-lg px-3 py-2.5"
-               style={{ background: "rgba(255,255,255,0.08)" }}>
-            <p className="text-xs font-medium" style={{ color: "rgba(255,255,255,0.5)" }}>Bedrift</p>
-            <p className="text-sm font-semibold text-white truncate">
-              {companyName ?? "Laster..."}
+      <div className="border-t border-border p-3">
+        {!collapsed && companyName && (
+          <div className="mb-2 px-3 py-2">
+            <p className="truncate text-sm font-semibold text-foreground">
+              {companyName}
             </p>
             {orgNumber && (
-              <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>Org.nr: {orgNumber}</p>
+              <p className="text-xs text-foreground-muted">
+                Org.nr {orgNumber}
+              </p>
             )}
           </div>
         )}
         <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm"
-          style={{ color: "rgba(255,255,255,0.5)" }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "rgba(255,255,255,0.08)";
-            e.currentTarget.style.color = "rgba(255,255,255,0.7)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "rgba(255,255,255,0.5)";
-          }}
+          onClick={onToggle}
+          className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground-muted hover:bg-surface-hover hover:text-foreground-secondary"
           aria-label={collapsed ? "Vis sidemeny" : "Skjul sidemeny"}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}

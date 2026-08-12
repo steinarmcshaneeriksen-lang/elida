@@ -24,10 +24,10 @@ export function ChatButton() {
     <div className="fixed bottom-6 right-6 z-30">
       {showTooltip && (
         <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap shadow-lg pointer-events-none"
-             style={{ background: "var(--primary-900)", color: "#fff" }}>
+             style={{ background: "var(--brand-ink)", color: "#fff" }}>
           Spør meg om økonomien din
           <div className="absolute top-full right-4 w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[5px]"
-               style={{ borderTopColor: "var(--primary-900)" }} />
+               style={{ borderTopColor: "var(--brand-ink)" }} />
         </div>
       )}
 

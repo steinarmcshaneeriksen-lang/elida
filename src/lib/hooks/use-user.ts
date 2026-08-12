@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { invalidate, load, peek, pending, subscribe } from "@/lib/data-cache";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import type {
   User,
@@ -10,125 +11,123 @@ import type {
   AccountingKnowledgeLevel,
 } from "@/lib/types/database";
 
-interface UseUserReturn {
+interface Session {
   user: AuthUser | null;
   profile: User | null;
   company: Company | null;
   knowledgeLevel: AccountingKnowledgeLevel | null;
+}
+
+interface UseUserReturn extends Session {
   isLoading: boolean;
   signOut: () => Promise<void>;
 }
 
+const KEY = "session";
+
+const EMPTY: Session = {
+  user: null,
+  profile: null,
+  company: null,
+  knowledgeLevel: null,
+};
+
+/**
+ * Resolves who is signed in and which company they belong to.
+ *
+ * This runs four round trips — auth, profile, access, company — so it must
+ * happen once per tab, not once per page. The layout, the header and the page
+ * body all call useUser(); they now share one result through the cache, and a
+ * navigation reuses it instead of blocking the page on a fresh lookup.
+ */
+async function loadSession(): Promise<Session> {
+  const supabase = createClient();
+
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
+
+  if (!authUser) return EMPTY;
+
+  const { data: profile } = await supabase
+    .from("users")
+    .select("*")
+    .eq("auth_user_id", authUser.id)
+    .maybeSingle();
+
+  if (!profile) return { ...EMPTY, user: authUser };
+
+  const { data: access } = await supabase
+    .from("user_company_access")
+    .select("*")
+    .eq("user_id", profile.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!access) return { ...EMPTY, user: authUser, profile };
+
+  const { data: company } = await supabase
+    .from("companies")
+    .select("*")
+    .eq("id", access.company_id)
+    .single();
+
+  return {
+    user: authUser,
+    profile,
+    company,
+    knowledgeLevel: access.accounting_knowledge_level,
+  };
+}
+
 export function useUser(): UseUserReturn {
   const router = useRouter();
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
-  function getSupabase() {
-    if (!supabaseRef.current) {
-      supabaseRef.current = createClient();
-    }
-    return supabaseRef.current;
-  }
 
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [profile, setProfile] = useState<User | null>(null);
-  const [company, setCompany] = useState<Company | null>(null);
-  const [knowledgeLevel, setKnowledgeLevel] = useState<AccountingKnowledgeLevel | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const snapshot = useSyncExternalStore(
+    (listener) => subscribe(KEY, listener),
+    () => peek<Session>(KEY),
+    () => pending<Session>()
+  );
 
   useEffect(() => {
-    let cancelled = false;
-    const supabase = getSupabase();
+    load(KEY, loadSession);
 
-    async function loadUser() {
-      try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) invalidate(KEY);
+    });
 
-        if (!authUser || cancelled) {
-          setIsLoading(false);
-          return;
-        }
-
-        setUser(authUser);
-
-        const { data: userProfile } = await supabase
-          .from("users")
-          .select("*")
-          .eq("auth_user_id", authUser.id)
-          .maybeSingle();
-
-        if (cancelled) return;
-        setProfile(userProfile);
-
-        if (!userProfile) {
-          setIsLoading(false);
-          return;
-        }
-
-        const { data: access } = await supabase
-          .from("user_company_access")
-          .select("*")
-          .eq("user_id", userProfile.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (access) {
-          setKnowledgeLevel(access.accounting_knowledge_level);
-
-          const { data: companyData } = await supabase
-            .from("companies")
-            .select("*")
-            .eq("id", access.company_id)
-            .single();
-
-          if (!cancelled) {
-            setCompany(companyData);
-          }
-        }
-      } catch (err) {
-        console.error("Error loading user data:", err);
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!session) {
-          setUser(null);
-          setProfile(null);
-          setCompany(null);
-          setKnowledgeLevel(null);
-        }
-      }
-    );
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+    return () => subscription.unsubscribe();
+  }, []);
 
   const signOut = useCallback(async () => {
-    await getSupabase().auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setCompany(null);
-    setKnowledgeLevel(null);
+    await createClient().auth.signOut();
+    invalidate();
     router.push("/login");
   }, [router]);
 
+  const session = snapshot.value ?? EMPTY;
+
   return {
-    user,
-    profile,
-    company,
-    knowledgeLevel,
-    isLoading,
+    user: session.user,
+    profile: session.profile,
+    company: session.company,
+    knowledgeLevel: session.knowledgeLevel,
+    isLoading: !snapshot.hasValue,
     signOut,
   };
+}
+
+/**
+ * Re-reads the signed-in user's company. Used after onboarding writes one, so
+ * the shell picks up the new name without a full page reload.
+ */
+export function useRefreshSession() {
+  const [, force] = useState(0);
+  return useCallback(async () => {
+    await load(KEY, loadSession, { force: true });
+    force((n) => n + 1);
+  }, []);
 }

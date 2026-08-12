@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 :root {
+  /* Brand ink — the navy of the Elida wordmark. */
+  --brand-ink: #16203c;
+
   /* Primary palette */
   --primary: #1e3a5f;
   --primary-light: #2a4f7f;
@@ -63,6 +66,7 @@
 }
 
 @theme inline {
+  --color-brand-ink: var(--brand-ink);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);

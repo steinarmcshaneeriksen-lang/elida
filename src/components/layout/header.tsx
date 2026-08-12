@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { RefreshCw, User, LogOut } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
 import { useUser } from "@/lib/hooks/use-user";
+import {
+  refreshCompanyData,
+  useCachedFetch,
+} from "@/lib/hooks/use-company-data";
 
 interface HeaderProps {
   title: string;
@@ -15,34 +19,19 @@ export function Header({ title }: HeaderProps) {
   const { user, company, signOut } = useUser();
   const companyId = company?.id;
 
-  const [lastImport, setLastImport] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!companyId) return;
-    let cancelled = false;
+  // Read through the shared cache: the status is the same on every page, so it
+  // is fetched once per tab rather than on each navigation.
+  const { data: importStatus } = useCachedFetch<{
+    runs?: Array<{ status: string; started_at: string }>;
+  }>(companyId ? `/api/import/saft?company_id=${companyId}` : null);
 
-    async function loadStatus() {
-      try {
-        const res = await fetch(`/api/import/saft?company_id=${companyId}`);
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        const completed = (data.runs ?? []).find(
-          (r: { status: string }) => r.status === "completed"
-        );
-        if (!cancelled) setLastImport(completed?.started_at ?? null);
-      } catch {
-        // Status is informational; leave it blank if it cannot be read.
-      }
-    }
-
-    loadStatus();
-    return () => {
-      cancelled = true;
-    };
-  }, [companyId, isRefreshing]);
+  const lastImport =
+    importStatus?.runs?.find((r) => r.status === "completed")?.started_at ??
+    null;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -57,8 +46,9 @@ export function Header({ title }: HeaderProps) {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
+    // Drops every cached figure so the pages refetch, then re-renders the tree.
+    refreshCompanyData();
     router.refresh();
-    // The flag also re-triggers the status fetch above.
     setTimeout(() => setIsRefreshing(false), 600);
   };
 

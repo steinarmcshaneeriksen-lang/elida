@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useUser } from "./use-user";
+import { invalidate, load, peek, pending, subscribe } from "@/lib/data-cache";
 
 interface CompanyDataState<T> {
   data: T | null;
@@ -11,11 +12,15 @@ interface CompanyDataState<T> {
   isEmpty: boolean;
 }
 
-interface Result<T> {
-  /** Identifies which request produced this result. */
-  key: string;
-  data: T | null;
-  error: string | null;
+async function fetchJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.error ?? `Forespørselen feilet (${res.status})`);
+  }
+
+  return (await res.json()) as T;
 }
 
 /**
@@ -23,6 +28,11 @@ interface Result<T> {
  *
  * `path` is the part after /api/companies/[id], e.g. "summary" or
  * "financials?period_start=2026-01-01".
+ *
+ * The result is cached per tab, so returning to a page you have already
+ * visited renders from cache and refreshes behind the scenes rather than
+ * showing a spinner again. Accounting figures only change on import, and
+ * `refreshCompanyData()` clears the cache at that point.
  *
  * Endpoints report `has_data: false` when nothing has been imported yet;
  * that is surfaced as `isEmpty` so pages can show an import prompt instead
@@ -34,61 +44,22 @@ export function useCompanyData<T = unknown>(
   const { company, isLoading: isLoadingUser } = useUser();
   const companyId = company?.id;
 
-  const key = companyId ? `${companyId}/${path}` : null;
-  const [result, setResult] = useState<Result<T> | null>(null);
+  const key = companyId ? `company:${companyId}/${path}` : null;
+
+  const snapshot = useSyncExternalStore(
+    (listener) => (key ? subscribe(key, listener) : () => {}),
+    () => (key ? peek<T>(key) : pending<T>()),
+    () => pending<T>()
+  );
 
   useEffect(() => {
     if (!key || !companyId) return;
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const separator = path.includes("?") ? "&" : "?";
-        const res = await fetch(
-          `/api/companies/${companyId}/${path}${separator}_=${Date.now()}`
-        );
-        if (cancelled) return;
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          if (!cancelled) {
-            setResult({
-              key: key!,
-              data: null,
-              error: body?.error ?? `Forespørselen feilet (${res.status})`,
-            });
-          }
-          return;
-        }
-
-        const json = (await res.json()) as T;
-        if (!cancelled) setResult({ key: key!, data: json, error: null });
-      } catch (err) {
-        if (!cancelled) {
-          setResult({
-            key: key!,
-            data: null,
-            error:
-              err instanceof Error
-                ? err.message
-                : "Kunne ikke koble til. Sjekk nettforbindelsen.",
-          });
-        }
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
+    load(key, () => fetchJson<T>(`/api/companies/${companyId}/${path}`));
   }, [key, companyId, path]);
 
-  // Derived rather than stored, so no state is written during the effect body.
-  const isFresh = result?.key === key;
-  const isLoading = isLoadingUser || (key != null && !isFresh);
-
-  const data = isFresh ? result.data : null;
-  const error = isFresh ? result.error : null;
+  const isLoading = isLoadingUser || (key != null && !snapshot.hasValue);
+  const data = snapshot.value;
+  const error = snapshot.error;
 
   const isEmpty =
     !isLoading &&
@@ -97,4 +68,41 @@ export function useCompanyData<T = unknown>(
     (data as { has_data?: boolean }).has_data === false;
 
   return { data, isLoading, error, isEmpty, companyId };
+}
+
+/**
+ * Fetches an arbitrary endpoint through the same cache. Used for the few reads
+ * that are not company-scoped API routes, such as import status in the header.
+ */
+export function useCachedFetch<T = unknown>(
+  url: string | null
+): CompanyDataState<T> {
+  const key = url ? `url:${url}` : null;
+
+  const snapshot = useSyncExternalStore(
+    (listener) => (key ? subscribe(key, listener) : () => {}),
+    () => (key ? peek<T>(key) : pending<T>()),
+    () => pending<T>()
+  );
+
+  useEffect(() => {
+    if (!key || !url) return;
+    load(key, () => fetchJson<T>(url));
+  }, [key, url]);
+
+  return {
+    data: snapshot.value,
+    error: snapshot.error,
+    isLoading: key != null && !snapshot.hasValue,
+    isEmpty: false,
+  };
+}
+
+/**
+ * Clears every cached figure. Call after an import, which rewrites the numbers
+ * behind all of them at once.
+ */
+export function refreshCompanyData() {
+  invalidate("company:");
+  invalidate("url:");
 }
