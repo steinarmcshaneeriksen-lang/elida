@@ -168,25 +168,23 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Fallback: mock analysis when no API key is configured
-    const analysisResult = generateMockAnalysis(file.name, file.type, file.size);
-
+    // Without a key there is no way to read the document. Inventing an
+    // extraction would look identical to a real one, so fail loudly.
     await (supabase
       .from("ephemeral_document_jobs")
       .update({
-        status: "completed" as const,
+        status: "failed" as const,
         completed_at: new Date().toISOString(),
-        analysis_result: analysisResult.extraction,
-        recommendation: analysisResult.recommendation,
       } as never)
       .eq("id", job.id) as never);
 
-    return NextResponse.json({
-      job_id: job.id,
-      status: "completed",
-      extraction: analysisResult.extraction,
-      recommendation: analysisResult.recommendation,
-    });
+    return NextResponse.json(
+      {
+        error:
+          "OpenAI-nøkkel er ikke konfigurert. Sett OPENAI_API_KEY for å analysere dokumenter.",
+      },
+      { status: 503 }
+    );
   } catch (error) {
     console.error("Document analyze error:", error);
     const message =
@@ -202,132 +200,4 @@ export async function POST(request: NextRequest) {
       }
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Mock analysis (to be replaced with actual AI analysis)
-// ---------------------------------------------------------------------------
-
-function generateMockAnalysis(
-  filename: string,
-  _mimeType: string,
-  _fileSize: number
-) {
-  // Detect likely document type from filename
-  const lowerFilename = filename.toLowerCase();
-  const isInvoice =
-    lowerFilename.includes("faktura") ||
-    lowerFilename.includes("invoice") ||
-    lowerFilename.includes("regning");
-  const isReceipt =
-    lowerFilename.includes("kvittering") || lowerFilename.includes("receipt");
-
-  if (isInvoice) {
-    return {
-      extraction: {
-        document_type: "incoming_invoice",
-        confidence: 0.85,
-        fields: {
-          supplier_name: "Tekna Systems AS",
-          supplier_org_number: "901 234 567",
-          invoice_number: "TK-2026-0892",
-          invoice_date: "2026-08-10",
-          due_date: "2026-09-10",
-          total_amount: 45_000,
-          vat_amount: 9_000,
-          net_amount: 36_000,
-          currency: "NOK",
-          payment_reference: "2608100892",
-          line_items: [
-            {
-              description: "Systemvedlikehold august 2026",
-              quantity: 1,
-              unit_price: 36_000,
-              amount: 36_000,
-              vat_rate: 0.25,
-              vat_amount: 9_000,
-            },
-          ],
-        },
-      },
-      recommendation: {
-        posting_suggestion: {
-          debit_account: "6540",
-          debit_account_name: "IT-kostnader",
-          credit_account: "2400",
-          credit_account_name: "Leverandørgjeld",
-          vat_code: "1",
-          amount: 36_000,
-          vat_amount: 9_000,
-        },
-        matched_supplier: {
-          id: "sup-1",
-          name: "Tekna Systems AS",
-          confidence: 0.92,
-        },
-        matched_pattern: {
-          category: "IT-kostnader",
-          typical_account: "6540",
-          occurrence_count: 8,
-          confidence: 0.88,
-        },
-        notes: [
-          "Leverandør gjenkjent fra tidligere posteringer",
-          "Beløp er noe lavere enn gjennomsnittlig faktura fra denne leverandøren (89 000 kr)",
-          "MVA-sats 25 % stemmer med standard sats",
-        ],
-      },
-    };
-  }
-
-  if (isReceipt) {
-    return {
-      extraction: {
-        document_type: "receipt",
-        confidence: 0.78,
-        fields: {
-          vendor_name: "Kaffebrenneriet AS",
-          date: "2026-08-11",
-          total_amount: 456,
-          vat_amount: 54.72,
-          net_amount: 401.28,
-          currency: "NOK",
-          payment_method: "kort",
-        },
-      },
-      recommendation: {
-        posting_suggestion: {
-          debit_account: "7350",
-          debit_account_name: "Representasjon",
-          credit_account: "1920",
-          credit_account_name: "Bankkonto",
-          vat_code: "1",
-          amount: 401.28,
-          vat_amount: 54.72,
-        },
-        notes: [
-          "Kategorisert som representasjon. Vurder om dette gjelder kundemøte (fradragsberettiget) eller internt (begrenset fradrag).",
-          "Husk at representasjonskostnader har begrenset MVA-fradrag.",
-        ],
-      },
-    };
-  }
-
-  // Generic / unknown document
-  return {
-    extraction: {
-      document_type: "unknown",
-      confidence: 0.5,
-      fields: {
-        raw_text_preview:
-          "Dokumentet kunne ikke klassifiseres automatisk. Last opp en faktura, kvittering, eller kreditnota for best resultat.",
-      },
-    },
-    recommendation: {
-      notes: [
-        "Dokumenttypen ble ikke gjenkjent. Kontroller innholdet manuelt.",
-        "For best resultat, bruk tydelige skannede PDF-er eller bilder av fakturaer og kvitteringer.",
-      ],
-    },
-  };
 }

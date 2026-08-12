@@ -97,7 +97,7 @@ export async function GET(
       });
     }
 
-    // No forecast data -- return mock
+    // No forecast computed yet — return an honest empty state.
     return NextResponse.json({
       has_data: false,
       starting_cash: null,

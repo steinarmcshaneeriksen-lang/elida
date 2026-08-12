@@ -162,117 +162,6 @@ async function loadConversationHistory(
 }
 
 // ---------------------------------------------------------------------------
-// Mock response for when no API key is configured
-// ---------------------------------------------------------------------------
-
-function createMockStream(message: string): ReadableStream {
-  const mockResponse = getMockResponse(message);
-
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    start(controller) {
-      const toolEvent = JSON.stringify({
-        type: "tool_use",
-        tool: "get_financial_summary",
-        status: "running",
-      });
-      controller.enqueue(encoder.encode(`data: ${toolEvent}\n\n`));
-
-      const words = mockResponse.split(" ");
-      for (const word of words) {
-        const event = JSON.stringify({
-          type: "content_delta",
-          text: word + " ",
-        });
-        controller.enqueue(encoder.encode(`data: ${event}\n\n`));
-      }
-
-      const doneEvent = JSON.stringify({
-        type: "message_complete",
-        conversation_id: `temp_${Date.now()}`,
-      });
-      controller.enqueue(encoder.encode(`data: ${doneEvent}\n\n`));
-      controller.close();
-    },
-  });
-}
-
-function getMockResponse(message: string): string {
-  const lower = message.toLowerCase();
-
-  if (
-    lower.includes("hvordan") &&
-    (lower.includes("gar") || lower.includes("gaar") || lower.includes("går"))
-  ) {
-    return `## Økonomi denne måneden
-
-Her er en oppsummering basert på tilgjengelige data:
-
-- **Omsetning**: 850 000 kr (estimert)
-- **Kostnader**: 620 000 kr (estimert)
-- **Resultat**: 230 000 kr (estimert)
-- **Resultatmargin**: 27,1 %
-
-**Likviditet:**
-- Bankbeholdning: 1 250 000 kr
-- Utestående fordringer: 340 000 kr
-- Leverandørgjeld: 180 000 kr
-
-**Vurdering:** Selskapet ser ut til å gå bra denne måneden med en sunn resultatmargin. Likviditetssituasjonen er god.
-
-> **Merk:** Dette er eksempeldata. Koble til regnskapssystemet for reelle tall.`;
-  }
-
-  if (lower.includes("mva") || lower.includes("merverdi")) {
-    return `## MVA-estimat
-
-Basert på tilgjengelige data for inneværende termin:
-
-- **Utgående MVA**: 170 000 kr
-- **Inngående MVA**: 102 000 kr
-- **Netto å betale**: 68 000 kr
-- **Frist**: 10. april 2025
-
-**Konfidensnivå:** Middels -- dette er et estimat basert på tilgjengelige transaksjoner.
-
-> Anbefaler å avstemme mot regnskapssystemet for endelig tall.`;
-  }
-
-  if (lower.includes("skylder") || lower.includes("fordring")) {
-    return `## Utestående fordringer
-
-Totalt utestående: **340 000 kr**
-
-**Aldersfordeling:**
-| Periode | Beløp |
-|---------|-------|
-| 0-30 dager | 180 000 kr |
-| 31-60 dager | 95 000 kr |
-| 61-90 dager | 45 000 kr |
-| Over 90 dager | 20 000 kr |
-
-**Største debitorer:**
-1. Eksempel Kunde AS -- 120 000 kr
-2. Demo Handel AS -- 85 000 kr
-3. Test Tjenester AS -- 55 000 kr
-
-> **Merk:** Viser eksempeldata.`;
-  }
-
-  return `Hei! Jeg er Elida, din økonomi- og regnskapsassistent.
-
-Jeg kan hjelpe deg med:
-- **Økonomianalyse** -- omsetning, kostnader, resultat, likviditet
-- **Regnskapsråd** -- kontering, MVA-behandling, regnskapsregler
-- **Prognoser** -- kontantstrømprognose, skatte- og MVA-estimater
-- **Scenarioanalyser** -- "hva om"-beregninger
-
-Hva lurer du på?
-
-> **Merk:** Koble til et regnskapssystem (f.eks. PowerOffice Go) for å få reelle tall og analyser.`;
-}
-
-// ---------------------------------------------------------------------------
 // Main POST handler
 // ---------------------------------------------------------------------------
 
@@ -290,14 +179,15 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.OPENAI_API_KEY;
     if (isPlaceholderKey(apiKey)) {
-      const stream = createMockStream(message);
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      });
+      // Returning invented figures here would be indistinguishable from a
+      // real answer, so fail loudly instead.
+      return new Response(
+        JSON.stringify({
+          error:
+            "OpenAI-nøkkel er ikke konfigurert. Sett OPENAI_API_KEY for å bruke assistenten.",
+        }),
+        { status: 503, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     const { companyName, dataQuality } = await getCompanyContext(company_id);

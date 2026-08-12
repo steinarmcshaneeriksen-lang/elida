@@ -128,7 +128,7 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock
+    // Nothing imported yet — return an honest empty state.
     return NextResponse.json({
       has_data: false,
       total_outstanding: 0,

@@ -5,7 +5,8 @@
  * All queries enforce tenant isolation via company_id filtering.
  *
  * Handlers attempt to query Supabase for real data and fall back to
- * structured mock data when data is unavailable (MVP approach).
+ * an explicit no-data response when nothing has been imported, so the
+ * assistant says so rather than inventing figures.
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -124,20 +125,15 @@ const getFinancialSummary: ToolHandler = async (companyId, params) => {
       };
     }
   } catch {
-    // Fall through to mock data
+    // Fall through to the no-data response
   }
 
   return {
-    period: { start, end },
-    revenue: { amount: 850000, confidence: "estimated", currency: "NOK" },
-    costs: { amount: 620000, confidence: "estimated", currency: "NOK" },
-    profit: { amount: 230000, confidence: "estimated", currency: "NOK" },
-    profit_margin: { percent: 27.1, confidence: "estimated" },
-    cash_balance: { amount: 1250000, confidence: "estimated", currency: "NOK" },
-    receivables: { amount: 340000, confidence: "estimated", currency: "NOK" },
-    payables: { amount: 180000, confidence: "estimated", currency: "NOK" },
-    data_source: "mock_data",
-    note: "Viser eksempeldata. Koble til regnskapssystem for reelle tall.",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -177,15 +173,11 @@ const getRevenueAnalysis: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    period: { start, end },
-    total_revenue: { amount: 850000, currency: "NOK", confidence: "estimated" },
-    by_category: {
-      "Salgsinntekt, avgiftspliktig": 720000,
-      "Salgsinntekt, avgiftsfri": 90000,
-      "Annen driftsinntekt": 40000,
-    },
-    trend: "stabil",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -225,17 +217,11 @@ const getProfitAnalysis: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    period: { start, end },
-    revenue: 850000,
-    cost_of_goods: 340000,
-    gross_profit: 510000,
-    gross_margin_percent: 60.0,
-    operating_expenses: 280000,
-    operating_profit: 230000,
-    operating_margin_percent: 27.1,
-    currency: "NOK",
-    confidence: "estimated",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -279,24 +265,11 @@ const getCostAnalysis: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    period: { start, end },
-    total_costs: { amount: 620000, currency: "NOK", confidence: "estimated" },
-    by_category: {
-      Varekostnad: 340000,
-      Lønnskostnader: 150000,
-      Husleie: 35000,
-      "Kontorkostnader og rekvisita": 12000,
-      "Reise og transport": 18000,
-      "Markedsføring": 25000,
-      "IT og programvare": 15000,
-      "Andre driftskostnader": 25000,
-    },
-    largest_single_expense: {
-      description: "Varekostnad",
-      amount: 340000,
-      percent_of_total: 54.8,
-    },
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -337,12 +310,11 @@ const getAccountBreakdown: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    account: accountOrCategory,
-    period: { start, end },
-    total: { amount: 35000, currency: "NOK", confidence: "estimated" },
-    transaction_count: 0,
-    note: "Ingen transaksjoner funnet for denne kontoen i perioden.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -386,23 +358,11 @@ const getCustomerReceivables: ToolHandler = async (companyId) => {
   }
 
   return {
-    total_outstanding: {
-      amount: 340000,
-      currency: "NOK",
-      confidence: "estimated",
-    },
-    aging: {
-      "0_30_dager": 180000,
-      "31_60_dager": 95000,
-      "61_90_dager": 45000,
-      "over_90_dager": 20000,
-    },
-    top_debtors: [
-      { name: "Eksempel Kunde AS", amount: 120000 },
-      { name: "Demo Handel AS", amount: 85000 },
-      { name: "Test Tjenester AS", amount: 55000 },
-    ],
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -438,9 +398,11 @@ const getCustomerPaymentProfile: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    customer_id: customerId,
-    note: "Ingen betalingsprofil funnet for denne kunden.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -484,25 +446,11 @@ const getOverdueInvoices: ToolHandler = async (companyId) => {
   }
 
   return {
-    count: 4,
-    total_overdue: { amount: 65000, currency: "NOK", confidence: "estimated" },
-    invoices: [
-      {
-        invoice_number: "2025-042",
-        customer: "Eksempel Kunde AS",
-        amount: 25000,
-        due_date: "2025-01-15",
-        days_overdue: 30,
-      },
-      {
-        invoice_number: "2025-038",
-        customer: "Demo Handel AS",
-        amount: 18000,
-        due_date: "2025-01-10",
-        days_overdue: 35,
-      },
-    ],
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -531,20 +479,11 @@ const getSupplierPayables: ToolHandler = async (companyId) => {
   }
 
   return {
-    total_payables: {
-      amount: 180000,
-      currency: "NOK",
-      confidence: "estimated",
-    },
-    upcoming_due: [
-      {
-        supplier: "Leverandør Eksempel AS",
-        amount: 45000,
-        due_date: "2025-02-20",
-      },
-      { supplier: "IT-Partner AS", amount: 12000, due_date: "2025-02-25" },
-    ],
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -586,15 +525,11 @@ const getUpcomingObligations: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    horizon_days: days,
-    obligations: [
-      { type: "Leverandørfakturaer", amount: 85000, currency: "NOK" },
-      { type: "Lønn og arbeidsgiveravgift", amount: 195000, currency: "NOK" },
-      { type: "MVA-termin", amount: 68000, currency: "NOK" },
-      { type: "Husleie", amount: 35000, currency: "NOK" },
-    ],
-    total: { amount: 383000, currency: "NOK", confidence: "estimated" },
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -627,19 +562,11 @@ const getCashForecast: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    horizon_days: days,
-    current_balance: { amount: 1250000, currency: "NOK" },
-    expected_inflows: { amount: 420000, currency: "NOK" },
-    expected_outflows: { amount: 383000, currency: "NOK" },
-    projected_balance: { amount: 1287000, currency: "NOK" },
-    weekly_projection: [
-      { week: 1, inflow: 120000, outflow: 95000, balance: 1275000 },
-      { week: 2, inflow: 100000, outflow: 195000, balance: 1180000 },
-      { week: 3, inflow: 110000, outflow: 50000, balance: 1240000 },
-      { week: 4, inflow: 90000, outflow: 43000, balance: 1287000 },
-    ],
-    confidence: "estimated",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -667,13 +594,11 @@ const getVatEstimate: ToolHandler = async (companyId) => {
   }
 
   return {
-    termin: "1. termin 2025 (jan-feb)",
-    utgående_mva: { amount: 170000, currency: "NOK" },
-    inngående_mva: { amount: 102000, currency: "NOK" },
-    netto_å_betale: { amount: 68000, currency: "NOK" },
-    frist: "2025-04-10",
-    confidence: "estimated",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -707,12 +632,11 @@ const getTaxEstimate: ToolHandler = async (companyId) => {
   }
 
   return {
-    taxable_profit_ytd: { amount: 230000, currency: "NOK" },
-    tax_rate_percent: 22,
-    estimated_tax: { amount: 50600, currency: "NOK" },
-    note: "Forenklet estimat. Faktisk skatt kan avvike pga. midlertidige forskjeller, fremførbart underskudd, etc. Rådfør deg med regnskapsfører for nøyaktig beregning.",
-    confidence: "estimated",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -812,10 +736,11 @@ const findSimilarVendorTransactions: ToolHandler = async (
   }
 
   return {
-    vendor_name: vendorName,
-    matching_transactions: [],
-    note: "Ingen tidligere transaksjoner funnet for denne leverandøren.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -860,10 +785,11 @@ const findSimilarDescriptionTransactions: ToolHandler = async (
   }
 
   return {
-    search_text: text,
-    matching_transactions: [],
-    note: "Ingen lignende transaksjoner funnet.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -899,10 +825,11 @@ const getVendorPostingHistory: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    vendor_name: vendorName,
-    posting_patterns: [],
-    note: "Ingen posteringshistorikk funnet for denne leverandøren.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -938,25 +865,41 @@ const searchAccountingRules: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    topic,
-    rules: [],
-    note: "Ingen spesifikke regler funnet i databasen. Assistenten vil svare basert på generell kunnskap om norsk regnskapspraksis.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
+
+// Payroll scenario rates. Zone 1 is the default employer's national
+// insurance rate; the user's actual zone is a company setting.
+const DEFAULT_EMPLOYER_TAX_RATE = 0.141;
+const HOLIDAY_PAY_RATE = 0.12;
+const MIN_PENSION_RATE = 0.02;
 
 const runScenario: ToolHandler = async (companyId, params) => {
   const scenarioParams = params.parameters as Record<string, unknown>;
   const scenarioType = (scenarioParams?.type as string) || "custom";
 
-  // For MVP, we provide mock scenario results. A full implementation
-  // would run the financial engine.
+  // Scenarios are computed from the parameters the user supplies rather
+  // than from company data, so they do not depend on an import having run.
   void companyId;
 
   switch (scenarioType) {
     case "new_hire": {
       const salary = (scenarioParams.monthly_salary as number) || 50000;
-      const totalCost = salary * 1.141 * 1.141; // Employer tax + pension estimate
+
+      // Holiday pay and mandatory occupational pension accrue on the gross
+      // salary; employer's national insurance is then charged on the sum of
+      // salary, holiday pay and the pension premium.
+      const holidayPay = salary * HOLIDAY_PAY_RATE;
+      const pension = salary * MIN_PENSION_RATE;
+      const employerTax =
+        (salary + holidayPay + pension) * DEFAULT_EMPLOYER_TAX_RATE;
+      const totalCost = salary + holidayPay + pension + employerTax;
+
       return {
         scenario: "Ny ansettelse",
         monthly_salary: salary,
@@ -964,15 +907,18 @@ const runScenario: ToolHandler = async (companyId, params) => {
         annual_cost: Math.round(totalCost * 12),
         cost_breakdown: {
           bruttolonn: salary,
-          arbeidsgiveravgift: Math.round(salary * 0.141),
-          pensjon: Math.round(salary * 0.02),
-          feriepenger: Math.round(salary * 0.12),
+          feriepenger: Math.round(holidayPay),
+          pensjon: Math.round(pension),
+          arbeidsgiveravgift: Math.round(employerTax),
         },
         impact_on_result: {
           monthly: -Math.round(totalCost),
           annual: -Math.round(totalCost * 12),
         },
-        note: "Forenklet estimat. Faktiske kostnader avhenger av arbeidsgiveravgiftsone, pensjonsavtale og andre ytelser.",
+        note:
+          "Estimatet bruker sone 1 (14,1 %) arbeidsgiveravgift, 12 % feriepenger " +
+          "og 2 % obligatorisk tjenestepensjon. Faktisk kostnad avhenger av " +
+          "selskapets avgiftssone, pensjonsavtale og øvrige ytelser.",
         confidence: "estimated",
       };
     }

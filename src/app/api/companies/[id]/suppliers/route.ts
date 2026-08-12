@@ -133,7 +133,7 @@ export async function GET(
       return NextResponse.json({ suppliers: result });
     }
 
-    // No real data -- return mock
+    // Nothing imported yet — return an honest empty state.
     return NextResponse.json({ suppliers: [] });
   } catch (error) {
     console.error("Suppliers API error:", error);

@@ -111,7 +111,7 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock
+    // Nothing imported yet — return an honest empty state.
     return NextResponse.json({
       transactions: [],
       pagination: { page, page_size: pageSize, total: 0, total_pages: 0 },

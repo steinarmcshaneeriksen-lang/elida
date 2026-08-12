@@ -63,7 +63,7 @@ export async function GET(
       return NextResponse.json({ customers: result });
     }
 
-    // No real data -- return mock
+    // Nothing imported yet — return an honest empty state.
     return NextResponse.json({ customers: [] });
   } catch (error) {
     console.error("Customers API error:", error);

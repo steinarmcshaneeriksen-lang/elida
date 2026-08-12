@@ -49,7 +49,7 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock
+    // Nothing imported yet — return an honest empty state.
     return NextResponse.json({ insights: [], count: 0 });
   } catch (error) {
     console.error("Insights API error:", error);
