@@ -134,15 +134,17 @@ export default function OnboardingPage() {
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load auth user on mount
+  // Load auth user and public user record on mount
   useEffect(() => {
     async function loadUser() {
       const {
         data: { user },
       } = await getSupabase().auth.getUser();
-      if (user) {
-        setUserId(user.id);
+      if (!user) {
+        router.push("/login");
+        return;
       }
+      setUserId(user.id);
     }
     loadUser();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -168,33 +170,23 @@ export default function OnboardingPage() {
 
     setIsSaving(true);
     try {
-      // Create company
-      const { data: newCompany, error: companyError } = await getSupabase()
-        .from("companies")
-        .insert({
-          name: companyName.trim(),
-          org_number: orgNumber.trim() || null,
-          industry: industry || null,
-        })
-        .select()
-        .single();
+      const { data, error } = await getSupabase().rpc(
+        "create_company_with_access" as never,
+        {
+          p_company_name: companyName.trim(),
+          p_org_number: orgNumber.trim() || null,
+          p_industry: industry || null,
+          p_knowledge_level: knowledgeLevel ?? "beginner",
+        } as never
+      ) as { data: { id: string } | null; error: { message: string } | null };
 
-      if (companyError) {
-        console.error("Error creating company:", companyError);
+      if (error || !data) {
+        console.error("Error creating company:", error);
         setIsSaving(false);
         return;
       }
 
-      setCompanyId(newCompany.id);
-
-      // Create user_company_access
-      await getSupabase().from("user_company_access").insert({
-        user_id: userId,
-        company_id: newCompany.id,
-        role: "owner",
-        accounting_knowledge_level: knowledgeLevel ?? "beginner",
-      });
-
+      setCompanyId(data.id);
       goToStep(4);
     } catch (err) {
       console.error("Error in company creation:", err);

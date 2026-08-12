@@ -57,26 +57,6 @@ export default function SignupPage() {
         return;
       }
 
-      // Create user record in users table
-      const { error: userError } = await supabase.from("users").insert({
-        auth_user_id: data.user.id,
-        email: email,
-        full_name: fullName,
-      });
-
-      if (userError && !userError.message.includes("duplicate")) {
-        console.error("Failed to create user record:", userError);
-        // Don't block signup — the record can be created later
-      }
-
-      // Create default user preferences
-      await supabase.from("user_preferences").insert({
-        user_id: data.user.id,
-        language: "nb",
-        theme: "system",
-        settings: {},
-      });
-
       router.push("/onboarding");
     } catch {
       setError("En uventet feil oppstod. Prøv igjen.");

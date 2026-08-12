@@ -124,7 +124,7 @@ export const ESCALATION_RULES: EscalationRule[] = [
     keywords: [
       "fusjon",
       "fisjon",
-      "sammenslaaing",
+      "sammenslåing",
       "deling",
       "omorganisering",
       "omdanning",
