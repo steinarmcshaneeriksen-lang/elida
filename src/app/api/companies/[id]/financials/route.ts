@@ -68,10 +68,18 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock financials
-    return NextResponse.json(
-      getMockFinancials(periodStart, periodEnd, comparisonStart, comparisonEnd)
-    );
+    // No transactions synced yet — return an honest empty state.
+    return NextResponse.json({
+      has_data: false,
+      period_start: periodStart,
+      period_end: periodEnd,
+      comparison_start: comparisonStart,
+      comparison_end: comparisonEnd,
+      revenue: null,
+      costs: null,
+      profit: null,
+      monthly: [],
+    });
   } catch (error) {
     console.error("Financials API error:", error);
     return errorResponse("Failed to load financial data");
@@ -216,64 +224,4 @@ function getCostCategory(accountNumber: number): string {
   if (accountNumber >= 7400 && accountNumber < 7500) return "Forsikring";
   if (accountNumber >= 7500 && accountNumber < 8000) return "Andre driftskostnader";
   return "Uspesifisert";
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockFinancials(
-  periodStart: string,
-  periodEnd: string,
-  comparisonStart: string,
-  comparisonEnd: string
-) {
-  return {
-    period_start: periodStart,
-    period_end: periodEnd,
-    comparison_start: comparisonStart,
-    comparison_end: comparisonEnd,
-    revenue: {
-      total: 9_050_000,
-      previous_period_total: 8_230_000,
-      change_percent: 10.0,
-    },
-    costs: {
-      total: 7_660_000,
-      cost_of_goods: 0,
-      payroll: 4_760_000,
-      other_operating: 2_900_000,
-      by_category: {
-        Lønnskostnader: 4_760_000,
-        Kontorleie: 455_000,
-        "IT og programvare": 905_000,
-        Markedsføring: 210_000,
-        "Reise og transport": 185_000,
-        Forsikring: 112_000,
-        "Regnskap og revisjon": 180_000,
-        "Andre driftskostnader": 853_000,
-      },
-      previous_period_total: 7_156_000,
-      change_percent: 7.0,
-    },
-    profit: {
-      gross_profit: 9_050_000,
-      gross_margin_percent: 100.0,
-      operating_profit: 1_284_000,
-      operating_margin_percent: 14.2,
-      net_profit: 1_240_000,
-      net_margin_percent: 13.7,
-      previous_period_net_profit: 1_074_000,
-      change_percent: 15.5,
-    },
-    monthly: [
-      { month: "2026-01", revenue: 1_120_000, costs: 920_000, profit: 200_000 },
-      { month: "2026-02", revenue: 1_080_000, costs: 880_000, profit: 200_000 },
-      { month: "2026-03", revenue: 1_250_000, costs: 960_000, profit: 290_000 },
-      { month: "2026-04", revenue: 1_180_000, costs: 950_000, profit: 230_000 },
-      { month: "2026-05", revenue: 1_620_000, costs: 1_050_000, profit: 570_000 },
-      { month: "2026-06", revenue: 1_380_000, costs: 1_020_000, profit: 360_000 },
-      { month: "2026-07", revenue: 1_420_000, costs: 1_080_000, profit: 340_000 },
-    ],
-  };
 }

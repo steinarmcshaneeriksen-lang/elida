@@ -134,95 +134,9 @@ export async function GET(
     }
 
     // No real data -- return mock
-    return NextResponse.json({ suppliers: getMockSuppliers() });
+    return NextResponse.json({ suppliers: [] });
   } catch (error) {
     console.error("Suppliers API error:", error);
     return errorResponse("Failed to load supplier data");
   }
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockSuppliers() {
-  return [
-    {
-      id: "sup-1",
-      name: "Tekna Systems AS",
-      supplier_number: "20001",
-      org_number: "901 234 567",
-      cost_ytd: 620_000,
-      cost_ytd_change_percent: 8.5,
-      outstanding: 89_000,
-      next_due_date: "2026-08-18",
-      next_due_amount: 89_000,
-    },
-    {
-      id: "sup-3",
-      name: "Kontorpartner AS",
-      supplier_number: "20003",
-      org_number: "923 456 789",
-      cost_ytd: 390_000,
-      cost_ytd_change_percent: -2.1,
-      outstanding: 65_000,
-      next_due_date: "2026-09-01",
-      next_due_amount: 65_000,
-    },
-    {
-      id: "sup-2",
-      name: "CloudHost Norge",
-      supplier_number: "20002",
-      org_number: "912 345 678",
-      cost_ytd: 285_000,
-      cost_ytd_change_percent: 15.2,
-      outstanding: 42_000,
-      next_due_date: "2026-08-20",
-      next_due_amount: 42_000,
-    },
-    {
-      id: "sup-7",
-      name: "Digital Marketing Oslo",
-      supplier_number: "20007",
-      org_number: "967 890 123",
-      cost_ytd: 210_000,
-      cost_ytd_change_percent: 42.0,
-      outstanding: 35_000,
-      next_due_date: "2026-08-28",
-      next_due_amount: 35_000,
-    },
-    {
-      id: "sup-4",
-      name: "Regnskap & Revisjon AS",
-      supplier_number: "20004",
-      org_number: "934 567 890",
-      cost_ytd: 180_000,
-      cost_ytd_change_percent: 5.0,
-      outstanding: 0,
-      next_due_date: null,
-      next_due_amount: null,
-    },
-    {
-      id: "sup-5",
-      name: "Trygg Forsikring",
-      supplier_number: "20005",
-      org_number: "945 678 901",
-      cost_ytd: 112_000,
-      cost_ytd_change_percent: 3.2,
-      outstanding: 28_000,
-      next_due_date: "2026-09-01",
-      next_due_amount: 28_000,
-    },
-    {
-      id: "sup-6",
-      name: "Strom & Kraft AS",
-      supplier_number: "20006",
-      org_number: "956 789 012",
-      cost_ytd: 94_000,
-      cost_ytd_change_percent: -8.4,
-      outstanding: 0,
-      next_due_date: null,
-      next_due_amount: null,
-    },
-  ];
 }

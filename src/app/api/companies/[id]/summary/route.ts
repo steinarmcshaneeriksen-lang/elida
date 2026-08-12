@@ -87,6 +87,7 @@ export async function GET(
       const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
 
       return NextResponse.json({
+        has_data: true,
         revenue: {
           ytd: revenueMetric.value,
           comparison_ytd: revenueMetric.comparison_value ?? 0,
@@ -115,10 +116,24 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock data for MVP
-    return NextResponse.json(
-      getMockSummary(insights, syncStates)
-    );
+    // No financial data synced yet — return an honest empty state.
+    // The UI shows a "connect your accounting system" prompt for this.
+    const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
+
+    return NextResponse.json({
+      has_data: false,
+      revenue: null,
+      profit: null,
+      cash: null,
+      receivables: null,
+      upcoming_obligations_30d: null,
+      insights: mapInsights(insights),
+      data_quality: {
+        last_sync: lastSync,
+        freshness: computeFreshness(lastSync),
+        completeness: computeCompleteness(syncStates ?? []),
+      },
+    });
   } catch (error) {
     console.error("Summary API error:", error);
     return errorResponse("Failed to load summary");
@@ -164,83 +179,4 @@ function computeCompleteness(
   if (ratio >= 0.9) return "complete";
   if (ratio >= 0.5) return "partial";
   return "incomplete";
-}
-
-function getMockSummary(
-  insights: FinancialInsight[] | null,
-  syncStates: IntegrationSyncState[] | null
-) {
-  const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
-
-  const insightsList =
-    insights && insights.length > 0
-      ? mapInsights(insights)
-      : [
-          {
-            id: "mock-ins-1",
-            type: "overdue_receivable",
-            severity: "high",
-            title: "Stor kundefordring 45 dager forbi forfall",
-            description:
-              "Nordfjord Consulting AS har en faktura på 185 000 kr som er 45 dager forbi forfall.",
-            metric_current: 185_000,
-            metric_reference: null,
-            period: null,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "mock-ins-2",
-            type: "cost_increase",
-            severity: "medium",
-            title: "Kontorkostnader har økt 23 % siste kvartal",
-            description:
-              "Kontorkostnader var 148 000 kr i Q2 mot 120 000 kr i Q1.",
-            metric_current: 148_000,
-            metric_reference: 120_000,
-            period: "Q2 2026",
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "mock-ins-3",
-            type: "vat_reminder",
-            severity: "medium",
-            title: "MVA-termin neste måned",
-            description:
-              "Estimert MVA-betaling for 4. termin er ca. 310 000 kr.",
-            metric_current: 310_000,
-            metric_reference: 285_000,
-            period: "4. termin (jul-aug)",
-            created_at: new Date().toISOString(),
-          },
-        ];
-
-  return {
-    revenue: {
-      ytd: 9_050_000,
-      comparison_ytd: 8_230_000,
-      change_percent: 10.0,
-    },
-    profit: {
-      ytd: 1_284_000,
-      comparison_ytd: 1_074_000,
-      change_percent: 19.6,
-    },
-    cash: {
-      current: 2_340_000,
-      forecast_60_day_min: 1_650_000,
-    },
-    receivables: {
-      total: 1_870_000,
-      overdue: 420_000,
-    },
-    upcoming_obligations_30d: 1_920_000,
-    insights: insightsList,
-    data_quality: {
-      last_sync: lastSync,
-      freshness: lastSync ? computeFreshness(lastSync) : "mock_data",
-      completeness: lastSync
-        ? computeCompleteness(syncStates ?? [])
-        : "mock_data",
-    },
-  };
 }

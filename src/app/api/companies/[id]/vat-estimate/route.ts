@@ -81,7 +81,18 @@ export async function GET(
     }
 
     // No real data -- return mock
-    return NextResponse.json(getMockVatEstimate());
+    return NextResponse.json({
+      has_data: false,
+      output_vat: null,
+      input_vat: null,
+      estimated_settlement: null,
+      period: null,
+      period_start: periodStart,
+      period_end: periodEnd,
+      due_date: null,
+      breakdown_by_rate: [],
+      confidence: "no_data",
+    });
   } catch (error) {
     console.error("VAT estimate API error:", error);
     return errorResponse("Failed to compute VAT estimate");
@@ -111,26 +122,4 @@ function getVatDueDate(month: number, year: number): string {
   const dueYear = dueMonth > 12 ? year + 1 : year;
   const actualDueMonth = dueMonth > 12 ? dueMonth - 12 : dueMonth;
   return `${dueYear}-${String(actualDueMonth).padStart(2, "0")}-10`;
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockVatEstimate() {
-  return {
-    output_vat: 565_000,
-    input_vat: 255_000,
-    estimated_settlement: 310_000,
-    period: "4. termin 2026",
-    period_start: "2026-07-01",
-    period_end: "2026-08-31",
-    due_date: "2026-09-10",
-    breakdown_by_rate: [
-      { rate: 0.25, label: "Standard sats", base_amount: 2_100_000, vat_amount: 525_000 },
-      { rate: 0.15, label: "Matvaresats", base_amount: 0, vat_amount: 0 },
-      { rate: 0.12, label: "Lav sats", base_amount: 333_000, vat_amount: 40_000 },
-    ],
-    confidence: "estimated",
-  };
 }

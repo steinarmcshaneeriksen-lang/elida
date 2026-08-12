@@ -33,10 +33,6 @@ export async function GET(
       .single() as { data: Customer | null };
 
     if (!customer) {
-      // Check if mock customer
-      const mockData = getMockCustomerDetail(customerId);
-      if (mockData) return NextResponse.json(mockData);
-
       return NextResponse.json(
         { error: "Customer not found" },
         { status: 404 }
@@ -131,61 +127,4 @@ export async function GET(
     console.error("Customer detail API error:", error);
     return errorResponse("Failed to load customer details");
   }
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockCustomerDetail(customerId: string) {
-  const mockCustomers: Record<string, object> = {
-    "cust-1": {
-      profile: {
-        id: "cust-1",
-        name: "Nordfjord Consulting AS",
-        customer_number: "10001",
-        org_number: "912 345 678",
-        email: "faktura@nordfjord.no",
-        phone: "+47 55 12 34 56",
-        address: "Strandgata 15, 6800 Forde",
-        is_active: true,
-      },
-      payment_profile: {
-        total_invoices: 18,
-        total_invoiced_amount: 3_240_000,
-        current_outstanding: 285_000,
-        current_overdue: 185_000,
-        avg_agreed_terms_days: 30,
-        avg_actual_payment_days: 42,
-        avg_days_after_due: 12,
-        late_payment_ratio: 0.55,
-        max_delay_days: 45,
-        risk_score: 72,
-        payment_trend: "worsening",
-        last_payment_date: "2026-07-15",
-      },
-      invoices: [
-        { id: "inv-nc-1", invoice_number: "2024-0087", invoice_date: "2026-05-28", due_date: "2026-06-28", total_amount: 185_000, remaining_amount: 185_000, status: "overdue" },
-        { id: "inv-nc-2", invoice_number: "2026-0145", invoice_date: "2026-08-02", due_date: "2026-09-02", total_amount: 100_000, remaining_amount: 100_000, status: "sent" },
-        { id: "inv-nc-3", invoice_number: "2026-0098", invoice_date: "2026-05-15", due_date: "2026-06-15", total_amount: 220_000, remaining_amount: 0, status: "paid" },
-      ],
-      payment_history: [
-        { id: "le-nc-1", date: "2026-07-15", type: "payment", invoice_number: "2026-0098", amount: -220_000, remaining: 0, is_open: false },
-        { id: "le-nc-2", date: "2026-05-28", type: "invoice", invoice_number: "2024-0087", amount: 185_000, remaining: 185_000, is_open: true },
-        { id: "le-nc-3", date: "2026-05-15", type: "invoice", invoice_number: "2026-0098", amount: 220_000, remaining: 0, is_open: false },
-      ],
-      monthly_revenue_trend: [
-        { month: "2026-01", amount: 180_000 },
-        { month: "2026-02", amount: 195_000 },
-        { month: "2026-03", amount: 210_000 },
-        { month: "2026-04", amount: 175_000 },
-        { month: "2026-05", amount: 405_000 },
-        { month: "2026-06", amount: 155_000 },
-        { month: "2026-07", amount: 0 },
-        { month: "2026-08", amount: 100_000 },
-      ],
-    },
-  };
-
-  return mockCustomers[customerId] ?? null;
 }

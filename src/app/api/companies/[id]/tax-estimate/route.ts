@@ -95,33 +95,19 @@ export async function GET(
     }
 
     // No real data -- return mock
-    return NextResponse.json(getMockTaxEstimate());
+    return NextResponse.json({
+      has_data: false,
+      profit_before_tax: null,
+      annualized_profit: null,
+      estimated_tax: null,
+      tax_year: new Date().getFullYear(),
+      ytd_revenue: null,
+      ytd_costs: null,
+      ytd_financial_net: null,
+      confidence: "no_data",
+    });
   } catch (error) {
     console.error("Tax estimate API error:", error);
     return errorResponse("Failed to compute tax estimate");
   }
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockTaxEstimate() {
-  const profitBeforeTax = 1_240_000;
-  // Annualized from ~7.3 months of data
-  const annualizationFactor = 365 / 224;
-  const annualizedProfit = profitBeforeTax * annualizationFactor;
-  const estimatedTax = annualizedProfit * CORPORATE_TAX_RATE;
-
-  return {
-    profit_before_tax: profitBeforeTax,
-    annualized_profit: Math.round(annualizedProfit),
-    estimated_tax: Math.round(estimatedTax),
-    rate: CORPORATE_TAX_RATE,
-    tax_year: 2026,
-    ytd_revenue: 9_050_000,
-    ytd_costs: 7_766_000,
-    ytd_financial_net: -44_000,
-    confidence: "estimated",
-  };
 }

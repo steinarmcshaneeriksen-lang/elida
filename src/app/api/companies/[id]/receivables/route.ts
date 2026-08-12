@@ -158,131 +158,18 @@ export async function GET(
     }
 
     // No real data -- return mock
-    return NextResponse.json(getMockReceivables());
+    return NextResponse.json({
+      has_data: false,
+      total_outstanding: 0,
+      total_overdue: 0,
+      count_outstanding: 0,
+      count_overdue: 0,
+      top_customers: [],
+      overdue_invoices: [],
+      payment_profiles: [],
+    });
   } catch (error) {
     console.error("Receivables API error:", error);
     return errorResponse("Failed to load receivables data");
   }
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockReceivables() {
-  return {
-    total_outstanding: 1_870_000,
-    total_overdue: 420_000,
-    count_outstanding: 12,
-    count_overdue: 4,
-    aging: [
-      { label: "Current", min_days: 0, max_days: 0, amount: 1_110_000, count: 5 },
-      { label: "1-30 days", min_days: 1, max_days: 30, amount: 340_000, count: 3 },
-      { label: "31-60 days", min_days: 31, max_days: 60, amount: 235_000, count: 2 },
-      { label: "61-90 days", min_days: 61, max_days: 90, amount: 185_000, count: 1 },
-      { label: "90+ days", min_days: 91, max_days: null, amount: 0, count: 0 },
-    ],
-    top_customers: [
-      { customer_id: "cust-2", customer_name: "Bergen Energi AS", outstanding: 520_000, overdue: 120_000 },
-      { customer_id: "cust-5", customer_name: "Oslo Innovations AS", outstanding: 410_000, overdue: 50_000 },
-      { customer_id: "cust-3", customer_name: "Stavanger Tech Solutions", outstanding: 340_000, overdue: 0 },
-      { customer_id: "cust-1", customer_name: "Nordfjord Consulting AS", outstanding: 285_000, overdue: 185_000 },
-      { customer_id: "cust-4", customer_name: "Tromso Digital AS", outstanding: 180_000, overdue: 65_000 },
-      { customer_id: "cust-6", customer_name: "Kristiansand Maritime", outstanding: 135_000, overdue: 0 },
-    ],
-    overdue_invoices: [
-      {
-        id: "inv-1",
-        invoice_number: "2024-0087",
-        customer_name: "Nordfjord Consulting AS",
-        amount: 185_000,
-        remaining: 185_000,
-        due_date: "2026-06-28",
-        days_overdue: 45,
-      },
-      {
-        id: "inv-2",
-        invoice_number: "2026-0122",
-        customer_name: "Bergen Energi AS",
-        amount: 120_000,
-        remaining: 120_000,
-        due_date: "2026-07-25",
-        days_overdue: 18,
-      },
-      {
-        id: "inv-3",
-        invoice_number: "2026-0131",
-        customer_name: "Tromso Digital AS",
-        amount: 65_000,
-        remaining: 65_000,
-        due_date: "2026-07-21",
-        days_overdue: 22,
-      },
-      {
-        id: "inv-4",
-        invoice_number: "2026-0139",
-        customer_name: "Oslo Innovations AS",
-        amount: 50_000,
-        remaining: 50_000,
-        due_date: "2026-08-04",
-        days_overdue: 8,
-      },
-    ],
-    payment_profiles: [
-      {
-        customer_id: "cust-1",
-        customer_name: "Nordfjord Consulting AS",
-        total_invoices: 18,
-        avg_payment_days: 42,
-        late_payment_ratio: 0.55,
-        risk_score: 72,
-        payment_trend: "worsening",
-      },
-      {
-        customer_id: "cust-2",
-        customer_name: "Bergen Energi AS",
-        total_invoices: 24,
-        avg_payment_days: 35,
-        late_payment_ratio: 0.25,
-        risk_score: 38,
-        payment_trend: "stable",
-      },
-      {
-        customer_id: "cust-3",
-        customer_name: "Stavanger Tech Solutions",
-        total_invoices: 20,
-        avg_payment_days: 28,
-        late_payment_ratio: 0.1,
-        risk_score: 15,
-        payment_trend: "improving",
-      },
-      {
-        customer_id: "cust-4",
-        customer_name: "Tromso Digital AS",
-        total_invoices: 12,
-        avg_payment_days: 38,
-        late_payment_ratio: 0.33,
-        risk_score: 48,
-        payment_trend: "stable",
-      },
-      {
-        customer_id: "cust-5",
-        customer_name: "Oslo Innovations AS",
-        total_invoices: 22,
-        avg_payment_days: 32,
-        late_payment_ratio: 0.14,
-        risk_score: 22,
-        payment_trend: "stable",
-      },
-      {
-        customer_id: "cust-6",
-        customer_name: "Kristiansand Maritime",
-        total_invoices: 10,
-        avg_payment_days: 26,
-        late_payment_ratio: 0.05,
-        risk_score: 8,
-        payment_trend: "improving",
-      },
-    ],
-  };
 }
