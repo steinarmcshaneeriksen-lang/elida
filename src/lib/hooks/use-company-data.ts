@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useUser } from "./use-user";
 import { invalidate, load, peek, pending, subscribe } from "@/lib/data-cache";
 
@@ -47,9 +47,12 @@ export function useCompanyData<T = unknown>(
   const key = companyId ? `company:${companyId}/${path}` : null;
 
   const snapshot = useSyncExternalStore(
-    (listener) => (key ? subscribe(key, listener) : () => {}),
-    () => (key ? peek<T>(key) : pending<T>()),
-    () => pending<T>()
+    useCallback(
+      (listener: () => void) => (key ? subscribe(key, listener) : () => {}),
+      [key]
+    ),
+    useCallback(() => (key ? peek<T>(key) : pending<T>()), [key]),
+    pending<T>
   );
 
   useEffect(() => {
@@ -80,9 +83,12 @@ export function useCachedFetch<T = unknown>(
   const key = url ? `url:${url}` : null;
 
   const snapshot = useSyncExternalStore(
-    (listener) => (key ? subscribe(key, listener) : () => {}),
-    () => (key ? peek<T>(key) : pending<T>()),
-    () => pending<T>()
+    useCallback(
+      (listener: () => void) => (key ? subscribe(key, listener) : () => {}),
+      [key]
+    ),
+    useCallback(() => (key ? peek<T>(key) : pending<T>()), [key]),
+    pending<T>
   );
 
   useEffect(() => {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { invalidate, load, peek, pending, subscribe } from "@/lib/data-cache";
+import { invalidate, load, peek, subscribe } from "@/lib/data-cache";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import type {
   User,
@@ -80,14 +80,15 @@ async function loadSession(): Promise<Session> {
   };
 }
 
+// Defined once at module scope so useSyncExternalStore is not handed a new
+// function on every render.
+const subscribeSession = (listener: () => void) => subscribe(KEY, listener);
+const readSession = () => peek<Session>(KEY);
+
 export function useUser(): UseUserReturn {
   const router = useRouter();
 
-  const snapshot = useSyncExternalStore(
-    (listener) => subscribe(KEY, listener),
-    () => peek<Session>(KEY),
-    () => pending<Session>()
-  );
+  const snapshot = useSyncExternalStore(subscribeSession, readSession, readSession);
 
   useEffect(() => {
     load(KEY, loadSession);
