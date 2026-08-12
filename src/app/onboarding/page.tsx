@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -93,7 +93,13 @@ const KNOWLEDGE_LEVELS: {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  function getSupabase() {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+    return supabaseRef.current;
+  }
 
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState<"forward" | "back">("forward");
@@ -133,7 +139,7 @@ export default function OnboardingPage() {
     async function loadUser() {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getSupabase().auth.getUser();
       if (user) {
         setUserId(user.id);
       }
@@ -163,7 +169,7 @@ export default function OnboardingPage() {
     setIsSaving(true);
     try {
       // Create company
-      const { data: newCompany, error: companyError } = await supabase
+      const { data: newCompany, error: companyError } = await getSupabase()
         .from("companies")
         .insert({
           name: companyName.trim(),
@@ -182,7 +188,7 @@ export default function OnboardingPage() {
       setCompanyId(newCompany.id);
 
       // Create user_company_access
-      await supabase.from("user_company_access").insert({
+      await getSupabase().from("user_company_access").insert({
         user_id: userId,
         company_id: newCompany.id,
         role: "owner",
@@ -204,7 +210,7 @@ export default function OnboardingPage() {
 
     try {
       // Create integration record
-      const { data: integration, error: intError } = await supabase
+      const { data: integration, error: intError } = await getSupabase()
         .from("integrations")
         .insert({
           company_id: companyId,
@@ -221,7 +227,7 @@ export default function OnboardingPage() {
       }
 
       // Store credential
-      await supabase.from("integration_credentials").insert({
+      await getSupabase().from("integration_credentials").insert({
         integration_id: integration.id,
         encrypted_client_key: clientKey.trim(),
       });
@@ -266,7 +272,7 @@ export default function OnboardingPage() {
     setIsSaving(true);
     try {
       // Update company with preferences
-      await supabase
+      await getSupabase()
         .from("companies")
         .update({
           normal_payroll_date: parseInt(payrollDate, 10),

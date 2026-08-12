@@ -1,34 +1,33 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import type {
   User,
   Company,
-  UserCompanyAccess,
   AccountingKnowledgeLevel,
 } from "@/lib/types/database";
 
 interface UseUserReturn {
-  /** Supabase auth user */
   user: AuthUser | null;
-  /** Profile from the users table */
   profile: User | null;
-  /** Current company from user_company_access */
   company: Company | null;
-  /** User's accounting knowledge level */
   knowledgeLevel: AccountingKnowledgeLevel | null;
-  /** Whether data is still loading */
   isLoading: boolean;
-  /** Sign out and redirect to login */
   signOut: () => Promise<void>;
 }
 
 export function useUser(): UseUserReturn {
   const router = useRouter();
-  const supabase = createClient();
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  function getSupabase() {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+    return supabaseRef.current;
+  }
 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<User | null>(null);
@@ -38,10 +37,10 @@ export function useUser(): UseUserReturn {
 
   useEffect(() => {
     let cancelled = false;
+    const supabase = getSupabase();
 
     async function loadUser() {
       try {
-        // Get auth user
         const { data: { user: authUser } } = await supabase.auth.getUser();
 
         if (!authUser || cancelled) {
@@ -51,7 +50,6 @@ export function useUser(): UseUserReturn {
 
         setUser(authUser);
 
-        // Load profile from users table
         const { data: userProfile } = await supabase
           .from("users")
           .select("*")
@@ -61,7 +59,6 @@ export function useUser(): UseUserReturn {
         if (cancelled) return;
         setProfile(userProfile);
 
-        // Load company access (get the first/primary company)
         const { data: access } = await supabase
           .from("user_company_access")
           .select("*")
@@ -74,7 +71,6 @@ export function useUser(): UseUserReturn {
         if (access) {
           setKnowledgeLevel(access.accounting_knowledge_level);
 
-          // Load company details
           const { data: companyData } = await supabase
             .from("companies")
             .select("*")
@@ -96,7 +92,6 @@ export function useUser(): UseUserReturn {
 
     loadUser();
 
-    // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         if (!session) {
@@ -115,13 +110,13 @@ export function useUser(): UseUserReturn {
   }, []);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    await getSupabase().auth.signOut();
     setUser(null);
     setProfile(null);
     setCompany(null);
     setKnowledgeLevel(null);
     router.push("/login");
-  }, [supabase, router]);
+  }, [router]);
 
   return {
     user,

@@ -8,7 +8,6 @@ import { UserPlus, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,8 +27,9 @@ export default function SignupPage() {
 
     setIsLoading(true);
 
+    const supabase = createClient();
+
     try {
-      // Create auth user
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,

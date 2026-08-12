@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type {
   Company,
@@ -42,7 +42,13 @@ interface UseCompanyReturn {
 }
 
 export function useCompany(companyId: string | null | undefined): UseCompanyReturn {
-  const supabase = createClient();
+  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
+  function getSupabase() {
+    if (!supabaseRef.current) {
+      supabaseRef.current = createClient();
+    }
+    return supabaseRef.current;
+  }
 
   const [company, setCompany] = useState<Company | null>(null);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus>({
@@ -74,7 +80,7 @@ export function useCompany(companyId: string | null | undefined): UseCompanyRetu
 
     try {
       // Load company
-      const { data: companyData, error: companyError } = await supabase
+      const { data: companyData, error: companyError } = await getSupabase()
         .from("companies")
         .select("*")
         .eq("id", companyId)
@@ -89,7 +95,7 @@ export function useCompany(companyId: string | null | undefined): UseCompanyRetu
       setCompany(companyData);
 
       // Load integration status
-      const { data: integrations } = await supabase
+      const { data: integrations } = await getSupabase()
         .from("integrations")
         .select("*")
         .eq("company_id", companyId)
@@ -100,7 +106,7 @@ export function useCompany(companyId: string | null | undefined): UseCompanyRetu
         const integration = integrations[0];
 
         // Check sync state
-        const { data: syncStates } = await supabase
+        const { data: syncStates } = await getSupabase()
           .from("integration_sync_state")
           .select("*")
           .eq("company_id", companyId)
@@ -123,22 +129,23 @@ export function useCompany(companyId: string | null | undefined): UseCompanyRetu
       }
 
       // Load data quality metrics
+      const sb = getSupabase();
       const [accountsRes, transactionsRes, customersRes, suppliersRes] = await Promise.all([
-        supabase
+        sb
           .from("gl_accounts")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId),
-        supabase
+        sb
           .from("account_transactions")
           .select("id, transaction_date", { count: "exact" })
           .eq("company_id", companyId)
           .order("transaction_date", { ascending: false })
           .limit(1),
-        supabase
+        sb
           .from("customers")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId),
-        supabase
+        sb
           .from("suppliers")
           .select("id", { count: "exact", head: true })
           .eq("company_id", companyId),

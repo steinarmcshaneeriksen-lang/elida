@@ -8,7 +8,6 @@ import { LogIn, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +19,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
+
+    const supabase = createClient();
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
