@@ -12,6 +12,26 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/use-user";
 import { formatRelativeTime } from "@/lib/format";
+import { createClient } from "@/lib/supabase/client";
+
+const SAFT_BUCKET = "saft-imports";
+
+/**
+ * Error responses do not always come from our own code — a platform-level
+ * rejection (oversized body, gateway error) arrives as plain text, and
+ * calling res.json() on it throws a parse error that hides the real cause.
+ */
+async function readError(res: Response, fallback: string): Promise<string> {
+  const text = await res.text().catch(() => "");
+  try {
+    const parsed = JSON.parse(text) as { error?: string };
+    if (parsed?.error) return parsed.error;
+  } catch {
+    // Not JSON; fall through to the raw text.
+  }
+  if (text.trim()) return `${fallback} (${text.trim().slice(0, 200)})`;
+  return `${fallback} (HTTP ${res.status})`;
+}
 
 interface ImportCounts {
   accounts: number;
@@ -102,22 +122,40 @@ export default function ImportPage() {
       setResult(null);
 
       try {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("company_id", companyId);
+        // Upload straight to storage. Routing the file through the API would
+        // hit the serverless request-body limit, which is far smaller than a
+        // typical SAF-T export.
+        const supabase = createClient();
+        const objectPath = `${companyId}/${crypto.randomUUID()}.xml`;
 
-        const res = await fetch("/api/import/saft", {
-          method: "POST",
-          body: formData,
-        });
+        const { error: uploadError } = await supabase.storage
+          .from(SAFT_BUCKET)
+          .upload(objectPath, file, {
+            contentType: "text/xml",
+            upsert: false,
+          });
 
-        const data = await res.json();
-        if (!res.ok) {
-          setError(data.error ?? `Import feilet (${res.status})`);
+        if (uploadError) {
+          setError(`Opplasting feilet: ${uploadError.message}`);
           return;
         }
 
-        setResult(data as ImportResult);
+        const res = await fetch("/api/import/saft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            company_id: companyId,
+            storage_path: objectPath,
+            file_name: file.name,
+          }),
+        });
+
+        if (!res.ok) {
+          setError(await readError(res, "Import feilet"));
+          return;
+        }
+
+        setResult((await res.json()) as ImportResult);
         setHistoryVersion((v) => v + 1);
       } catch (err) {
         setError(
@@ -211,7 +249,8 @@ export default function ImportPage() {
               Importerer …
             </p>
             <p className="text-xs text-foreground-muted">
-              Store filer kan ta et par minutter. Ikke lukk siden.
+              Filen lastes opp, deretter leses den inn. Store filer kan ta et
+              par minutter. Ikke lukk siden.
             </p>
           </div>
         ) : (
@@ -230,7 +269,7 @@ export default function ImportPage() {
               </button>
             </div>
             <p className="text-xs text-foreground-muted">
-              XML-fil, maks 100 MB
+              XML-fil, maks 500 MB
             </p>
           </div>
         )}

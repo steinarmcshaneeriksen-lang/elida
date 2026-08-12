@@ -9,16 +9,26 @@ import { checkRateLimit, rateLimitResponse } from "@/app/api/_lib/rate-limit";
 /**
  * POST /api/import/saft
  *
- * Multipart form data with:
- * - file: SAF-T Regnskap XML export
- * - company_id: string
+ * JSON body: { company_id, storage_path, file_name }
+ *
+ * The browser uploads the SAF-T file straight to the `saft-imports` bucket
+ * and passes the object path here. Sending the file in the request body is
+ * not viable: a serverless request body is capped well below the size of a
+ * normal SAF-T export, and the platform rejects it before this code runs.
  *
  * Parses the file and writes accounts, parties, dimensions, vouchers and
  * ledger lines into the company's tables. Re-importing the same file updates
- * the existing rows rather than duplicating them.
+ * the existing rows rather than duplicating them. The uploaded object is
+ * removed once processing finishes, successfully or not.
  */
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+interface ImportRequest {
+  company_id?: string;
+  storage_path?: string;
+  file_name?: string;
+}
+
+export const SAFT_BUCKET = "saft-imports";
 
 // SAF-T files are large; give the parse and the batched writes room to finish.
 export const maxDuration = 300;
@@ -26,18 +36,16 @@ export const maxDuration = 300;
 export async function POST(request: NextRequest) {
   let runId: string | null = null;
   let supabase: Awaited<ReturnType<typeof createClient>> | null = null;
+  let storageCleanupPath: string | null = null;
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    const companyId = formData.get("company_id") as string | null;
+    const body = (await request.json()) as ImportRequest;
+    const companyId = body.company_id;
+    const storagePath = body.storage_path;
 
-    if (!file) {
-      return NextResponse.json({ error: "Fil mangler" }, { status: 400 });
-    }
-    if (!companyId) {
+    if (!companyId || !storagePath) {
       return NextResponse.json(
-        { error: "company_id mangler" },
+        { error: "company_id og storage_path er påkrevd" },
         { status: 400 }
       );
     }
@@ -45,23 +53,34 @@ export async function POST(request: NextRequest) {
     const auth = await verifyCompanyAccess(companyId);
     if (auth instanceof NextResponse) return auth;
 
+    // The object path encodes the tenant; refuse anything pointing elsewhere
+    // so an authorised user cannot read another company's uploaded file.
+    if (!storagePath.startsWith(`${companyId}/`)) {
+      return NextResponse.json(
+        { error: "Ugyldig filsti" },
+        { status: 400 }
+      );
+    }
+
     // Parsing a large SAF-T file is expensive; a handful per hour is ample.
     const limit = checkRateLimit(`saft:${auth.userId}`, 10, 60 * 60_000);
     if (!limit.allowed) {
       return rateLimitResponse(limit) as NextResponse;
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    supabase = await createClient();
+    storageCleanupPath = storagePath;
+
+    const { data: blob, error: downloadError } = await supabase.storage
+      .from(SAFT_BUCKET)
+      .download(storagePath);
+
+    if (downloadError || !blob) {
       return NextResponse.json(
-        {
-          error:
-            "Filen er for stor (maks 100 MB). Eksporter en kortere periode og last opp i flere omganger.",
-        },
+        { error: "Fant ikke den opplastede filen. Prøv å laste opp på nytt." },
         { status: 400 }
       );
     }
-
-    supabase = await createClient();
 
     const { data: run } = (await supabase
       .from("import_runs")
@@ -69,8 +88,8 @@ export async function POST(request: NextRequest) {
         company_id: companyId,
         user_id: auth.userId,
         source_format: "saft",
-        file_name: file.name,
-        file_size: file.size,
+        file_name: body.file_name ?? storagePath.split("/").pop() ?? null,
+        file_size: blob.size,
         status: "running",
       } as never)
       .select("id")
@@ -78,7 +97,7 @@ export async function POST(request: NextRequest) {
 
     runId = run?.id ?? null;
 
-    const xml = await file.text();
+    const xml = await blob.text();
     const parsed = parseSaft(xml);
     const result = await importSaft(supabase, companyId, parsed);
 
@@ -133,6 +152,16 @@ export async function POST(request: NextRequest) {
     return errorResponse(
       "Importen feilet. Kontroller at filen er en gyldig SAF-T-eksport, og prøv igjen."
     );
+  } finally {
+    // The upload is working storage only; never keep the raw ledger file.
+    if (supabase && storageCleanupPath) {
+      await supabase.storage
+        .from(SAFT_BUCKET)
+        .remove([storageCleanupPath])
+        .catch(() => {
+          // Nothing actionable if cleanup fails; the bucket is private.
+        });
+    }
   }
 }
 

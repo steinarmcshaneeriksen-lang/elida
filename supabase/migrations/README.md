@@ -8,6 +8,8 @@ Applied, newest first:
 
 | Migration | What and why |
 |---|---|
+| `make_saft_storage_policies_cast_safe` | Casting the first path segment to `uuid` raised on a malformed path, surfacing as an opaque server error instead of a clean denial. Compares as text instead. |
+| `create_saft_imports_storage_bucket` | Private `saft-imports` bucket. A serverless request body is capped far below a normal SAF-T export, so the browser uploads directly to storage and the server reads the object afterwards. Objects are stored under `<company_id>/`, and the policies check that prefix against the caller's companies. The object is deleted once the import finishes. |
 | `revoke_execute_on_trigger_function` | `update_updated_at` is a trigger function and has no meaning as an RPC. `get_user_company_ids` and `user_administers_company` deliberately remain executable — RLS policies call them as the querying role, and revoking EXECUTE turns "no rows visible" into "permission denied" on every tenant table. Both filter on `auth.uid()`, so anon always gets an empty result. |
 | `fix_partial_unique_indexes_for_upsert` | The import upserts with `ON CONFLICT (company_id, source_system, source_id)`. Postgres cannot infer a *partial* unique index from that clause, so every upsert failed. Replaced with plain unique indexes; NULLs still never collide. |
 | `fix_privilege_escalation_on_company_access` | **Critical.** `company_access_insert` checked only that `user_id` was the caller's own, never that they had any relationship to `company_id` — so any signed-in user could grant themselves owner access to any company and read its entire ledger. `company_access_update` had the same gap via a missing `WITH CHECK`. Both now require `user_administers_company(company_id)`. |
