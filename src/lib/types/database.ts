@@ -411,6 +411,148 @@ export type Database = {
           },
         ]
       }
+      budget_assumptions: {
+        Row: {
+          budget_id: string
+          created_at: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          metadata: Json
+          name: string
+          type: string
+          value: number | null
+        }
+        Insert: {
+          budget_id: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          metadata?: Json
+          name: string
+          type: string
+          value?: number | null
+        }
+        Update: {
+          budget_id?: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          metadata?: Json
+          name?: string
+          type?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_assumptions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_lines: {
+        Row: {
+          account_number: string | null
+          amount: number
+          budget_id: string
+          category_key: string
+          comment: string | null
+          id: string
+          month: number
+        }
+        Insert: {
+          account_number?: string | null
+          amount?: number
+          budget_id: string
+          category_key: string
+          comment?: string | null
+          id?: string
+          month: number
+        }
+        Update: {
+          account_number?: string | null
+          amount?: number
+          budget_id?: string
+          category_key?: string
+          comment?: string | null
+          id?: string
+          month?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_lines_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          approved_at: string | null
+          based_on: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          scenario: string
+          status: string
+          updated_at: string
+          version: number
+          year: number
+        }
+        Insert: {
+          approved_at?: string | null
+          based_on?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          scenario?: string
+          status?: string
+          updated_at?: string
+          version?: number
+          year: number
+        }
+        Update: {
+          approved_at?: string | null
+          based_on?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          scenario?: string
+          status?: string
+          updated_at?: string
+          version?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           created_at: string
@@ -1836,6 +1978,117 @@ export type Database = {
           },
         ]
       }
+      report_templates: {
+        Row: {
+          company_id: string
+          configuration: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          report_type: string
+        }
+        Insert: {
+          company_id: string
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          report_type: string
+        }
+        Update: {
+          company_id?: string
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          report_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          company_id: string
+          comparison_type: string | null
+          configuration: Json
+          created_at: string
+          created_by: string | null
+          dataset: Json | null
+          dataset_version: string
+          generated_at: string
+          id: string
+          period_end: string
+          period_start: string
+          report_type: string
+          status: string
+          title: string
+        }
+        Insert: {
+          company_id: string
+          comparison_type?: string | null
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          dataset?: Json | null
+          dataset_version?: string
+          generated_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          report_type: string
+          status?: string
+          title: string
+        }
+        Update: {
+          company_id?: string
+          comparison_type?: string | null
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          dataset?: Json | null
+          dataset_version?: string
+          generated_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          report_type?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supplier_ledger_entries: {
         Row: {
           amount: number
@@ -2678,3 +2931,9 @@ export type DocumentJobStatus = Enums<"document_job_status">;
 export type AssistantMessageRole = Enums<"assistant_message_role">;
 export type ReviewStatusEnum = Enums<"review_status">;
 export type RiskLevelEnum = Enums<"risk_level">;
+
+export type Report = Tables<"reports">;
+export type ReportTemplate = Tables<"report_templates">;
+export type Budget = Tables<"budgets">;
+export type BudgetLine = Tables<"budget_lines">;
+export type BudgetAssumption = Tables<"budget_assumptions">;

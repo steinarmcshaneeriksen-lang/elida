@@ -12,6 +12,8 @@ import {
   List,
   Upload,
   Settings,
+  FileText,
+  Target,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -23,6 +25,8 @@ const navItems = [
   { label: "Kunder", href: "/kunder", icon: Users },
   { label: "Leverandører", href: "/leverandorer", icon: Truck },
   { label: "Transaksjoner", href: "/transaksjoner", icon: List },
+  { label: "Rapporter", href: "/rapporter", icon: FileText },
+  { label: "Budsjett", href: "/budsjett", icon: Target },
   { label: "Importer data", href: "/import", icon: Upload },
   { label: "Innstillinger", href: "/innstillinger", icon: Settings },
 ];

@@ -98,6 +98,146 @@
   --font-sans: var(--font-inter);
 }
 
+/* ---------------------------------------------------------------------------
+   Reports
+   ---------------------------------------------------------------------------
+   A report is a document, not a dashboard. It gets its own restrained palette
+   and typographic scale so a board pack reads like something a finance lead
+   would hand out — white ground, one ink, hairline rules, generous margins —
+   and prints to A4 without carrying screen furniture onto the page.
+   --------------------------------------------------------------------------- */
+
+.report {
+  --report-ink: #14213d;
+  --report-body: #2f3a4f;
+  --report-muted: #6b7688;
+  --report-rule: #dfe3ea;
+  --report-rule-strong: #b9c0cd;
+  --report-positive: #2f7a52;
+  --report-negative: #a33a34;
+  --report-warning: #9a6b16;
+  --report-accent: #14213d;
+  --report-page: #ffffff;
+
+  background: var(--report-page);
+  color: var(--report-body);
+  font-feature-settings: "tnum" 1;
+}
+
+.report h1,
+.report h2,
+.report h3,
+.report h4 {
+  color: var(--report-ink);
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+
+/* A page in the on-screen preview, and a physical page when printed. */
+.report-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm 18mm 16mm;
+  margin: 0 auto 10mm;
+  background: var(--report-page);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.05);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-page--landscape {
+  width: 297mm;
+  min-height: 210mm;
+}
+
+.report-rule {
+  border: 0;
+  border-top: 1px solid var(--report-rule);
+  margin: 0;
+}
+
+.report-rule--strong {
+  border-top-color: var(--report-rule-strong);
+}
+
+/* Figures line up column to column only if the digits are the same width. */
+.report table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.report th {
+  font-weight: 500;
+  color: var(--report-muted);
+  text-align: left;
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--report-rule-strong);
+  font-size: 11.5px;
+}
+
+.report td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--report-rule);
+  font-size: 13px;
+  color: var(--report-body);
+}
+
+.report td.num,
+.report th.num {
+  text-align: right;
+  padding-left: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.report tr.total td {
+  border-top: 1px solid var(--report-rule-strong);
+  border-bottom: none;
+  font-weight: 600;
+  color: var(--report-ink);
+}
+
+@media print {
+  /* Everything that belongs to the application, not the document. */
+  .report-hide-in-print,
+  aside,
+  header.app-header {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .report-page {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+
+  .report-page:last-child {
+    break-after: auto;
+  }
+
+  .report-avoid-break {
+    break-inside: avoid;
+  }
+
+  @page {
+    size: A4;
+    margin: 18mm 16mm 14mm;
+  }
+
+  @page landscape {
+    size: A4 landscape;
+  }
+}
+
 /* Base styles */
 body {
   background: var(--background);

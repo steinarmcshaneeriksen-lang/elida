@@ -11,6 +11,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeFilterTerm } from "@/lib/supabase/filter";
+import { getBudget, proposeBudgetChange } from "./budget-tools";
 import {
   clampToCoverage,
   coverageNote,
@@ -1506,6 +1507,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_vendor_posting_history: getVendorPostingHistory,
   search_accounting_rules: searchAccountingRules,
   run_scenario: runScenario,
+  get_budget: getBudget,
+  propose_budget_change: proposeBudgetChange,
 };
 
 /**

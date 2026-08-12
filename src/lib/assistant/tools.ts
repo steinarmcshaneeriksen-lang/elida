@@ -147,6 +147,33 @@ export const TOOLS: ToolDefinition[] = [
     "Søker i regnskapsregler og norsk bokføringslov etter relevant veiledning for et emne (f.eks. MVA-fradrag, representasjon, firmabil).",
     { properties: { topic: { type: "string", description: "Emne å søke etter (f.eks. 'representasjon', 'firmabil', 'mva fradrag')." } }, required: ["topic"] }),
 
+  tool("get_budget",
+    "Henter selskapets budsjett: budsjettert beløp per kategori per måned, faktiske tall så langt, avvik, budsjettert resultat og estimert likviditet. Bruk denne for alle spørsmål om budsjett.",
+    { properties: { budget_id: { type: "string", description: "Valgfri budsjett-ID. Uten denne brukes det nyeste budsjettet." } } }),
+
+  tool("propose_budget_change",
+    "Regner ut hva en foreslått budsjettendring vil bety, og returnerer et forslag brukeren må bekrefte. Endrer ALDRI budsjettet direkte. Bruk denne når brukeren ber om endringer som «øk salgsbudsjettet med 10 %», «legg inn en ny ansatt fra mars med 700 000 i lønn», eller «hva skjer hvis salget blir 20 % lavere».",
+    {
+      properties: {
+        budget_id: { type: "string", description: "Valgfri budsjett-ID. Uten denne brukes det nyeste budsjettet." },
+        change_type: {
+          type: "string",
+          description:
+            'Type endring: "adjust_percent" (juster en kategori med prosent), "set_annual" (sett årsbeløp for en kategori), "add_cost" (ny fast månedlig kostnad), "add_employee" (ny ansatt).',
+        },
+        category_key: {
+          type: "string",
+          description:
+            'Kategori: revenue, other_revenue, cogs, payroll, employer_costs, premises, it_software, consultants, sales_marketing, travel, vehicles, office, equipment, depreciation, other_costs.',
+        },
+        percent: { type: "number", description: "Prosentendring for adjust_percent." },
+        amount: { type: "number", description: "Årsbeløp for set_annual, månedsbeløp for add_cost, årslønn for add_employee." },
+        from_month: { type: "number", description: "Måned 1–12 endringen gjelder fra." },
+        name: { type: "string", description: "Navn på kostnaden eller stillingen." },
+      },
+      required: ["change_type"],
+    }),
+
   tool("run_scenario",
     'Kjører en "hva om"-analyse: simulerer effekten av en endring (ny ansettelse, investering, prisendring) på økonomi og likviditet.',
     { properties: { parameters: { type: "object", description: "Scenarioparametre. Eksempler: { type: 'new_hire', monthly_salary: 50000 } eller { type: 'investment', amount: 200000 }.", properties: { type: { type: "string", description: 'Scenariotype: "new_hire", "investment", "price_change", "cost_reduction", "revenue_growth", "custom".' } } } }, required: ["parameters"] }),
