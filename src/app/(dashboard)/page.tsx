@@ -9,6 +9,7 @@ import {
 } from "@/components/dashboard/empty-state";
 import { useUser } from "@/lib/hooks/use-user";
 import { useCompanyData } from "@/lib/hooks/use-company-data";
+import { MrrCard, type MrrData } from "@/components/dashboard/mrr-card";
 import { formatCurrency } from "@/lib/format";
 
 interface Metric {
@@ -69,6 +70,7 @@ export default function DashboardPage() {
   const { company } = useUser();
   const { data, isLoading, error, isEmpty } =
     useCompanyData<SummaryResponse>("summary");
+  const mrr = useCompanyData<MrrData>("mrr");
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -96,6 +98,8 @@ export default function DashboardPage() {
 
       {!isLoading && !error && !isEmpty && data && (
         <>
+          {mrr.data?.has_data && <MrrCard data={mrr.data} />}
+
           <section>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {buildMetrics(data).map((metric, index) => (
