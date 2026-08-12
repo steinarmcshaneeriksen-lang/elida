@@ -41,6 +41,7 @@ export async function GET(
         last_month: string;
         has_keyword: boolean;
         has_cadence: boolean;
+        matched_product: string | null;
       }> | null;
     };
 
@@ -52,11 +53,16 @@ export async function GET(
       posting_count: Number(r.posting_count),
       first_month: r.first_month,
       last_month: r.last_month,
-      category: r.has_keyword
-        ? ("licensed" as const)
-        : r.has_cadence
-          ? ("regular" as const)
-          : ("one_off" as const),
+      matched_product: r.matched_product,
+      // A product-list match is the seller's own classification and outranks
+      // anything inferred from the text.
+      category: r.matched_product
+        ? ("product" as const)
+        : r.has_keyword
+          ? ("licensed" as const)
+          : r.has_cadence
+            ? ("regular" as const)
+            : ("one_off" as const),
     }));
 
     if (rows.length === 0) {
@@ -66,21 +72,28 @@ export async function GET(
     const sumOf = (category: string) =>
       rows.filter((r) => r.category === category).reduce((t, r) => t + r.total, 0);
 
+    const product = sumOf("product");
     const licensed = sumOf("licensed");
     const regular = sumOf("regular");
     const oneOff = sumOf("one_off");
-    const total = licensed + regular + oneOff;
+    const total = product + licensed + regular + oneOff;
 
     return NextResponse.json({
       has_data: true,
       totals: {
+        product,
         licensed,
         regular,
         one_off: oneOff,
         total,
         // Share of revenue that repeats, on either signal.
         recurring_share:
-          total > 0 ? Math.round(((licensed + regular) / total) * 100) : 0,
+          total > 0
+            ? Math.round(((product + licensed + regular) / total) * 100)
+            : 0,
+        // True once a product list has been imported, so the UI can say
+        // whether the split is stated or inferred.
+        has_product_list: product > 0,
       },
       items: rows,
     });

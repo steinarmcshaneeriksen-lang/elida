@@ -9,6 +9,7 @@ import {
   XCircle,
   Loader2,
   Info,
+  Repeat,
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/use-user";
 import { formatRelativeTime } from "@/lib/format";
@@ -359,6 +360,8 @@ export default function ImportPage() {
         </div>
       )}
 
+      <ProductListUpload companyId={companyId} />
+
       {/* History */}
       {history.length > 0 && (
         <div>
@@ -457,5 +460,113 @@ function StatusBadge({
       <Loader2 size={12} className="animate-spin" />
       Pågår
     </span>
+  );
+}
+
+
+/**
+ * A product list states which products are licences or subscriptions, which
+ * turns the recurring-revenue split from an inference into the seller's own
+ * classification. These exports are small, so they go through the API
+ * directly rather than via storage.
+ */
+function ProductListUpload({ companyId }: { companyId: string | undefined }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [result, setResult] = useState<{
+    counts: { products: number; recurring: number };
+    groups: string[];
+    warnings: string[];
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const upload = async (file: File) => {
+    if (!companyId || isUploading) return;
+    setIsUploading(true);
+    setError(null);
+    setResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("company_id", companyId);
+
+      const res = await fetch("/api/import/products", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        setError(body?.detail ?? body?.error ?? "Opplasting feilet");
+        return;
+      }
+
+      setResult(await res.json());
+    } catch {
+      setError("Kunne ikke koble til. Prøv igjen.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  return (
+    <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
+      <div className="mb-1 flex items-center gap-2">
+        <Repeat size={18} className="text-foreground-muted" />
+        <h3 className="text-base font-semibold text-foreground">
+          Produktliste (valgfritt)
+        </h3>
+      </div>
+      <p className="mb-4 text-sm text-foreground-secondary">
+        SAF-T sier ikke hvilke inntekter som er gjentakende. Laster du opp
+        produktlisten fra regnskapssystemet, brukes produktgruppen — for
+        eksempel «Lisenser» — til å skille abonnementsinntekter fra
+        engangssalg. Uten den gjetter Elida ut fra posteringstekst.
+      </p>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) upload(file);
+          if (inputRef.current) inputRef.current.value = "";
+        }}
+      />
+      <button
+        onClick={() => inputRef.current?.click()}
+        disabled={!companyId || isUploading}
+        className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-surface-hover disabled:opacity-40"
+      >
+        {isUploading ? "Leser produktliste …" : "Velg produktliste (Excel)"}
+      </button>
+
+      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+
+      {result && (
+        <div className="mt-4 rounded-lg bg-background px-4 py-3 text-sm">
+          <p className="text-foreground">
+            {result.counts.products} produkter lest,{" "}
+            <span className="font-semibold">
+              {result.counts.recurring} merket som gjentakende
+            </span>
+            .
+          </p>
+          {result.groups.length > 0 && (
+            <p className="mt-1 text-xs text-foreground-muted">
+              Produktgrupper: {result.groups.join(", ")}
+            </p>
+          )}
+          {result.warnings.map((w, i) => (
+            <p key={i} className="mt-2 text-xs text-warning">
+              {w}
+            </p>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

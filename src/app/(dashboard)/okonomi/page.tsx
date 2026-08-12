@@ -90,18 +90,21 @@ function monthLabel(isoMonth: string): string {
 interface RecurringResponse {
   has_data: boolean;
   totals: {
+    product: number;
     licensed: number;
     regular: number;
     one_off: number;
     total: number;
     recurring_share: number;
+    has_product_list: boolean;
   } | null;
   items: Array<{
     description: string;
     months_active: number;
     total: number;
     avg_per_month: number;
-    category: "licensed" | "regular" | "one_off";
+    category: "product" | "licensed" | "regular" | "one_off";
+    matched_product: string | null;
   }>;
 }
 
@@ -256,6 +259,11 @@ export default function OkonomiPage() {
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; hint: string; className: string }> = {
+  product: {
+    label: "Lisensprodukt",
+    hint: "Produktet ligger i en lisensgruppe i produktlisten din",
+    className: "bg-success",
+  },
   licensed: {
     label: "Lisens og abonnement",
     hint: "Teksten oppgir lisens, abonnement eller månedspris",
@@ -293,12 +301,14 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
         </h3>
       </div>
       <p className="mb-5 text-sm text-foreground-muted">
-        {totals.recurring_share} % av omsetningen gjentar seg. Utledet fra
-        posteringstekst og månedsmønster — ikke oppgitt i regnskapet.
+        {totals.recurring_share} % av omsetningen gjentar seg.{" "}
+        {totals.has_product_list
+          ? "Basert på produktlisten din, med tekst- og månedsmønster som supplement."
+          : "Utledet fra posteringstekst og månedsmønster. Last opp produktlisten din under «Importer data» for et sikkert svar."}
       </p>
 
       <div className="mb-5 flex h-3 overflow-hidden rounded-full">
-        {(["licensed", "regular", "one_off"] as const).map((key) => {
+        {(["product", "licensed", "regular", "one_off"] as const).map((key) => {
           const value = key === "one_off" ? totals.one_off : totals[key];
           const pct = totals.total > 0 ? (value / totals.total) * 100 : 0;
           if (pct <= 0) return null;
@@ -313,8 +323,8 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
         })}
       </div>
 
-      <div className="mb-6 grid gap-3 sm:grid-cols-3">
-        {(["licensed", "regular", "one_off"] as const).map((key) => {
+      <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {(["product", "licensed", "regular", "one_off"] as const).map((key) => {
           const value = key === "one_off" ? totals.one_off : totals[key];
           return (
             <div key={key} className="rounded-lg bg-background px-3 py-2.5">
