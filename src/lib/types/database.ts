@@ -584,198 +584,239 @@ export interface Database {
         Row: Company;
         Insert: Partial<Pick<Company, "id" | "created_at" | "updated_at">> & Omit<Company, "id" | "created_at" | "updated_at">;
         Update: Partial<Company>;
+        Relationships: [];
       };
       users: {
         Row: User;
         Insert: Partial<Pick<User, "id" | "created_at" | "updated_at">> & Omit<User, "id" | "created_at" | "updated_at">;
         Update: Partial<User>;
+        Relationships: [];
       };
       user_company_access: {
         Row: UserCompanyAccess;
         Insert: Partial<Pick<UserCompanyAccess, "id" | "created_at" | "role" | "accounting_knowledge_level">> & Omit<UserCompanyAccess, "id" | "created_at" | "role" | "accounting_knowledge_level">;
         Update: Partial<UserCompanyAccess>;
+        Relationships: [];
       };
       user_preferences: {
         Row: UserPreferences;
         Insert: Partial<Pick<UserPreferences, "id" | "updated_at" | "language" | "theme" | "settings">> & Omit<UserPreferences, "id" | "updated_at" | "language" | "theme" | "settings">;
         Update: Partial<UserPreferences>;
+        Relationships: [];
       };
       integrations: {
         Row: Integration;
         Insert: Partial<Pick<Integration, "id" | "is_active" | "settings" | "created_at" | "updated_at">> & Omit<Integration, "id" | "is_active" | "settings" | "created_at" | "updated_at">;
         Update: Partial<Integration>;
+        Relationships: [];
       };
       integration_credentials: {
         Row: IntegrationCredential;
         Insert: Partial<Pick<IntegrationCredential, "id" | "created_at" | "updated_at">> & Omit<IntegrationCredential, "id" | "created_at" | "updated_at">;
         Update: Partial<IntegrationCredential>;
+        Relationships: [];
       };
       integration_sync_state: {
         Row: IntegrationSyncState;
         Insert: Partial<Pick<IntegrationSyncState, "id" | "sync_status" | "metadata">> & Omit<IntegrationSyncState, "id" | "sync_status" | "metadata">;
         Update: Partial<IntegrationSyncState>;
+        Relationships: [];
       };
       financial_years: {
         Row: FinancialYear;
         Insert: Partial<Pick<FinancialYear, "id" | "is_closed">> & Omit<FinancialYear, "id" | "is_closed">;
         Update: Partial<FinancialYear>;
+        Relationships: [];
       };
       gl_accounts: {
         Row: GLAccount;
         Insert: Partial<Pick<GLAccount, "id" | "is_active" | "created_at" | "updated_at">> & Omit<GLAccount, "id" | "is_active" | "created_at" | "updated_at">;
         Update: Partial<GLAccount>;
+        Relationships: [];
       };
       account_categories: {
         Row: AccountCategory;
         Insert: Partial<Pick<AccountCategory, "id" | "display_order">> & Omit<AccountCategory, "id" | "display_order">;
         Update: Partial<AccountCategory>;
+        Relationships: [];
       };
       account_mappings: {
         Row: AccountMapping;
         Insert: Partial<Pick<AccountMapping, "id" | "confidence" | "source" | "is_user_override" | "created_at" | "updated_at">> & Omit<AccountMapping, "id" | "confidence" | "source" | "is_user_override" | "created_at" | "updated_at">;
         Update: Partial<AccountMapping>;
+        Relationships: [];
       };
       vat_codes: {
         Row: VatCode;
         Insert: Partial<Pick<VatCode, "id" | "is_active">> & Omit<VatCode, "id" | "is_active">;
         Update: Partial<VatCode>;
+        Relationships: [];
       };
       vat_settings: {
         Row: VatSettings;
         Insert: Partial<Pick<VatSettings, "id" | "vat_registered" | "settings">> & Omit<VatSettings, "id" | "vat_registered" | "settings">;
         Update: Partial<VatSettings>;
+        Relationships: [];
       };
       vouchers: {
         Row: Voucher;
         Insert: Partial<Pick<Voucher, "id" | "created_at">> & Omit<Voucher, "id" | "created_at">;
         Update: Partial<Voucher>;
+        Relationships: [];
       };
       account_transactions: {
         Row: AccountTransaction;
         Insert: Partial<Pick<AccountTransaction, "id" | "currency" | "created_at">> & Omit<AccountTransaction, "id" | "currency" | "created_at">;
         Update: Partial<AccountTransaction>;
+        Relationships: [];
       };
       trial_balance_snapshots: {
         Row: TrialBalanceSnapshot;
         Insert: Partial<Pick<TrialBalanceSnapshot, "id" | "opening_balance" | "period_debit" | "period_credit" | "closing_balance" | "created_at">> & Omit<TrialBalanceSnapshot, "id" | "opening_balance" | "period_debit" | "period_credit" | "closing_balance" | "created_at">;
         Update: Partial<TrialBalanceSnapshot>;
+        Relationships: [];
       };
       customers: {
         Row: Customer;
         Insert: Partial<Pick<Customer, "id" | "is_active" | "created_at" | "updated_at">> & Omit<Customer, "id" | "is_active" | "created_at" | "updated_at">;
         Update: Partial<Customer>;
+        Relationships: [];
       };
       customer_ledger_entries: {
         Row: CustomerLedgerEntry;
         Insert: Partial<Pick<CustomerLedgerEntry, "id" | "currency" | "is_open" | "created_at">> & Omit<CustomerLedgerEntry, "id" | "currency" | "is_open" | "created_at">;
         Update: Partial<CustomerLedgerEntry>;
+        Relationships: [];
       };
       outgoing_invoices: {
         Row: OutgoingInvoice;
         Insert: Partial<Pick<OutgoingInvoice, "id" | "currency" | "created_at" | "updated_at">> & Omit<OutgoingInvoice, "id" | "currency" | "created_at" | "updated_at">;
         Update: Partial<OutgoingInvoice>;
+        Relationships: [];
       };
       outgoing_invoice_lines: {
         Row: OutgoingInvoiceLine;
         Insert: Partial<Pick<OutgoingInvoiceLine, "id">> & Omit<OutgoingInvoiceLine, "id">;
         Update: Partial<OutgoingInvoiceLine>;
+        Relationships: [];
       };
       suppliers: {
         Row: Supplier;
         Insert: Partial<Pick<Supplier, "id" | "is_active" | "created_at" | "updated_at">> & Omit<Supplier, "id" | "is_active" | "created_at" | "updated_at">;
         Update: Partial<Supplier>;
+        Relationships: [];
       };
       supplier_ledger_entries: {
         Row: SupplierLedgerEntry;
         Insert: Partial<Pick<SupplierLedgerEntry, "id" | "currency" | "is_open" | "created_at">> & Omit<SupplierLedgerEntry, "id" | "currency" | "is_open" | "created_at">;
         Update: Partial<SupplierLedgerEntry>;
+        Relationships: [];
       };
       incoming_invoices: {
         Row: IncomingInvoice;
         Insert: Partial<Pick<IncomingInvoice, "id" | "currency" | "created_at" | "updated_at">> & Omit<IncomingInvoice, "id" | "currency" | "created_at" | "updated_at">;
         Update: Partial<IncomingInvoice>;
+        Relationships: [];
       };
       payments: {
         Row: Payment;
         Insert: Partial<Pick<Payment, "id" | "currency" | "created_at">> & Omit<Payment, "id" | "currency" | "created_at">;
         Update: Partial<Payment>;
+        Relationships: [];
       };
       projects: {
         Row: Project;
         Insert: Partial<Pick<Project, "id" | "is_active">> & Omit<Project, "id" | "is_active">;
         Update: Partial<Project>;
+        Relationships: [];
       };
       departments: {
         Row: Department;
         Insert: Partial<Pick<Department, "id" | "is_active">> & Omit<Department, "id" | "is_active">;
         Update: Partial<Department>;
+        Relationships: [];
       };
       products: {
         Row: Product;
         Insert: Partial<Pick<Product, "id" | "is_active">> & Omit<Product, "id" | "is_active">;
         Update: Partial<Product>;
+        Relationships: [];
       };
       financial_metric_snapshots: {
         Row: FinancialMetricSnapshot;
         Insert: Partial<Pick<FinancialMetricSnapshot, "id" | "confidence" | "calculation_version" | "calculated_at" | "metadata">> & Omit<FinancialMetricSnapshot, "id" | "confidence" | "calculation_version" | "calculated_at" | "metadata">;
         Update: Partial<FinancialMetricSnapshot>;
+        Relationships: [];
       };
       financial_insights: {
         Row: FinancialInsight;
         Insert: Partial<Pick<FinancialInsight, "id" | "severity" | "evidence" | "is_active" | "created_at">> & Omit<FinancialInsight, "id" | "severity" | "evidence" | "is_active" | "created_at">;
         Update: Partial<FinancialInsight>;
+        Relationships: [];
       };
       forecasts: {
         Row: Forecast;
         Insert: Partial<Pick<Forecast, "id" | "calculated_at" | "calculation_version" | "confidence" | "summary" | "metadata">> & Omit<Forecast, "id" | "calculated_at" | "calculation_version" | "confidence" | "summary" | "metadata">;
         Update: Partial<Forecast>;
+        Relationships: [];
       };
       forecast_items: {
         Row: ForecastItem;
         Insert: Partial<Pick<ForecastItem, "id" | "confidence" | "metadata">> & Omit<ForecastItem, "id" | "confidence" | "metadata">;
         Update: Partial<ForecastItem>;
+        Relationships: [];
       };
       customer_payment_profiles: {
         Row: CustomerPaymentProfile;
         Insert: Partial<Pick<CustomerPaymentProfile, "id" | "total_invoices" | "total_invoiced_amount" | "current_outstanding" | "current_overdue" | "calculated_at">> & Omit<CustomerPaymentProfile, "id" | "total_invoices" | "total_invoiced_amount" | "current_outstanding" | "current_overdue" | "calculated_at">;
         Update: Partial<CustomerPaymentProfile>;
+        Relationships: [];
       };
       recurring_cost_patterns: {
         Row: RecurringCostPattern;
         Insert: Partial<Pick<RecurringCostPattern, "id" | "confidence" | "is_active" | "created_at">> & Omit<RecurringCostPattern, "id" | "confidence" | "is_active" | "created_at">;
         Update: Partial<RecurringCostPattern>;
+        Relationships: [];
       };
       vendor_posting_patterns: {
         Row: VendorPostingPattern;
         Insert: Partial<Pick<VendorPostingPattern, "id" | "occurrence_count" | "confidence" | "created_at" | "updated_at">> & Omit<VendorPostingPattern, "id" | "occurrence_count" | "confidence" | "created_at" | "updated_at">;
         Update: Partial<VendorPostingPattern>;
+        Relationships: [];
       };
       assistant_conversations: {
         Row: AssistantConversation;
         Insert: Partial<Pick<AssistantConversation, "id" | "created_at" | "updated_at">> & Omit<AssistantConversation, "id" | "created_at" | "updated_at">;
         Update: Partial<AssistantConversation>;
+        Relationships: [];
       };
       assistant_messages: {
         Row: AssistantMessage;
         Insert: Partial<Pick<AssistantMessage, "id" | "created_at">> & Omit<AssistantMessage, "id" | "created_at">;
         Update: Partial<AssistantMessage>;
+        Relationships: [];
       };
       assistant_evidence: {
         Row: AssistantEvidence;
         Insert: Partial<Pick<AssistantEvidence, "id" | "evidence_data">> & Omit<AssistantEvidence, "id" | "evidence_data">;
         Update: Partial<AssistantEvidence>;
+        Relationships: [];
       };
       ephemeral_document_jobs: {
         Row: EphemeralDocumentJob;
         Insert: Partial<Pick<EphemeralDocumentJob, "id" | "status" | "created_at">> & Omit<EphemeralDocumentJob, "id" | "status" | "created_at">;
         Update: Partial<EphemeralDocumentJob>;
+        Relationships: [];
       };
       accounting_rules: {
         Row: AccountingRule;
         Insert: Partial<Pick<AccountingRule, "id" | "jurisdiction" | "metadata" | "created_at">> & Omit<AccountingRule, "id" | "jurisdiction" | "metadata" | "created_at">;
         Update: Partial<AccountingRule>;
+        Relationships: [];
       };
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
     Enums: {
       accounting_knowledge_level: AccountingKnowledgeLevel;
       integration_provider: IntegrationProvider;
@@ -784,5 +825,6 @@ export interface Database {
       document_job_status: DocumentJobStatus;
       assistant_message_role: AssistantMessageRole;
     };
+    CompositeTypes: Record<string, never>;
   };
 }

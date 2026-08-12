@@ -1,18 +1,21 @@
 /**
  * Assistant Tool Definitions
  *
- * Structured tool array in Anthropic tool-use format.
- * Each tool has a name, description, and input_schema (JSON Schema).
+ * Structured tool array in OpenAI function-calling format.
+ * Each tool has a type, function name, description, and parameters (JSON Schema).
  * The handlers live in tool-handlers.ts.
  */
 
 export interface ToolDefinition {
-  name: string;
-  description: string;
-  input_schema: {
-    type: "object";
-    properties: Record<string, unknown>;
-    required?: string[];
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, unknown>;
+      required?: string[];
+    };
   };
 }
 
@@ -36,265 +39,91 @@ const comparisonParam = {
 // Tool definitions
 // ---------------------------------------------------------------------------
 
+function tool(name: string, description: string, parameters: { properties: Record<string, unknown>; required?: string[] }): ToolDefinition {
+  return {
+    type: "function",
+    function: {
+      name,
+      description,
+      parameters: { type: "object", ...parameters },
+    },
+  };
+}
+
 export const TOOLS: ToolDefinition[] = [
-  // ── Financial overview ──────────────────────────────────────────────
-  {
-    name: "get_financial_summary",
-    description:
-      "Henter en helhetlig finansiell oppsummering for en gitt periode: omsetning, kostnader, resultat, kontantbeholdning, utestående fordringer og gjeld. Bruk denne for generelle spørsmål om hvordan det går.",
-    input_schema: {
-      type: "object",
-      properties: {
-        period: periodParam,
-      },
-      required: ["period"],
-    },
-  },
-  {
-    name: "get_revenue_analysis",
-    description:
-      "Detaljert inntektsanalyse: total omsetning, fordelt per konto/kategori, trend over tid, og sammenligning med en annen periode.",
-    input_schema: {
-      type: "object",
-      properties: {
-        period: periodParam,
-        comparison: comparisonParam,
-      },
-      required: ["period"],
-    },
-  },
-  {
-    name: "get_profit_analysis",
-    description:
-      "Resultatanalyse: bruttofortjeneste, driftsresultat, nettoresultat, marginer, og sammenligning med en annen periode.",
-    input_schema: {
-      type: "object",
-      properties: {
-        period: periodParam,
-        comparison: comparisonParam,
-      },
-      required: ["period"],
-    },
-  },
-  {
-    name: "get_cost_analysis",
-    description:
-      "Kostnadsanalyse: totale kostnader fordelt per kategori (varekost, lønn, husleie, etc.), største kostnadsposter, og sammenligning.",
-    input_schema: {
-      type: "object",
-      properties: {
-        period: periodParam,
-        comparison: comparisonParam,
-      },
-      required: ["period"],
-    },
-  },
-  {
-    name: "get_account_breakdown",
-    description:
-      "Detaljert nedbrytning av en bestemt konto eller kontokategori: saldo, transaksjoner, og trend.",
-    input_schema: {
-      type: "object",
-      properties: {
-        account_or_category: {
-          type: "string",
-          description:
-            "Kontonummer (f.eks. '3000') eller kategorinøkkel (f.eks. 'revenue', 'salary_costs').",
-        },
-        period: periodParam,
-      },
-      required: ["account_or_category", "period"],
-    },
-  },
+  tool("get_financial_summary",
+    "Henter en helhetlig finansiell oppsummering for en gitt periode: omsetning, kostnader, resultat, kontantbeholdning, utestående fordringer og gjeld. Bruk denne for generelle spørsmål om hvordan det går.",
+    { properties: { period: periodParam }, required: ["period"] }),
 
-  // ── Receivables & payables ──────────────────────────────────────────
-  {
-    name: "get_customer_receivables",
-    description:
-      "Oversikt over utestående kundefordringer: total, aldersfordelt (0-30, 31-60, 61-90, 90+ dager), største debitorer.",
-    input_schema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
-    name: "get_customer_payment_profile",
-    description:
-      "Betalingsprofil for en bestemt kunde: gjennomsnittlig betalingstid, forfalte fakturaer, betalingshistorikk, risikoscore.",
-    input_schema: {
-      type: "object",
-      properties: {
-        customer_id: {
-          type: "string",
-          description: "Kunde-ID fra databasen.",
-        },
-      },
-      required: ["customer_id"],
-    },
-  },
-  {
-    name: "get_overdue_invoices",
-    description:
-      "Liste over alle forfalte fakturaer med detaljer: kunde, beløp, forfallsdato, dager over forfall.",
-    input_schema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
-    name: "get_supplier_payables",
-    description:
-      "Oversikt over leverandørgjeld: total, aldersfordelt, kommende forfall, største kreditorer.",
-    input_schema: {
-      type: "object",
-      properties: {},
-    },
-  },
+  tool("get_revenue_analysis",
+    "Detaljert inntektsanalyse: total omsetning, fordelt per konto/kategori, trend over tid, og sammenligning med en annen periode.",
+    { properties: { period: periodParam, comparison: comparisonParam }, required: ["period"] }),
 
-  // ── Cash & forecasting ──────────────────────────────────────────────
-  {
-    name: "get_upcoming_obligations",
-    description:
-      "Kommende betalingsforpliktelser innen angitt antall dager: leverandørfakturaer, lønn, MVA-termin, skatt, faste kostnader.",
-    input_schema: {
-      type: "object",
-      properties: {
-        days: {
-          type: "number",
-          description: "Antall dager fremover å se på (standard 30).",
-        },
-      },
-    },
-  },
-  {
-    name: "get_cash_forecast",
-    description:
-      "Kontantstrømprognose for de neste N dagene: forventet inn, forventet ut, estimert saldo per dag/uke.",
-    input_schema: {
-      type: "object",
-      properties: {
-        days: {
-          type: "number",
-          description: "Prognosehorisont i dager (standard 30, maks 90).",
-        },
-      },
-    },
-  },
+  tool("get_profit_analysis",
+    "Resultatanalyse: bruttofortjeneste, driftsresultat, nettoresultat, marginer, og sammenligning med en annen periode.",
+    { properties: { period: periodParam, comparison: comparisonParam }, required: ["period"] }),
 
-  // ── Tax & VAT ───────────────────────────────────────────────────────
-  {
-    name: "get_vat_estimate",
-    description:
-      "Estimert MVA-oppgjør for inneværende termin: utgående MVA, inngående MVA, netto å betale/tilgode, frist.",
-    input_schema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
-    name: "get_tax_estimate",
-    description:
-      "Estimert skatt for inneværende år basert på hittil bokført resultat.",
-    input_schema: {
-      type: "object",
-      properties: {},
-    },
-  },
+  tool("get_cost_analysis",
+    "Kostnadsanalyse: totale kostnader fordelt per kategori (varekost, lønn, husleie, etc.), største kostnadsposter, og sammenligning.",
+    { properties: { period: periodParam, comparison: comparisonParam }, required: ["period"] }),
 
-  // ── Accounting advice tools ─────────────────────────────────────────
-  {
-    name: "get_chart_of_accounts",
-    description:
-      "Henter selskapets kontoplan fra regnskapssystemet. Brukes for å gi konkrete kontoanbefalinger.",
-    input_schema: {
-      type: "object",
-      properties: {},
-    },
-  },
-  {
-    name: "find_similar_vendor_transactions",
-    description:
-      "Finner tidligere transaksjoner for en leverandør for å se hvordan tilsvarende bilag har vært bokført.",
-    input_schema: {
-      type: "object",
-      properties: {
-        vendor_name: {
-          type: "string",
-          description: "Leverandørnavn (delvis treff støttes).",
-        },
-      },
-      required: ["vendor_name"],
-    },
-  },
-  {
-    name: "find_similar_description_transactions",
-    description:
-      "Finner transaksjoner med lignende beskrivelse for å identifisere vanlig kontering.",
-    input_schema: {
-      type: "object",
-      properties: {
-        text: {
-          type: "string",
-          description: "Søketekst fra bilagsbeskrivelse.",
-        },
-      },
-      required: ["text"],
-    },
-  },
-  {
-    name: "get_vendor_posting_history",
-    description:
-      "Henter den vanligste posteringsmåten for en leverandør: typisk konto, MVA-kode, og kategori basert på historikk.",
-    input_schema: {
-      type: "object",
-      properties: {
-        vendor_name: {
-          type: "string",
-          description: "Leverandørnavn.",
-        },
-      },
-      required: ["vendor_name"],
-    },
-  },
-  {
-    name: "search_accounting_rules",
-    description:
-      "Søker i regnskapsregler og norsk bokføringslov etter relevant veiledning for et emne (f.eks. MVA-fradrag, representasjon, firmabil).",
-    input_schema: {
-      type: "object",
-      properties: {
-        topic: {
-          type: "string",
-          description:
-            "Emne å søke etter (f.eks. 'representasjon', 'firmabil', 'mva fradrag').",
-        },
-      },
-      required: ["topic"],
-    },
-  },
+  tool("get_account_breakdown",
+    "Detaljert nedbrytning av en bestemt konto eller kontokategori: saldo, transaksjoner, og trend.",
+    { properties: { account_or_category: { type: "string", description: "Kontonummer (f.eks. '3000') eller kategorinøkkel (f.eks. 'revenue', 'salary_costs')." }, period: periodParam }, required: ["account_or_category", "period"] }),
 
-  // ── Scenario analysis ───────────────────────────────────────────────
-  {
-    name: "run_scenario",
-    description:
-      'Kjører en "hva om"-analyse: simulerer effekten av en endring (ny ansettelse, investering, prisendring) på økonomi og likviditet.',
-    input_schema: {
-      type: "object",
-      properties: {
-        parameters: {
-          type: "object",
-          description:
-            "Scenarioparametre. Eksempler: { type: 'new_hire', monthly_salary: 50000, start_month: '2025-03' } eller { type: 'investment', amount: 200000, financing: 'loan', term_months: 36 }.",
-          properties: {
-            type: {
-              type: "string",
-              description:
-                'Scenariotype: "new_hire", "investment", "price_change", "cost_reduction", "revenue_growth", "custom".',
-            },
-          },
-        },
-      },
-      required: ["parameters"],
-    },
-  },
+  tool("get_customer_receivables",
+    "Oversikt over utestående kundefordringer: total, aldersfordelt (0-30, 31-60, 61-90, 90+ dager), største debitorer.",
+    { properties: {} }),
+
+  tool("get_customer_payment_profile",
+    "Betalingsprofil for en bestemt kunde: gjennomsnittlig betalingstid, forfalte fakturaer, betalingshistorikk, risikoscore.",
+    { properties: { customer_id: { type: "string", description: "Kunde-ID fra databasen." } }, required: ["customer_id"] }),
+
+  tool("get_overdue_invoices",
+    "Liste over alle forfalte fakturaer med detaljer: kunde, beløp, forfallsdato, dager over forfall.",
+    { properties: {} }),
+
+  tool("get_supplier_payables",
+    "Oversikt over leverandørgjeld: total, aldersfordelt, kommende forfall, største kreditorer.",
+    { properties: {} }),
+
+  tool("get_upcoming_obligations",
+    "Kommende betalingsforpliktelser innen angitt antall dager: leverandørfakturaer, lønn, MVA-termin, skatt, faste kostnader.",
+    { properties: { days: { type: "number", description: "Antall dager fremover å se på (standard 30)." } } }),
+
+  tool("get_cash_forecast",
+    "Kontantstrømprognose for de neste N dagene: forventet inn, forventet ut, estimert saldo per dag/uke.",
+    { properties: { days: { type: "number", description: "Prognosehorisont i dager (standard 30, maks 90)." } } }),
+
+  tool("get_vat_estimate",
+    "Estimert MVA-oppgjør for inneværende termin: utgående MVA, inngående MVA, netto å betale/tilgode, frist.",
+    { properties: {} }),
+
+  tool("get_tax_estimate",
+    "Estimert skatt for inneværende år basert på hittil bokført resultat.",
+    { properties: {} }),
+
+  tool("get_chart_of_accounts",
+    "Henter selskapets kontoplan fra regnskapssystemet. Brukes for å gi konkrete kontoanbefalinger.",
+    { properties: {} }),
+
+  tool("find_similar_vendor_transactions",
+    "Finner tidligere transaksjoner for en leverandør for å se hvordan tilsvarende bilag har vært bokført.",
+    { properties: { vendor_name: { type: "string", description: "Leverandørnavn (delvis treff støttes)." } }, required: ["vendor_name"] }),
+
+  tool("find_similar_description_transactions",
+    "Finner transaksjoner med lignende beskrivelse for å identifisere vanlig kontering.",
+    { properties: { text: { type: "string", description: "Søketekst fra bilagsbeskrivelse." } }, required: ["text"] }),
+
+  tool("get_vendor_posting_history",
+    "Henter den vanligste posteringsmåten for en leverandør: typisk konto, MVA-kode, og kategori basert på historikk.",
+    { properties: { vendor_name: { type: "string", description: "Leverandørnavn." } }, required: ["vendor_name"] }),
+
+  tool("search_accounting_rules",
+    "Søker i regnskapsregler og norsk bokføringslov etter relevant veiledning for et emne (f.eks. MVA-fradrag, representasjon, firmabil).",
+    { properties: { topic: { type: "string", description: "Emne å søke etter (f.eks. 'representasjon', 'firmabil', 'mva fradrag')." } }, required: ["topic"] }),
+
+  tool("run_scenario",
+    'Kjører en "hva om"-analyse: simulerer effekten av en endring (ny ansettelse, investering, prisendring) på økonomi og likviditet.',
+    { properties: { parameters: { type: "object", description: "Scenarioparametre. Eksempler: { type: 'new_hire', monthly_salary: 50000 } eller { type: 'investment', amount: 200000 }.", properties: { type: { type: "string", description: 'Scenariotype: "new_hire", "investment", "price_change", "cost_reduction", "revenue_growth", "custom".' } } } }, required: ["parameters"] }),
 ];

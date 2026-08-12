@@ -105,9 +105,9 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
   }
 
   async testConnection(): Promise<boolean> {
-    this.ensureConnected();
+    const client = this.getClient();
     try {
-      await this.client!.getClientIntegrationInfo();
+      await client.getClientIntegrationInfo();
       return true;
     } catch {
       return false;
@@ -119,8 +119,8 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
   // -------------------------------------------------------------------------
 
   async getIntegrationInfo(): Promise<IntegrationInfo> {
-    this.ensureConnected();
-    const info = await this.client!.getClientIntegrationInfo();
+    const client = this.getClient();
+    const info = await client.getClientIntegrationInfo();
 
     return {
       provider: this.provider,
@@ -134,8 +134,8 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
   }
 
   async getFinancialSettings(): Promise<FinancialSettings> {
-    this.ensureConnected();
-    const settings = await this.client!.getFinancialSettings();
+    const client = this.getClient();
+    const settings = await client.getFinancialSettings();
 
     return {
       baseCurrency: settings.baseCurrencyCode,
@@ -149,28 +149,23 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
   }
 
   async getChartOfAccounts(): Promise<ExternalGLAccount[]> {
-    this.ensureConnected();
-    const accounts = await this.client!.getGeneralLedgerAccounts();
+    const accounts = await this.getClient().getGeneralLedgerAccounts();
     return accounts.map(mapGLAccount);
   }
 
   async getVatCodes(): Promise<ExternalVatCode[]> {
-    this.ensureConnected();
-    const codes = await this.client!.getVatCodes();
+    const codes = await this.getClient().getVatCodes();
     return codes.map(mapVatCode);
   }
 
   async getTrialBalance(date: Date): Promise<ExternalTrialBalanceEntry[]> {
-    this.ensureConnected();
-    const entries = await this.client!.getTrialBalance(date);
+    const entries = await this.getClient().getTrialBalance(date);
     return entries.map(mapTrialBalanceEntry);
   }
 
   async getAccountTransactions(
     params: TransactionQueryParams
   ): Promise<ExternalTransaction[]> {
-    this.ensureConnected();
-
     const poParams = {
       fromDate: params.fromDate
         ? formatDate(params.fromDate)
@@ -181,27 +176,23 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
       accountNos: params.accountNumbers,
     };
 
-    const transactions = await this.client!.getAccountTransactions(poParams);
+    const transactions = await this.getClient().getAccountTransactions(poParams);
     return transactions.map(mapTransaction);
   }
 
   async getCustomers(): Promise<ExternalCustomer[]> {
-    this.ensureConnected();
-    const customers = await this.client!.getCustomers();
+    const customers = await this.getClient().getCustomers();
     return customers.map(mapCustomer);
   }
 
   async getSuppliers(): Promise<ExternalSupplier[]> {
-    this.ensureConnected();
-    const suppliers = await this.client!.getSuppliers();
+    const suppliers = await this.getClient().getSuppliers();
     return suppliers.map(mapSupplier);
   }
 
   async getCustomerLedger(
     params: LedgerQueryParams
   ): Promise<ExternalLedgerEntry[]> {
-    this.ensureConnected();
-
     const poParams = {
       contactId: params.entityId ? parseInt(params.entityId, 10) : undefined,
       fromDate: params.fromDate
@@ -211,15 +202,13 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
       openItemsOnly: params.openItemsOnly,
     };
 
-    const entries = await this.client!.getCustomerLedger(poParams);
+    const entries = await this.getClient().getCustomerLedger(poParams);
     return entries.map(mapLedgerEntry);
   }
 
   async getSupplierLedger(
     params: LedgerQueryParams
   ): Promise<ExternalLedgerEntry[]> {
-    this.ensureConnected();
-
     const poParams = {
       contactId: params.entityId ? parseInt(params.entityId, 10) : undefined,
       fromDate: params.fromDate
@@ -229,15 +218,13 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
       openItemsOnly: params.openItemsOnly,
     };
 
-    const entries = await this.client!.getSupplierLedger(poParams);
+    const entries = await this.getClient().getSupplierLedger(poParams);
     return entries.map(mapLedgerEntry);
   }
 
   async getOutgoingInvoices(
     params: InvoiceQueryParams
   ): Promise<ExternalInvoice[]> {
-    this.ensureConnected();
-
     const poParams = {
       fromDate: params.fromDate
         ? formatDate(params.fromDate)
@@ -249,15 +236,13 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
         : undefined,
     };
 
-    const invoices = await this.client!.getOutgoingInvoices(poParams);
+    const invoices = await this.getClient().getOutgoingInvoices(poParams);
     return invoices.map(mapInvoice);
   }
 
   async getIncomingInvoices(
     params: InvoiceQueryParams
   ): Promise<ExternalInvoice[]> {
-    this.ensureConnected();
-
     const poParams = {
       fromDate: params.fromDate
         ? formatDate(params.fromDate)
@@ -269,19 +254,17 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
         : undefined,
     };
 
-    const invoices = await this.client!.getIncomingInvoices(poParams);
+    const invoices = await this.getClient().getIncomingInvoices(poParams);
     return invoices.map(mapInvoice);
   }
 
   async getProjects(): Promise<ExternalProject[]> {
-    this.ensureConnected();
-    const projects = await this.client!.getProjects();
+    const projects = await this.getClient().getProjects();
     return projects.map(mapProject);
   }
 
   async getDepartments(): Promise<ExternalDepartment[]> {
-    this.ensureConnected();
-    const departments = await this.client!.getDepartments();
+    const departments = await this.getClient().getDepartments();
     return departments.map(mapDepartment);
   }
 
@@ -289,12 +272,16 @@ export class PowerOfficeAdapter implements AccountingSystemAdapter {
   // Internal
   // -------------------------------------------------------------------------
 
-  private ensureConnected(): asserts this is { client: PowerOfficeClient } {
+  /**
+   * Return the connected client or throw if not yet connected.
+   */
+  private getClient(): PowerOfficeClient {
     if (!this.client) {
       throw new Error(
         "PowerOfficeAdapter is not connected. Call connect() first."
       );
     }
+    return this.client;
   }
 }
 

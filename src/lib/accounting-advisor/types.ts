@@ -350,7 +350,7 @@ export interface CommonScenario {
     deductible: boolean;
     notes_nb: string;
   };
-  treatment: "expense" | "capitalize" | "depends";
+  treatment: "expense" | "capitalize" | "depends" | "review_needed";
   risk_level: "low" | "medium" | "high";
   notes_nb: string;
   conditions_nb?: string;

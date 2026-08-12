@@ -458,8 +458,7 @@ export class PowerOfficeClient {
     const allData: T[] = [];
     let page = 1;
 
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
+    for (;;) {
       const response = await this.request<PaginatedResponse<T>>("GET", path, {
         ...params,
         page: page,
