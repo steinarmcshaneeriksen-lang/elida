@@ -9,13 +9,14 @@ import {
   LoadingState,
   ErrorState,
 } from "@/components/dashboard/empty-state";
-import { ArrowUpDown, AlertTriangle, ChevronRight } from "lucide-react";
+import { ArrowUpDown, AlertTriangle, ChevronRight, Info } from "lucide-react";
 
 interface CustomerRow {
   id: string;
   name: string;
   org_number: string | null;
-  outstanding: number;
+  outstanding: number | null;
+  period_movement: number;
   revenue: number;
   posting_count: number;
   last_activity: string | null;
@@ -57,11 +58,11 @@ export default function KunderPage() {
 
   const outstandingIsStated = customers.some((c) => c.outstanding_is_stated);
   const totalOutstanding = customers.reduce(
-    (s, c) => s + Math.max(0, c.outstanding),
+    (s, c) => s + Math.max(0, c.outstanding ?? 0),
     0
   );
   const totalRevenue = customers.reduce((s, c) => s + c.revenue, 0);
-  const owingCount = customers.filter((c) => c.outstanding > 0).length;
+  const owingCount = customers.filter((c) => (c.outstanding ?? 0) > 0).length;
 
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState message={error} />;
@@ -76,15 +77,31 @@ export default function KunderPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
+      {!outstandingIsStated && (
+        <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
+          <Info size={18} className="mt-0.5 shrink-0 text-warning" />
+          <p className="text-sm text-foreground-secondary">
+            SAF-T-filen oppgir ikke saldo per kunde, så Elida kan ikke si hva
+            den enkelte kunden skylder. Posteringene i perioden viser bare
+            bevegelsen — en faktura fra i fjor som betales i år framstår som en
+            reduksjon. Omsetning og aktivitet under er derimot korrekt.
+            Totalt utestående for selskapet finner du under Likviditet.
+          </p>
+        </div>
+      )}
+
       {/* Summary */}
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">
-            {outstandingIsStated ? "Totalt utestående" : "Endring i fordringer"}
-          </p>
+          <p className="text-sm text-foreground-muted">Totalt utestående</p>
           <p className="mt-1 text-2xl font-bold text-foreground">
-            {formatCurrency(totalOutstanding)}
+            {outstandingIsStated ? formatCurrency(totalOutstanding) : "—"}
           </p>
+          {!outstandingIsStated && (
+            <p className="mt-1 text-xs text-foreground-muted">
+              Ikke oppgitt per kunde i filen
+            </p>
+          )}
         </div>
         <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
           <p className="text-sm text-foreground-muted">Omsetning i perioden</p>
@@ -97,9 +114,11 @@ export default function KunderPage() {
           <p className="mt-1 text-2xl font-bold text-foreground">
             {customers.length}
           </p>
-          <p className="mt-0.5 text-xs text-foreground-muted">
-            {owingCount} med utestående
-          </p>
+          {outstandingIsStated && (
+            <p className="mt-0.5 text-xs text-foreground-muted">
+              {owingCount} med utestående
+            </p>
+          )}
         </div>
       </div>
 
@@ -116,7 +135,7 @@ export default function KunderPage() {
                 onSort={toggleSort}
               />
               <SortableHeader
-                label={outstandingIsStated ? "Utestående" : "Endring"}
+                label="Utestående"
                 sortKey="outstanding"
                 currentKey={sortKey}
                 direction={sortDir}
@@ -153,13 +172,22 @@ export default function KunderPage() {
                   {customer.name}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {customer.outstanding > 0 ? (
-                    <span className="flex items-center justify-end gap-1 font-medium text-foreground">
-                      <AlertTriangle size={12} className="text-warning" />
-                      {formatCurrency(customer.outstanding)}
-                    </span>
+                  {customer.outstanding_is_stated ? (
+                    (customer.outstanding ?? 0) > 0 ? (
+                      <span className="flex items-center justify-end gap-1 font-medium text-foreground">
+                        <AlertTriangle size={12} className="text-warning" />
+                        {formatCurrency(customer.outstanding ?? 0)}
+                      </span>
+                    ) : (
+                      <span className="text-foreground-muted">—</span>
+                    )
                   ) : (
-                    <span className="text-foreground-muted">—</span>
+                    <span
+                      className="text-foreground-muted"
+                      title="SAF-T-filen oppgir ikke saldo per kunde"
+                    >
+                      —
+                    </span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-foreground-secondary">

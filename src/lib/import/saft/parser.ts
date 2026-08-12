@@ -75,6 +75,68 @@ function firstKey(node: Node | undefined, ...names: string[]): unknown {
   return undefined;
 }
 
+/**
+ * Collects balance figures from anywhere inside a node.
+ *
+ * SAF-T moved these between versions: up to 1.2 a party carried
+ * OpeningDebitBalance and friends directly, while 1.3 removed them in favour
+ * of BalanceAccountStructure, which nests them under one or more balance
+ * accounts. Searching by element name at any depth reads both, and survives
+ * the next rearrangement, instead of hard-coding one version's shape.
+ *
+ * Several balance accounts are summed, which is the point of the 1.3
+ * structure — a party may be carried on more than one ledger account.
+ */
+function collectBalances(node: unknown): {
+  opening: number | null;
+  closing: number | null;
+} {
+  let openingDebit: number | null = null;
+  let openingCredit: number | null = null;
+  let closingDebit: number | null = null;
+  let closingCredit: number | null = null;
+
+  const add = (current: number | null, value: number | null) =>
+    value == null ? current : (current ?? 0) + value;
+
+  const walk = (value: unknown, depth: number): void => {
+    if (value == null || typeof value !== "object" || depth > 6) return;
+
+    for (const [key, child] of Object.entries(value as Node)) {
+      switch (key) {
+        case "OpeningDebitBalance":
+          openingDebit = add(openingDebit, num(child));
+          continue;
+        case "OpeningCreditBalance":
+          openingCredit = add(openingCredit, num(child));
+          continue;
+        case "ClosingDebitBalance":
+          closingDebit = add(closingDebit, num(child));
+          continue;
+        case "ClosingCreditBalance":
+          closingCredit = add(closingCredit, num(child));
+          continue;
+      }
+
+      if (Array.isArray(child)) {
+        for (const entry of child) walk(entry, depth + 1);
+      } else if (typeof child === "object") {
+        walk(child, depth + 1);
+      }
+    }
+  };
+
+  walk(node, 0);
+
+  const net = (debit: number | null, credit: number | null) =>
+    debit == null && credit == null ? null : (debit ?? 0) - (credit ?? 0);
+
+  return {
+    opening: net(openingDebit, openingCredit),
+    closing: net(closingDebit, closingCredit),
+  };
+}
+
 /** Flattens a SAF-T <Address> block into a single line. */
 function addressLine(node: unknown): string | null {
   const a = asArray(node)[0];
@@ -179,21 +241,15 @@ function parseAccounts(masterFiles: Node): SaftAccount[] {
     const accountId = str(a.AccountID);
     if (!accountId) continue;
 
-    // Stated as separate debit and credit figures; net them so the sign
-    // matches the postings, which are stored debit-positive.
-    const net = (debit: unknown, credit: unknown) => {
-      const d = num(debit);
-      const c = num(credit);
-      return d == null && c == null ? null : (d ?? 0) - (c ?? 0);
-    };
+    const balances = collectBalances(a);
 
     result.push({
       accountId,
       description: str(a.AccountDescription),
       standardAccountId: str(a.StandardAccountID),
       accountType: str(a.AccountType),
-      openingBalance: net(a.OpeningDebitBalance, a.OpeningCreditBalance),
-      closingBalance: net(a.ClosingDebitBalance, a.ClosingCreditBalance),
+      openingBalance: balances.opening,
+      closingBalance: balances.closing,
     });
   }
   return result;
@@ -215,16 +271,10 @@ function parseParties(container: unknown, idField: string): SaftParty[] {
     const contact = asArray(p.Contact)[0];
     const address = asArray(p.Address)[0];
 
-    // SAF-T states each party's balance as separate debit and credit figures.
-    // Netting them gives a single signed balance; which side is "owed to us"
-    // differs between customers and suppliers and is settled at import.
-    const openingDebit = num(p.OpeningDebitBalance);
-    const openingCredit = num(p.OpeningCreditBalance);
-    const closingDebit = num(p.ClosingDebitBalance);
-    const closingCredit = num(p.ClosingCreditBalance);
-
-    const net = (debit: number | null, credit: number | null) =>
-      debit == null && credit == null ? null : (debit ?? 0) - (credit ?? 0);
+    // Balances may sit directly on the party (SAF-T up to 1.2) or nested in
+    // BalanceAccountStructure (1.3 onwards), so they are collected by name at
+    // any depth rather than from one fixed position.
+    const balances = collectBalances(p);
 
     result.push({
       partyId,
@@ -234,8 +284,8 @@ function parseParties(container: unknown, idField: string): SaftParty[] {
       phone: str(firstKey(contact, "Telephone", "Phone", "MobilePhone")),
       address: addressLine(p.Address),
       country: str(address?.Country),
-      openingBalance: net(openingDebit, openingCredit),
-      closingBalance: net(closingDebit, closingCredit),
+      openingBalance: balances.opening,
+      closingBalance: balances.closing,
     });
   }
   return result;

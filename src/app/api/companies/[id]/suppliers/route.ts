@@ -54,16 +54,16 @@ export async function GET(
         supplier_number: s.supplier_number,
         org_number: s.org_number,
         is_possible_private_person: s.is_possible_private_person,
-        outstanding: s.closing_balance ?? agg?.outstanding ?? 0,
-        outstanding_is_stated:
-          s.closing_balance != null || (agg?.outstanding_is_stated ?? false),
+        outstanding: s.closing_balance ?? null,
+        outstanding_is_stated: s.closing_balance != null,
+        period_movement: Number(agg?.outstanding ?? 0),
         cost: Number(agg?.cost ?? 0),
         posting_count: Number(agg?.posting_count ?? 0),
         last_activity: agg?.last_activity ?? null,
       };
     });
 
-    // Biggest spend first.
+    // Biggest spend first — cost is derivable regardless of stated balances.
     suppliers.sort((a, b) => b.cost - a.cost);
 
     return NextResponse.json({ suppliers });

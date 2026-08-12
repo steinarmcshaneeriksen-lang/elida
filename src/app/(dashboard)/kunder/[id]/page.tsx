@@ -17,8 +17,9 @@ interface CustomerDetail {
     phone: string | null;
     address: string | null;
   };
-  outstanding: number;
+  outstanding: number | null;
   outstanding_is_stated: boolean;
+  period_movement: number;
   revenue: number;
   posting_count: number;
   last_activity: string | null;
@@ -162,19 +163,19 @@ export default function KundeDetaljPage() {
               value={formatCurrency(data.revenue)}
             />
             <StatCard
-              label={
+              label="Utestående"
+              value={
                 data.outstanding_is_stated
-                  ? "Utestående"
-                  : "Endring i kundefordring"
+                  ? formatCurrency(data.outstanding ?? 0)
+                  : "—"
               }
-              value={formatCurrency(data.outstanding)}
               detail={
                 data.outstanding_is_stated
                   ? undefined
-                  : "Ikke saldo — se merknad under"
+                  : "Ikke oppgitt i filen — se merknad"
               }
               tone={
-                data.outstanding_is_stated && data.outstanding > 0
+                data.outstanding_is_stated && (data.outstanding ?? 0) > 0
                   ? "warning"
                   : undefined
               }
@@ -193,11 +194,13 @@ export default function KundeDetaljPage() {
               <Info size={18} className="mt-0.5 shrink-0 text-warning" />
               <p className="text-sm text-foreground-secondary">
                 SAF-T-filen oppgir ikke saldo per kunde, bare posteringene i
-                perioden. Tallet over er derfor <em>endringen</em> i
-                kundefordringen, ikke hva kunden skylder. En faktura fra i fjor
-                som betales i år gir bare innbetalingen — og dermed et negativt
-                tall. Last opp foregående år, eller hent saldoen fra
-                regnskapssystemet, for et korrekt utestående.
+                perioden, så Elida kan ikke si hva denne kunden skylder. Til
+                orientering er bevegelsen på kundefordringen i perioden{" "}
+                <span className="font-medium text-foreground">
+                  {formatCurrency(data.period_movement)}
+                </span>
+                {" "}— det er ikke en gjeld, siden fakturaer fra før perioden
+                ikke er med. Omsetning og kjøpshistorikk under er korrekt.
               </p>
             </div>
           )}

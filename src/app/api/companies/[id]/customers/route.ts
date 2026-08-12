@@ -58,19 +58,29 @@ export async function GET(
         customer_number: c.customer_number,
         org_number: c.org_number,
         email: c.email,
-        // The stated balance wins; the aggregate is the fallback for files
-        // that omit party balances.
-        outstanding: c.closing_balance ?? agg?.outstanding ?? 0,
-        outstanding_is_stated:
-          c.closing_balance != null || (agg?.outstanding_is_stated ?? false),
+        // Only report an outstanding amount when the file actually states
+        // one. The alternative is the movement within the period, which is
+        // not a debt and misleads if shown as one.
+        outstanding: c.closing_balance ?? null,
+        outstanding_is_stated: c.closing_balance != null,
+        // Kept separately so the detail page can still show the movement,
+        // clearly named, without it standing in for a balance.
+        period_movement: Number(agg?.outstanding ?? 0),
         revenue: Number(agg?.revenue ?? 0),
         posting_count: Number(agg?.posting_count ?? 0),
         last_activity: agg?.last_activity ?? null,
       };
     });
 
-    // Largest debtors first — the question this page exists to answer.
-    customers.sort((a, b) => b.outstanding - a.outstanding);
+    // Sort by what is actually known. Where balances are stated, largest
+    // debtor first answers the question the page exists for; otherwise
+    // revenue is the meaningful ranking.
+    const anyStated = customers.some((c) => c.outstanding_is_stated);
+    customers.sort((a, b) =>
+      anyStated
+        ? (b.outstanding ?? 0) - (a.outstanding ?? 0)
+        : b.revenue - a.revenue
+    );
 
     return NextResponse.json({ customers });
   } catch (error) {

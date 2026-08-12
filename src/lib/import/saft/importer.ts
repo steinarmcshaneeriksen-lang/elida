@@ -67,6 +67,7 @@ export async function importSaft(
   counts.departments = departments;
   counts.projects = projects;
 
+  reportPartyBalances(file, warnings);
   checkBalance(file, warnings);
 
   const ledger = await importLedger(supabase, companyId, file, warnings);
@@ -88,6 +89,38 @@ export async function importSaft(
   }
 
   return { header: file.header, counts, warnings, years };
+}
+
+/**
+ * Whether the file states a balance per customer and supplier decides whether
+ * Elida can answer "what does this customer owe us". Saying so at import time
+ * is better than leaving the question to be discovered on an empty column.
+ */
+function reportPartyBalances(file: SaftFile, warnings: string[]): void {
+  const withBalance = (parties: { closingBalance: number | null }[]) =>
+    parties.filter((p) => p.closingBalance != null).length;
+
+  const customers = withBalance(file.customers);
+  const suppliers = withBalance(file.suppliers);
+
+  if (file.customers.length > 0 && customers === 0) {
+    warnings.push(
+      "Filen oppgir ingen saldo per kunde, så Elida kan ikke vise hva den " +
+        "enkelte kunden skylder. Totalt utestående for selskapet beregnes " +
+        "likevel fra kontosaldoene."
+    );
+  }
+  if (file.suppliers.length > 0 && suppliers === 0) {
+    warnings.push(
+      "Filen oppgir ingen saldo per leverandør. Totalen beregnes fra " +
+        "kontosaldoene."
+    );
+  }
+  if (customers > 0 || suppliers > 0) {
+    warnings.push(
+      `Saldo funnet for ${customers} kunder og ${suppliers} leverandører.`
+    );
+  }
 }
 
 /**
