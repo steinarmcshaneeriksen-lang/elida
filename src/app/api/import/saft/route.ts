@@ -4,6 +4,7 @@ import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { parseSaft } from "@/lib/import/saft/parser";
 import { importSaft } from "@/lib/import/saft/importer";
 import { SaftParseError } from "@/lib/import/saft/types";
+import { checkRateLimit, rateLimitResponse } from "@/app/api/_lib/rate-limit";
 
 /**
  * POST /api/import/saft
@@ -43,6 +44,12 @@ export async function POST(request: NextRequest) {
 
     const auth = await verifyCompanyAccess(companyId);
     if (auth instanceof NextResponse) return auth;
+
+    // Parsing a large SAF-T file is expensive; a handful per hour is ample.
+    const limit = checkRateLimit(`saft:${auth.userId}`, 10, 60 * 60_000);
+    if (!limit.allowed) {
+      return rateLimitResponse(limit) as NextResponse;
+    }
 
     if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -117,10 +124,15 @@ export async function POST(request: NextRequest) {
         .eq("id", runId) as never);
     }
 
+    // Parse errors describe the user's own file and are safe to return.
+    // Anything else may carry database or internal detail, so keep it in the
+    // server log and hand the caller a generic message.
     if (error instanceof SaftParseError) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
-    return errorResponse(message);
+    return errorResponse(
+      "Importen feilet. Kontroller at filen er en gyldig SAF-T-eksport, og prøv igjen."
+    );
   }
 }
 

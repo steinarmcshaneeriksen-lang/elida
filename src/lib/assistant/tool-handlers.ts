@@ -10,6 +10,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeFilterTerm } from "@/lib/supabase/filter";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -835,7 +836,14 @@ const getVendorPostingHistory: ToolHandler = async (companyId, params) => {
 
 const searchAccountingRules: ToolHandler = async (companyId, params) => {
   const topic = params.topic as string;
+  // The topic originates from a model tool call, which an uploaded document
+  // can influence, so it must not reach the filter string unescaped.
+  const safeTopic = sanitizeFilterTerm(topic ?? "");
   void companyId; // Rules are not company-specific, but we keep the signature consistent
+
+  if (!safeTopic) {
+    return { topic, rules: [], note: "Tomt eller ugyldig søkeord." };
+  }
 
   try {
     const supabase = await createClient();
@@ -843,7 +851,7 @@ const searchAccountingRules: ToolHandler = async (companyId, params) => {
       .from("accounting_rules")
       .select("*")
       .or(
-        `title_nb.ilike.%${topic}%,content_nb.ilike.%${topic}%,category.ilike.%${topic}%`
+        `title_nb.ilike.%${safeTopic}%,content_nb.ilike.%${safeTopic}%,category.ilike.%${safeTopic}%`
       )
       .limit(5);
 

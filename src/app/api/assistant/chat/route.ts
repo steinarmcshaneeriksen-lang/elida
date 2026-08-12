@@ -1,6 +1,8 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
+import { verifyCompanyAccess } from "@/app/api/_lib/auth";
+import { checkRateLimit, rateLimitResponse } from "@/app/api/_lib/rate-limit";
 import { TOOLS } from "@/lib/assistant/tools";
 import { executeTool } from "@/lib/assistant/tool-handlers";
 import { getSystemPrompt } from "@/lib/assistant/system-prompt";
@@ -104,6 +106,7 @@ async function storeMessage(
 
 async function getOrCreateConversation(
   companyId: string,
+  userId: string,
   conversationId?: string
 ): Promise<string> {
   const supabase = await createClient();
@@ -123,7 +126,7 @@ async function getOrCreateConversation(
     .from("assistant_conversations")
     .insert({
       company_id: companyId,
-      user_id: "system",
+      user_id: userId,
     })
     .select("id")
     .single();
@@ -177,6 +180,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Confirm the caller may act for this company before anything else.
+    // Row-level security would block the data, but without this check an
+    // unauthenticated request still reaches the billed OpenAI call.
+    const auth = await verifyCompanyAccess(company_id);
+    if (auth instanceof NextResponse) return auth;
+
+    // Each assistant turn costs money, so cap per user rather than per IP.
+    const limit = checkRateLimit(`chat:${auth.userId}`, 20, 60_000);
+    if (!limit.allowed) return rateLimitResponse(limit);
+
+    // Refuse oversized prompts outright instead of forwarding them.
+    if (message.length > 8000) {
+      return new Response(
+        JSON.stringify({ error: "Meldingen er for lang (maks 8000 tegn)." }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
     const apiKey = process.env.OPENAI_API_KEY;
     if (isPlaceholderKey(apiKey)) {
       // Returning invented figures here would be indistinguishable from a
@@ -191,7 +212,11 @@ export async function POST(request: NextRequest) {
     }
 
     const { companyName, dataQuality } = await getCompanyContext(company_id);
-    const convId = await getOrCreateConversation(company_id, conversation_id);
+    const convId = await getOrCreateConversation(
+      company_id,
+      auth.userId,
+      conversation_id
+    );
     const history = await loadConversationHistory(convId);
     await storeMessage(convId, "user", message);
 

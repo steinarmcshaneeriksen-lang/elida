@@ -8,6 +8,7 @@
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeArrayToken } from "@/lib/supabase/filter";
 import type {
   KnowledgeArticle,
   ArticleCategory,
@@ -28,9 +29,12 @@ export async function searchArticles(
 ): Promise<KnowledgeArticle[]> {
   const supabase = await createClient();
   const limit = options?.limit ?? 5;
+  // Terms are interpolated into an array-contains filter, so strip anything
+  // that could alter the array literal or append conditions.
   const terms = query
     .toLowerCase()
     .split(/\s+/)
+    .map(sanitizeArrayToken)
     .filter((t) => t.length > 2);
 
   let q = supabase
