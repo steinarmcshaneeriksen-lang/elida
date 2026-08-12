@@ -20,55 +20,55 @@ export const ESCALATION_RULES: EscalationRule[] = [
   {
     id: "esc-shareholder",
     category: "shareholder_transactions",
-    title_nb: "Aksjonaertransaksjoner",
+    title_nb: "Aksjonærtransaksjoner",
     description_nb:
-      "Transaksjoner mellom selskapet og aksjonaer/naerstaaende " +
-      "krever saerlig oppmerksomhet rundt armlengdeprinsippet, " +
+      "Transaksjoner mellom selskapet og aksjonær/nærstående " +
+      "krever særlig oppmerksomhet rundt armlengdeprinsippet, " +
       "uttaksbeskatning og dokumentasjonskrav.",
     keywords: [
-      "aksjonaer",
-      "aksjonerlaan",
-      "mellomvaerende",
-      "naerstaaende",
-      "aksjonaerkonto",
+      "aksjonær",
+      "aksjonærlån",
+      "mellomværende",
+      "nærstående",
+      "aksjonærkonto",
       "privatuttak",
-      "laan fra selskapet",
-      "laan til selskapet",
-      "aksjonerlaan",
+      "lån fra selskapet",
+      "lån til selskapet",
+      "aksjonærlån",
       "kapitalnedsettelse",
     ],
     severity: "warning",
     message_nb:
-      "Transaksjoner med aksjonaer/naerstaaende har komplekse regler. " +
-      "Anbefaler aa konsultere regnskapsforer for korrekt behandling.",
+      "Transaksjoner med aksjonær/nærstående har komplekse regler. " +
+      "Anbefaler å konsultere regnskapsfører for korrekt behandling.",
   },
   {
     id: "esc-dividend",
     category: "dividend",
     title_nb: "Utbytte",
     description_nb:
-      "Utbyttevedtak krever at formelle vilkaar er oppfylt " +
+      "Utbyttevedtak krever at formelle vilkår er oppfylt " +
       "(forsvarlig egenkapital og likviditet, generalforsamlingsvedtak). " +
       "Feil kan gi personlig ansvar for styret.",
     keywords: [
       "utbytte",
       "dividende",
       "utdeling",
-      "ekstraordinaert utbytte",
+      "ekstraordinært utbytte",
       "tilleggsutbytte",
-      "aksjonaerverdi",
+      "aksjonærverdi",
     ],
     severity: "block",
     message_nb:
       "Utbytte krever formelt vedtak og forsvarlighetsvurdering. " +
-      "Denne transaksjonen maa haandteres av regnskapsforer/revisor.",
+      "Denne transaksjonen må håndteres av regnskapsfører/revisor.",
   },
   {
     id: "esc-real-estate",
     category: "real_estate",
     title_nb: "Eiendomstransaksjoner",
     description_nb:
-      "Kjoep og salg av fast eiendom har komplekse regler for " +
+      "Kjøp og salg av fast eiendom har komplekse regler for " +
       "dokumentavgift, gevinstberegning, justeringsregler for MVA, " +
       "og eventuell frivillig MVA-registrering.",
     keywords: [
@@ -76,9 +76,9 @@ export const ESCALATION_RULES: EscalationRule[] = [
       "fast eiendom",
       "tomt",
       "bolig",
-      "naeringsbygg",
+      "næringsbygg",
       "bygning",
-      "eiendomskjoep",
+      "eiendomskjøp",
       "eiendomssalg",
       "dokumentavgift",
       "tinglysing",
@@ -88,7 +88,7 @@ export const ESCALATION_RULES: EscalationRule[] = [
     severity: "block",
     message_nb:
       "Eiendomstransaksjoner har komplekse skatte- og MVA-regler. " +
-      "Maa haandteres av regnskapsforer med eiendomskompetanse.",
+      "Må håndteres av regnskapsfører med eiendomskompetanse.",
   },
   {
     id: "esc-group",
@@ -112,7 +112,7 @@ export const ESCALATION_RULES: EscalationRule[] = [
     severity: "warning",
     message_nb:
       "Konserntransaksjoner krever internprisingsdokumentasjon " +
-      "og armlengdevurdering. Anbefaler aa involvere regnskapsforer.",
+      "og armlengdevurdering. Anbefaler å involvere regnskapsfører.",
   },
   {
     id: "esc-merger",
@@ -133,8 +133,8 @@ export const ESCALATION_RULES: EscalationRule[] = [
     ],
     severity: "block",
     message_nb:
-      "Fusjon/fisjon krever spesialisert raadgivning fra revisor " +
-      "og advokat. Kan ikke haandteres automatisk.",
+      "Fusjon/fisjon krever spesialisert rådgivning fra revisor " +
+      "og advokat. Kan ikke håndteres automatisk.",
   },
   {
     id: "esc-international-tax",
@@ -156,21 +156,21 @@ export const ESCALATION_RULES: EscalationRule[] = [
     ],
     severity: "block",
     message_nb:
-      "Internasjonal skatt krever spesialisert raadgivning. " +
-      "Anbefaler aa kontakte skatteraadgiver.",
+      "Internasjonal skatt krever spesialisert rådgivning. " +
+      "Anbefaler å kontakte skatterådgiver.",
   },
   {
     id: "esc-reorganization",
     category: "reorganization",
-    title_nb: "Storre omorganisering",
+    title_nb: "Større omorganisering",
     description_nb:
-      "Vesentlige organisasjonsendringer som paavirker selskapsstruktur, " +
+      "Vesentlige organisasjonsendringer som påvirker selskapsstruktur, " +
       "ansettelsesforhold, eller virksomhetsoverdraging.",
     keywords: [
       "omorganisering",
       "nedbemanning",
       "virksomhetsoverdragelse",
-      "oppkjoep",
+      "oppkjøp",
       "overtakelse",
       "avvikling",
       "konkurs",
@@ -180,21 +180,21 @@ export const ESCALATION_RULES: EscalationRule[] = [
     ],
     severity: "block",
     message_nb:
-      "Storre omorganiseringer krever juridisk og regnskapsfaglig bistand. " +
-      "Kan ikke haandteres automatisk.",
+      "Større omorganiseringer krever juridisk og regnskapsfaglig bistand. " +
+      "Kan ikke håndteres automatisk.",
   },
   {
     id: "esc-insufficient-facts",
     category: "insufficient_information",
-    title_nb: "Utilstrekkelig informasjon for vesentlige beloep",
+    title_nb: "Utilstrekkelig informasjon for vesentlige beløp",
     description_nb:
-      "Naar transaksjonsbelop er vesentlig og det mangler " +
-      "tilstrekkelig informasjon til aa gi et trygt raad.",
+      "Når transaksjonsbeløp er vesentlig og det mangler " +
+      "tilstrekkelig informasjon til å gi et trygt råd.",
     keywords: [],
     severity: "warning",
     message_nb:
-      "Det mangler informasjon for aa gi en sikker anbefaling paa " +
-      "dette belop. Anbefaler aa kontakte regnskapsforer.",
+      "Det mangler informasjon for å gi en sikker anbefaling på " +
+      "dette beløp. Anbefaler å kontakte regnskapsfører.",
   },
 ];
 
