@@ -39,6 +39,10 @@ interface FinancialsResponse {
   profit: {
     operating_profit: number;
     operating_margin_percent: number;
+    previous_operating_profit: number;
+    previous_operating_margin_percent: number | null;
+    operating_margin_change_points: number | null;
+    operating_profit_change_percent: number | null;
     change_percent: number | null;
   } | null;
 }
@@ -56,6 +60,8 @@ function monthLabel(isoMonth: string): string {
 
 interface RecurringResponse {
   has_data: boolean;
+  /** contracts: stated by an uploaded list. ledger: inferred from postings. */
+  source?: "contracts" | "ledger";
   totals: {
     product: number;
     licensed: number;
@@ -64,6 +70,9 @@ interface RecurringResponse {
     total: number;
     recurring_share: number;
     has_product_list: boolean;
+    mrr?: number;
+    contract_count?: number;
+    contracts_total?: number;
   } | null;
   items: Array<{
     description: string;
@@ -184,12 +193,19 @@ export default function OkonomiPage() {
             <SummaryCard
               label="Driftsresultat"
               value={formatCurrency(data.profit?.operating_profit ?? 0)}
-              change={data.profit?.change_percent ?? null}
+              change={data.profit?.operating_profit_change_percent ?? null}
             />
             <SummaryCard
               label="Driftsmargin"
               value={formatPercent(data.profit?.operating_margin_percent ?? 0)}
-              change={null}
+              change={data.profit?.operating_margin_change_points ?? null}
+              // A margin moves in percentage points, not in percent.
+              unit="points"
+              detail={
+                data.profit?.previous_operating_margin_percent != null
+                  ? `I fjor ${formatPercent(data.profit.previous_operating_margin_percent)}`
+                  : null
+              }
             />
           </div>
 
@@ -289,15 +305,16 @@ const CATEGORY_LABELS: Record<string, { label: string; hint: string; className: 
 };
 
 /**
- * SAF-T does not state which revenue recurs, so the two signals behind the
- * split are named rather than hidden — the numbers are inferred, and the user
- * needs to see on what basis.
+ * Where a contract list has been uploaded it states what recurs, so this reads
+ * the same source as the dashboard's MRR card and the two agree. Without one,
+ * the split is inferred and the signals behind it are named rather than hidden.
  */
 function RecurringRevenue({ data }: { data: RecurringResponse }) {
   const totals = data.totals!;
+  const fromContracts = data.source === "contracts";
   const top = data.items
     .filter((i) => i.category !== "one_off")
-    .slice(0, 8);
+    .slice(0, fromContracts ? 12 : 8);
 
   return (
     <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
@@ -307,11 +324,44 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
           Gjentakende inntekter
         </h3>
       </div>
+
+      {fromContracts ? (
+        <>
+          <p className="mb-5 text-sm text-foreground-muted">
+            {totals.contract_count} aktive avtaler fra den opplastede
+            fakturalisten, delt ned på måned. Alle beløp er eks. mva.
+          </p>
+          <div className="mb-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-lg bg-background px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">MRR</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">
+                {formatCurrency(totals.mrr ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-background px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">ARR</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">
+                {formatCurrency(totals.total)}
+              </p>
+            </div>
+            <div className="rounded-lg bg-background px-3 py-2.5">
+              <p className="text-xs font-medium text-foreground">Avtaler</p>
+              <p className="mt-1 text-lg font-semibold text-foreground">
+                {totals.contract_count} av {totals.contracts_total}
+              </p>
+              <p className="mt-0.5 text-xs text-foreground-muted">
+                inaktive og utkast teller ikke med
+              </p>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
       <p className="mb-5 text-sm text-foreground-muted">
         {totals.recurring_share} % av omsetningen gjentar seg.{" "}
         {totals.has_product_list
           ? "Basert på produktlisten din, med tekst- og månedsmønster som supplement."
-          : "Utledet fra posteringstekst og månedsmønster. Last opp produktlisten din under «Importer data» for et sikkert svar."}
+          : "Utledet fra posteringstekst og månedsmønster — usikkert. Last opp listen over repeterende fakturaer under «Importer data» for et sikkert svar."}
       </p>
 
       <div className="mb-5 flex h-3 overflow-hidden rounded-full">
@@ -353,16 +403,24 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
           );
         })}
       </div>
+        </>
+      )}
 
       {top.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-foreground-muted">
-                <th className="py-2 font-medium">Inntektslinje</th>
-                <th className="py-2 text-right font-medium">Måneder</th>
+                <th className="py-2 font-medium">
+                  {fromContracts ? "Avtale" : "Inntektslinje"}
+                </th>
+                <th className="py-2 text-right font-medium">
+                  {fromContracts ? "Fakturaer/år" : "Måneder"}
+                </th>
                 <th className="py-2 text-right font-medium">Snitt/mnd</th>
-                <th className="py-2 text-right font-medium">Totalt</th>
+                <th className="py-2 text-right font-medium">
+                  {fromContracts ? "Per år" : "Totalt"}
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -403,11 +461,16 @@ function SummaryCard({
   value,
   change,
   invert = false,
+  unit = "percent",
+  detail = null,
 }: {
   label: string;
   value: string;
   change: number | null;
   invert?: boolean;
+  /** Percentages compare as percent; a margin compares in points. */
+  unit?: "percent" | "points";
+  detail?: string | null;
 }) {
   const isUp = (change ?? 0) > 0.5;
   const isDown = (change ?? 0) < -0.5;
@@ -448,12 +511,17 @@ function SummaryCard({
                   : "text-foreground-muted"
               }`}
             >
-              {formatChange(change)}
+              {unit === "points"
+                ? `${change > 0 ? "+" : ""}${change.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} pp`
+                : formatChange(change)}
             </span>
             <span className="text-xs text-foreground-muted">vs. i fjor</span>
           </>
         )}
       </div>
+      {detail && (
+        <p className="mt-1 text-xs text-foreground-muted">{detail}</p>
+      )}
     </div>
   );
 }

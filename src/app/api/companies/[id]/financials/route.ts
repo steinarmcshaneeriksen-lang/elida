@@ -161,6 +161,12 @@ export function buildFinancialsFromTransactions(
 
   const grossProfit = revenue - cogs;
   const operatingProfit = revenue - totalCosts;
+  const compOperatingProfit = compRevenue - compTotalCosts;
+
+  // Margin is compared in percentage points, not as a percentage of a
+  // percentage: a margin going from 16,7 % to 13,2 % has fallen 3,5 points.
+  const margin = revenue ? (operatingProfit / revenue) * 100 : null;
+  const compMargin = compRevenue ? (compOperatingProfit / compRevenue) * 100 : null;
 
   // Financial items: 8000-8999
   const financialNet = sumByRange(
@@ -234,9 +240,19 @@ export function buildFinancialsFromTransactions(
       gross_profit: grossProfit,
       gross_margin_percent: revenue ? (grossProfit / revenue) * 100 : 0,
       operating_profit: operatingProfit,
-      operating_margin_percent: revenue
-        ? (operatingProfit / revenue) * 100
-        : 0,
+      operating_margin_percent: margin ?? 0,
+      previous_operating_profit: compOperatingProfit,
+      // Null rather than zero when the comparison period holds nothing, so the
+      // card can say there is no comparison instead of showing a fall to zero.
+      previous_operating_margin_percent: compMargin,
+      operating_margin_change_points:
+        margin != null && compMargin != null
+          ? Math.round((margin - compMargin) * 10) / 10
+          : null,
+      operating_profit_change_percent:
+        compOperatingProfit > 0
+          ? ((operatingProfit - compOperatingProfit) / compOperatingProfit) * 100
+          : null,
       net_profit: netProfit,
       net_margin_percent: revenue ? (netProfit / revenue) * 100 : 0,
       previous_period_net_profit: compNetProfit,

@@ -104,6 +104,10 @@ export async function importSaft(
   const metrics = await computeCompanyMetrics(supabase, companyId);
   const years = metrics.years;
 
+  // A figure that disagrees with its own source is reported at import rather
+  // than left for someone to find on a dashboard.
+  warnings.push(...metrics.warnings);
+
   if (years.length > 0) {
     warnings.push(
       years.length === 1

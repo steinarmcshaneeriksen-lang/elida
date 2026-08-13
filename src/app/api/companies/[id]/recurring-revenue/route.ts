@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
+import { fetchAll } from "@/lib/supabase/paginate";
+import { intervalLabel } from "@/lib/import/spreadsheet/columns";
 
 /**
  * GET /api/companies/[id]/recurring-revenue
  *
- * SAF-T does not mark revenue as recurring, so it is inferred from the
- * posting text and from how regularly a line repeats. The two signals are
- * kept separate rather than merged into one verdict:
+ * An uploaded contract list states what recurs, so where one exists it is the
+ * answer and nothing is inferred. This page and the dashboard's MRR card must
+ * agree; they read the same source for the same reason.
+ *
+ * Without a contract list, SAF-T does not mark revenue as recurring, so it is
+ * inferred from the posting text and from how regularly a line repeats. The
+ * two signals are kept separate rather than merged into one verdict:
  *
  *   licensed — the text names a licence, subscription or monthly price
  *   regular  — appears in three or more distinct months, without saying so
@@ -26,6 +32,37 @@ export async function GET(
     if (auth instanceof NextResponse) return auth;
 
     const supabase = await createClient();
+
+    type ContractRow = {
+      customer_name: string;
+      description: string | null;
+      interval_months: number;
+      net_amount: number;
+      is_active: boolean;
+      is_draft: boolean;
+    };
+
+    const contracts = await fetchAll<ContractRow>(
+      (from, to) =>
+        supabase
+          .from("recurring_contracts")
+          .select(
+            "customer_name, description, interval_months, net_amount, is_active, is_draft"
+          )
+          .eq("company_id", companyId)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: ContractRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: "avtaler" }
+    );
+
+    const counted = contracts.filter((c) => c.is_active && !c.is_draft);
+
+    if (counted.length > 0) {
+      return NextResponse.json(fromContracts(counted, contracts.length));
+    }
 
     const { data } = (await supabase.rpc(
       "company_recurring_revenue" as never,
@@ -80,6 +117,7 @@ export async function GET(
 
     return NextResponse.json({
       has_data: true,
+      source: "ledger" as const,
       totals: {
         product,
         licensed,
@@ -101,4 +139,59 @@ export async function GET(
     console.error("Recurring revenue API error:", error);
     return errorResponse("Kunne ikke analysere gjentakende inntekter");
   }
+}
+
+/**
+ * Built from the contract list: one row per agreement, with the monthly value
+ * each contributes. The categories the inferred view uses do not apply — every
+ * one of these is stated to recur — so they all sit in "product".
+ */
+function fromContracts(
+  counted: Array<{
+    customer_name: string;
+    description: string | null;
+    interval_months: number;
+    net_amount: number;
+  }>,
+  total: number
+) {
+  const items = counted
+    .map((c) => {
+      const monthly = Number(c.net_amount) / c.interval_months;
+      return {
+        description: c.description?.trim()
+          ? `${c.customer_name} — ${c.description.trim()}`
+          : c.customer_name,
+        months_active: 12 / c.interval_months,
+        total: Math.round(monthly * 12),
+        avg_per_month: Math.round(monthly),
+        posting_count: 1,
+        first_month: null,
+        last_month: null,
+        matched_product: intervalLabel(c.interval_months),
+        category: "product" as const,
+      };
+    })
+    .sort((a, b) => b.avg_per_month - a.avg_per_month);
+
+  const mrr = items.reduce((t, i) => t + i.avg_per_month, 0);
+
+  return {
+    has_data: true,
+    source: "contracts" as const,
+    totals: {
+      product: Math.round(mrr * 12),
+      licensed: 0,
+      regular: 0,
+      one_off: 0,
+      total: Math.round(mrr * 12),
+      // Everything in a contract list recurs by definition.
+      recurring_share: 100,
+      has_product_list: true,
+      mrr: Math.round(mrr),
+      contract_count: counted.length,
+      contracts_total: total,
+    },
+    items,
+  };
 }

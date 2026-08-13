@@ -32,6 +32,8 @@ export interface ComputedMetrics {
   metricsWritten: number;
   /** Years that gained a comparison because an earlier year was present. */
   yearsWithComparison: number[];
+  /** Figures that came out disagreeing with their own source. */
+  warnings: string[];
 }
 
 interface Posting {
@@ -80,7 +82,7 @@ export async function computeCompanyMetrics(
   ]);
 
   if (postings.length === 0) {
-    return { years: [], metricsWritten: 0, yearsWithComparison: [] };
+    return { years: [], metricsWritten: 0, yearsWithComparison: [], warnings: [] };
   }
 
   // Group by calendar year. Norwegian financial years follow the calendar
@@ -153,7 +155,13 @@ export async function computeCompanyMetrics(
 
   await replaceSnapshots(supabase, rows);
 
-  return { years, metricsWritten: rows.length, yearsWithComparison };
+  // The dashboard reads these snapshots while the customer page reads the
+  // party balances directly. They describe the same thing and must agree; a
+  // short read once made them differ by more than a million kroner without
+  // anything failing. Checked here so a mismatch surfaces at import.
+  const warnings = await checkAgainstPartyBalances(supabase, companyId, rows);
+
+  return { years, metricsWritten: rows.length, yearsWithComparison, warnings };
 }
 
 // ---------------------------------------------------------------------------
@@ -424,4 +432,66 @@ async function loadPostings(
   }
 
   return all;
+}
+
+/**
+ * Cross-checks each written receivables figure against the sum of the customer
+ * balances for the same year — the number the customer page shows. They are
+ * computed by different code from the same facts, so a difference means one of
+ * them is wrong, and saying so beats two pages quietly disagreeing.
+ */
+async function checkAgainstPartyBalances(
+  supabase: DB,
+  companyId: string,
+  rows: Record<string, unknown>[]
+): Promise<string[]> {
+  const written = rows.filter((r) => r.metric === "receivables_total");
+  if (written.length === 0) return [];
+
+  const balances = await fetchAll<{ year: number; closing_balance: number | null }>(
+    (from, to) =>
+      supabase
+        .from("entity_balances")
+        .select("year, closing_balance")
+        .eq("company_id", companyId)
+        .eq("entity_type", "customer")
+        .order("entity_key", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ year: number; closing_balance: number | null }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "kundesaldoer" }
+  );
+
+  if (balances.length === 0) return [];
+
+  const byYear = new Map<number, number>();
+  for (const b of balances) {
+    if (b.closing_balance == null) continue;
+    byYear.set(b.year, (byYear.get(b.year) ?? 0) + Number(b.closing_balance));
+  }
+
+  const warnings: string[] = [];
+
+  for (const row of written) {
+    const year = Number(String(row.period_end).slice(0, 4));
+    const expected = byYear.get(year);
+    if (expected == null) continue;
+
+    const difference = Math.abs(Number(row.value) - expected);
+    // Rounding across a few hundred customers, not a real break.
+    if (difference < 1) continue;
+
+    warnings.push(
+      `Kundefordringer for ${year} ble beregnet til ${format(Number(row.value))}, ` +
+        `mens summen av kundesaldoene er ${format(expected)}. ` +
+        "Tallet på oversikten og kundesiden vil avvike. Kontakt support."
+    );
+  }
+
+  return warnings;
+}
+
+function format(n: number): string {
+  return `${Math.round(n).toLocaleString("nb-NO")} kr`;
 }

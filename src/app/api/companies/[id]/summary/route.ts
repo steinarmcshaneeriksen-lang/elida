@@ -14,9 +14,13 @@ import type {
  * - Revenue YTD vs comparison
  * - Profit YTD vs comparison
  * - Cash position + 60-day forecast minimum
- * - Receivables total + overdue
- * - Upcoming obligations (30 days)
+ * - Receivables total
  * - Active insights
+ *
+ * Overdue receivables and upcoming obligations were carried as fields that were
+ * always null: SAF-T states a balance per customer, never the invoices behind
+ * it, so neither can be derived. Removed rather than left as permanent nulls
+ * for something to be wired up to.
  * - Data quality indicators
  */
 export async function GET(
@@ -101,9 +105,8 @@ export async function GET(
         profit: withComparison(profitMetric),
         cash: cashMetric ? { current: cashMetric.value } : null,
         receivables: receivablesMetric
-          ? { total: receivablesMetric.value, overdue: null }
+          ? { total: receivablesMetric.value }
           : null,
-        upcoming_obligations_30d: null,
         insights: mapInsights(insights),
         data_quality: {
           last_sync: lastSync,
@@ -123,7 +126,6 @@ export async function GET(
       profit: null,
       cash: null,
       receivables: null,
-      upcoming_obligations_30d: null,
       insights: mapInsights(insights),
       data_quality: {
         last_sync: lastSync,

@@ -30,8 +30,7 @@ interface SummaryResponse {
   revenue: Metric | null;
   profit: Metric | null;
   cash: { current: number } | null;
-  receivables: { total: number; overdue: number | null } | null;
-  upcoming_obligations_30d: number | null;
+  receivables: { total: number } | null;
   insights: Array<{
     id: string;
     severity: string;
