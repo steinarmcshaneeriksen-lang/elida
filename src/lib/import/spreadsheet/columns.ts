@@ -217,3 +217,40 @@ export const INTERVAL_LABELS: Record<number, string> = {
 export function intervalLabel(months: number): string {
   return INTERVAL_LABELS[months] ?? `Hver ${months}. måned`;
 }
+
+// ---------------------------------------------------------------------------
+// Contract status
+// ---------------------------------------------------------------------------
+
+export type ContractStatus = "active" | "draft" | "inactive";
+
+/**
+ * What a status column is saying about a contract.
+ *
+ * A draft is not invoiced until someone sends it; a paused or cancelled
+ * contract is not invoiced at all. Both are outside the run rate, and a list
+ * that marks them only in a status column — with no separate "active" flag —
+ * would otherwise have them counted.
+ */
+export function parseContractStatus(raw: string): ContractStatus | null {
+  const value = normalise(raw);
+  if (!value) return null;
+
+  if (/utkast|draft|kladd|ikke sendt|not sent|pending approval/.test(value)) {
+    return "draft";
+  }
+
+  if (
+    /paused|pause|stoppet|stopped|avsluttet|ended|cancelled|canceled|kansellert|inaktiv|inactive|terminated|expired|utlopt|arkivert|archived|on hold/.test(
+      value
+    )
+  ) {
+    return "inactive";
+  }
+
+  if (/sendt|sent|aktiv|active|live|running|lopende|ongoing|ok/.test(value)) {
+    return "active";
+  }
+
+  return null;
+}

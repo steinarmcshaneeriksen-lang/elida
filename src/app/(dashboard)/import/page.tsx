@@ -605,6 +605,12 @@ interface SpreadsheetResult {
   sheet: string;
   header_row: number;
   columns_used: Record<string, string>;
+  interpretation: {
+    method: "rules" | "ai" | "rules+ai";
+    documentKind: string | null;
+    notes: string[];
+    rejected: string[];
+  };
   contracts: number;
   counted_towards_mrr: number;
   drafts: number;
@@ -684,6 +690,15 @@ function SpreadsheetResultView({ result }: { result: SpreadsheetResult }) {
         </table>
       )}
 
+      {result.interpretation.method !== "rules" && (
+        <p className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs text-foreground-secondary">
+          Kolonnenavnene i denne filen var ikke kjent på forhånd, så Elida
+          tolket den med AI og kontrollerte hver kolonne mot innholdet.
+          Kontroller under «Slik tolket Elida filen» at beløpskolonnen er
+          riktig før du bruker tallet videre.
+        </p>
+      )}
+
       {result.warnings.map((w, i) => (
         <p key={i} className="text-xs text-foreground-secondary">
           {w}
@@ -698,8 +713,19 @@ function SpreadsheetResultView({ result }: { result: SpreadsheetResult }) {
         </summary>
         <div className="mt-2 space-y-1 text-foreground-secondary">
           <p>
-            Ark «{result.sheet}», overskrifter på rad {result.header_row}.
+            Ark «{result.sheet}», overskrifter på rad {result.header_row}.{" "}
+            {result.interpretation.method === "rules"
+              ? "Kolonnene ble gjenkjent på navn."
+              : result.interpretation.method === "ai"
+                ? "Kolonnenavnene var ukjente, så innholdet ble tolket med AI."
+                : "Noen kolonner ble gjenkjent på navn, resten tolket med AI."}
           </p>
+          {result.interpretation.documentKind && (
+            <p>Elida leste filen som: {result.interpretation.documentKind}</p>
+          )}
+          {result.interpretation.notes.map((n, i) => (
+            <p key={i}>{n}</p>
+          ))}
           <ul className="space-y-0.5">
             {Object.entries(result.columns_used).map(([field, column]) => (
               <li key={field}>

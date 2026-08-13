@@ -15,12 +15,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   mapColumns,
+  parseContractStatus,
   parseInterval,
   shapes,
   intervalLabel,
   type ColumnMap,
   type FieldSpec,
 } from "./columns";
+import { resolveColumns, resolveInterval, type ResolvedColumns } from "./resolve";
+import type { AiFieldSpec } from "./ai-mapper";
 import {
   parseBoolean,
   parseDate,
@@ -91,6 +94,64 @@ const FIELDS: FieldSpec[] = [
   { key: "department", names: ["avdeling", "avdelingsnavn", "department"] },
 ];
 
+/**
+ * The same fields, described so a model can recognise them in an export whose
+ * wording no synonym list anticipated — a Fiken, Tripletex or English-language
+ * file. Descriptions say what the column means, not what it is called.
+ */
+const AI_FIELDS: AiFieldSpec[] = [
+  {
+    key: "customer_name",
+    description: "Navnet på kunden avtalen gjelder. Ikke selger eller kontaktperson.",
+    required: true,
+    expect: "text",
+  },
+  { key: "customer_number", description: "Kundenummer eller kundekode.", expect: "text" },
+  { key: "org_number", description: "Kundens organisasjonsnummer, ni siffer.", expect: "text" },
+  {
+    key: "interval",
+    description:
+      "Hvor ofte avtalen faktureres: månedlig, kvartalsvis, årlig, hver tredje måned og så videre.",
+    required: true,
+    expect: "interval",
+  },
+  {
+    key: "net_amount",
+    description:
+      "Beløpet som faktureres hver gang, EKSKLUSIV merverdiavgift. Ikke fortjeneste, margin, kostpris eller dekningsbidrag.",
+    required: true,
+    expect: "number",
+  },
+  {
+    key: "gross_amount",
+    description: "Samme beløp inklusiv merverdiavgift, hvis filen har det.",
+    expect: "number",
+  },
+  {
+    key: "active",
+    description: "Om avtalen er aktiv eller avsluttet. Typisk ja/nei.",
+    expect: "boolean",
+  },
+  {
+    key: "invoice_status",
+    description:
+      "Om fakturaen sendes automatisk eller lages som utkast. Utkast betyr at den ikke faktureres av seg selv.",
+    expect: "text",
+  },
+  {
+    key: "next_invoice_date",
+    description: "Neste gang avtalen skal faktureres.",
+    expect: "date",
+  },
+  {
+    key: "description",
+    description: "Hva avtalen gjelder — produkt, tjeneste eller abonnement. Ikke et referansenummer.",
+    expect: "text",
+  },
+  { key: "seller", description: "Selger eller kundeansvarlig.", expect: "text" },
+  { key: "department", description: "Avdeling eller sted avtalen hører til.", expect: "text" },
+];
+
 export interface RecurringContract {
   customerName: string;
   customerNumber: string | null;
@@ -114,6 +175,13 @@ export interface RecurringParseResult {
   skipped: Array<{ row: number; reason: string }>;
   mrr: number;
   byInterval: Array<{ label: string; months: number; count: number; mrr: number }>;
+  /** How the columns were identified, and anything the model was unsure of. */
+  interpretation: {
+    method: ResolvedColumns["method"];
+    documentKind: string | null;
+    notes: string[];
+    rejected: string[];
+  };
 }
 
 /**
@@ -140,8 +208,25 @@ export function scoreRecurringSheet(sheet: Sheet): number {
   return score;
 }
 
-export function parseRecurringSheet(sheet: Sheet): RecurringParseResult {
-  const map: ColumnMap = mapColumns(sheet.headers, sheet.rows, FIELDS);
+/**
+ * Reads a sheet into contracts.
+ *
+ * Column identification goes through the resolver, which tries the synonym
+ * rules first and only asks the model when they fall short — so a familiar
+ * export costs nothing and an unfamiliar one still imports.
+ */
+export async function parseRecurringSheet(
+  sheet: Sheet
+): Promise<RecurringParseResult> {
+  const resolved = await resolveColumns(sheet, {
+    fields: FIELDS,
+    aiFields: AI_FIELDS,
+    required: ["customer_name", "interval", "net_amount"],
+    documentHint:
+      "en liste over gjentakende eller repeterende fakturaer, én rad per avtale",
+  });
+
+  const map: ColumnMap = resolved.map;
 
   const contracts: RecurringContract[] = [];
   const skipped: Array<{ row: number; reason: string }> = [];
@@ -158,7 +243,10 @@ export function parseRecurringSheet(sheet: Sheet): RecurringParseResult {
       return;
     }
 
-    const intervalMonths = parseInterval(text(cell(row, "interval")));
+    const intervalMonths = resolveInterval(
+      cell(row, "interval"),
+      resolved.intervalMonths
+    );
     if (intervalMonths == null) {
       skipped.push({
         row: rowNumber,
@@ -180,7 +268,7 @@ export function parseRecurringSheet(sheet: Sheet): RecurringParseResult {
     }
 
     const active = parseBoolean(cell(row, "active"));
-    const status = text(cell(row, "invoice_status")).toLowerCase();
+    const status = parseContractStatus(text(cell(row, "invoice_status")));
 
     contracts.push({
       customerName,
@@ -190,11 +278,14 @@ export function parseRecurringSheet(sheet: Sheet): RecurringParseResult {
       intervalMonths,
       netAmount: Math.round(net * 100) / 100,
       grossAmount: gross == null ? null : Math.round(gross * 100) / 100,
-      // Absent an "active" column, a listed contract is taken as active.
-      isActive: active ?? true,
+      // Absent an "active" column, the status column decides; absent both, a
+      // listed contract is taken as active. Some systems mark a stopped
+      // contract only in the status column, and counting those would inflate
+      // the run rate.
+      isActive: active ?? status !== "inactive",
       // A contract that produces a draft is not invoiced until someone sends
-      // it, so it is held out of the run rate.
-      isDraft: status.includes("utkast") || status.includes("draft"),
+      // it, so it is held out of the run rate too.
+      isDraft: status === "draft",
       nextInvoiceDate: parseDate(cell(row, "next_invoice_date")),
       seller: text(cell(row, "seller")) || null,
       department: text(cell(row, "department")) || null,
@@ -231,6 +322,12 @@ export function parseRecurringSheet(sheet: Sheet): RecurringParseResult {
         count: v.count,
         mrr: Math.round(v.mrr),
       })),
+    interpretation: {
+      method: resolved.method,
+      documentKind: resolved.documentKind,
+      notes: resolved.notes,
+      rejected: resolved.rejected,
+    },
   };
 }
 

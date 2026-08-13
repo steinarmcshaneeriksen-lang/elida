@@ -76,37 +76,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Pick the sheet that best looks like a contract list; a workbook often
-    // carries a summary tab alongside the data.
+    // Pick the sheet to read. The rule score decides when it is confident;
+    // where no sheet scores well the file is simply written in wording the
+    // rules do not know, and the largest table is the one to hand to the
+    // model. Rejecting here on the rule score alone would refuse every export
+    // the rules were not written for — the case this is meant to handle.
     const scored = sheets
       .map((sheet) => ({ sheet, score: scoreRecurringSheet(sheet) }))
       .sort((a, b) => b.score - a.score);
 
-    const best = scored[0];
+    const best =
+      scored[0].score >= 5
+        ? scored[0]
+        : [...scored].sort(
+            (a, b) =>
+              b.sheet.rows.length * b.sheet.headers.length -
+              a.sheet.rows.length * a.sheet.headers.length
+          )[0];
 
-    if (best.score < 5) {
-      return NextResponse.json(
-        {
-          error: "Forsto ikke innholdet i filen",
-          detail:
-            "Elida fant ingen kolonner som beskriver gjentakende fakturaer. " +
-            "Filen bør ha én rad per avtale, med kundenavn, beløp og hvor ofte den " +
-            `faktureres. Kolonnene Elida fant: ${best.sheet.headers.filter(Boolean).slice(0, 12).join(", ")}.`,
-          found_columns: best.sheet.headers.filter(Boolean),
-        },
-        { status: 422 }
-      );
-    }
-
-    const parsed = parseRecurringSheet(best.sheet);
+    const parsed = await parseRecurringSheet(best.sheet);
 
     if (parsed.contracts.length === 0) {
       return NextResponse.json(
         {
-          error: "Fant ingen avtaler i filen",
+          error: "Forsto ikke innholdet i filen",
           detail:
             parsed.skipped[0]?.reason ??
-            "Ingen rader kunne tolkes som en gjentakende faktura.",
+            "Elida fant ingen kolonner som beskriver gjentakende fakturaer. " +
+              "Filen bør ha én rad per avtale, med kunde, beløp og hvor ofte den faktureres.",
+          found_columns: best.sheet.headers.filter(Boolean),
+          interpretation: parsed.interpretation,
           skipped: parsed.skipped.slice(0, 10),
         },
         { status: 422 }
@@ -126,6 +125,7 @@ export async function POST(request: NextRequest) {
       sheet: best.sheet.name,
       header_row: best.sheet.headerRowIndex + 1,
       columns_used: result.mapping,
+      interpretation: result.interpretation,
       contracts: result.written,
       counted_towards_mrr: counted.length,
       drafts,
@@ -154,6 +154,23 @@ function buildWarnings(
     `Leste ${result.written} avtaler. MRR er ${format(result.mrr)} eks. mva — ` +
       `beløpet per faktura delt på antall måneder mellom hver fakturering.`
   );
+
+  // How the columns were identified matters to how much the figure can be
+  // trusted, so it is said rather than left in a details pane.
+  if (result.interpretation.method !== "rules") {
+    warnings.push(
+      result.interpretation.method === "ai"
+        ? "Kolonnenavnene var ukjente, så Elida tolket filen med AI og kontrollerte " +
+          "hver kolonne mot innholdet. Se «Slik tolket Elida filen» og bekreft at " +
+          "beløpskolonnen er riktig."
+        : "Noen kolonnenavn var ukjente. Elida tolket dem med AI og kontrollerte " +
+          "dem mot innholdet. Se «Slik tolket Elida filen»."
+    );
+  }
+
+  for (const rejected of result.interpretation.rejected) {
+    warnings.push(`Forkastet tolkning: ${rejected}`);
+  }
 
   if (drafts > 0) {
     warnings.push(
