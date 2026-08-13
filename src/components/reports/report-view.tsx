@@ -51,6 +51,11 @@ export function ReportView({
 }) {
   const type = reportTypeByKey(data.report_type);
 
+  // The cover carries the document's own name, not the label the template is
+  // picked by — "Styrepakke" is internal shorthand and reads badly as the
+  // heading of something a board receives.
+  const documentTitle = config.documentTitle?.trim() || type.documentTitle;
+
   const branding: Branding = {
     useCompanyBranding: config.branding.useCompanyBranding,
     companyName: data.company.name,
@@ -81,7 +86,7 @@ export function ReportView({
     <div className="report">
       <CoverPage
         branding={branding}
-        title={type.title}
+        title={documentTitle}
         subtitle={config.subtitle}
         periodLabel={data.period.label}
         generatedAt={data.generated_at}
@@ -92,7 +97,7 @@ export function ReportView({
         <ReportPage key={index}>
           <RunningHead
             companyName={data.company.name}
-            title={type.title}
+            title={documentTitle}
             periodLabel={data.period.label}
           />
 

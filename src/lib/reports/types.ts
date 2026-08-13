@@ -31,7 +31,17 @@ export const ALL_SECTIONS = Object.keys(SECTION_LABELS);
 
 export interface ReportTypeDefinition {
   key: string;
+  /** What the template is called in the app, where you are picking one. */
   title: string;
+  /**
+   * What the finished document is called on its cover.
+   *
+   * These differ on purpose. "Styrepakke" tells you which template you are
+   * choosing; it is internal shorthand, and setting it as the heading of a
+   * document that goes to a board reads as amateurish. The cover carries the
+   * name a finance lead would put there.
+   */
+  documentTitle: string;
   description: string;
   /** What this report is for, in the words of the person asking for it. */
   useCase: string;
@@ -45,6 +55,7 @@ export const REPORT_TYPES: ReportTypeDefinition[] = [
   {
     key: "month",
     title: "Månedsrapport",
+    documentTitle: "Økonomisk månedsrapport",
     description:
       "Et raskt bilde av hvordan måneden gikk: omsetning, resultat, de største kostnadsendringene og likviditeten.",
     useCase: "Til ledelsen eller til deg selv, hver måned.",
@@ -67,6 +78,7 @@ export const REPORT_TYPES: ReportTypeDefinition[] = [
   {
     key: "board",
     title: "Styrepakke",
+    documentTitle: "Økonomisk rapport til styret",
     description:
       "Komplett økonomisk underlag til styremøtet, med resultat mot i fjor og mot budsjett, likviditet, prognose, kunderisiko og observasjoner.",
     useCase: "Til styremøtet. Kan sendes som den er.",
@@ -103,6 +115,7 @@ export const REPORT_TYPES: ReportTypeDefinition[] = [
   {
     key: "liquidity",
     title: "Likviditetsrapport",
+    documentTitle: "Likviditet og betalingsevne",
     description:
       "Kontantbeholdning, hva kundene skylder, hva som skal betales ut og hvordan likviditeten har utviklet seg.",
     useCase: "Når du trenger å vite om pengene strekker til.",
@@ -121,6 +134,7 @@ export const REPORT_TYPES: ReportTypeDefinition[] = [
   {
     key: "growth",
     title: "Vekst og utvikling",
+    documentTitle: "Vekst og lønnsomhet",
     description:
       "Om selskapet vokser, hvor veksten kommer fra, og om den er lønnsom.",
     useCase: "Til strategiarbeid og eierdiskusjoner.",
@@ -143,6 +157,7 @@ export const REPORT_TYPES: ReportTypeDefinition[] = [
   {
     key: "budget",
     title: "Budsjett mot faktisk",
+    documentTitle: "Budsjettoppfølging",
     description:
       "Hva som var budsjettert, hva som faktisk skjedde, avviket i kroner og prosent, og hva året ender på.",
     useCase: "Til månedlig oppfølging av budsjettet.",
@@ -161,6 +176,7 @@ export const REPORT_TYPES: ReportTypeDefinition[] = [
   {
     key: "due_diligence",
     title: "Økonomisk oversikt (due diligence)",
+    documentTitle: "Økonomisk oversikt",
     description:
       "Førsteunderlag ved salg, investering eller bankfinansiering: historikk, inntektsanalyse, kostnadsbase, arbeidskapital og risiko.",
     useCase:
@@ -193,6 +209,7 @@ export const REPORT_TYPES: ReportTypeDefinition[] = [
   {
     key: "custom",
     title: "Egendefinert rapport",
+    documentTitle: "Økonomisk rapport",
     description: "Velg selv hvilke deler rapporten skal inneholde.",
     useCase: "Når ingen av malene passer.",
     sections: ["summary", "result", "revenue", "costs", "cash", "data_quality"],
@@ -218,6 +235,8 @@ export interface ReportConfiguration {
     confidentiality: string | null;
     showElidaCredit: boolean;
   };
+  /** Overrides the cover title. Null keeps the report type's own. */
+  documentTitle: string | null;
   subtitle: string | null;
 }
 
@@ -237,6 +256,7 @@ export function defaultConfiguration(typeKey: string): ReportConfiguration {
       confidentiality: "Konfidensielt",
       showElidaCredit: true,
     },
+    documentTitle: null,
     subtitle: null,
   };
 }

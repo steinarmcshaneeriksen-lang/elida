@@ -285,6 +285,7 @@ export default function RapporterPage() {
             config={config}
             onChange={setConfig}
             availableSections={type.sections}
+            defaultTitle={type.documentTitle}
           />
         )}
 
@@ -455,10 +456,12 @@ function ReportOptions({
   config,
   onChange,
   availableSections,
+  defaultTitle,
 }: {
   config: ReportConfiguration;
   onChange: (c: ReportConfiguration) => void;
   availableSections: string[];
+  defaultTitle: string;
 }) {
   const sections = useMemo(() => {
     // Sections belonging to this report type first, in their intended order,
@@ -531,6 +534,18 @@ function ReportOptions({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Tittel på forsiden">
+          <input
+            type="text"
+            value={config.documentTitle ?? ""}
+            onChange={(e) =>
+              onChange({ ...config, documentTitle: e.target.value || null })
+            }
+            placeholder={defaultTitle}
+            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
+          />
+        </Field>
+
         <Field label="Undertittel på forsiden">
           <input
             type="text"
