@@ -7,6 +7,7 @@ import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid,
 import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } from "@/lib/reports/categories";
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
 import { resolveDataWindow, trailingNote } from "@/lib/data-window";
+import { deriveInsights, type InsightInput } from "@/lib/insights/derive";
 
 let failures = 0;
 
@@ -165,6 +166,80 @@ check("Én måned med data beholdes", resolveDataWindow([
 ])?.end, "2027-01-31");
 
 check("Uten posteringer finnes ingen periode", resolveDataWindow([]), null);
+
+// --- 7. Observasjoner ------------------------------------------------------
+// A healthy company with a comparison year and nothing out of the ordinary
+// must produce nothing. A panel that always has something to say is noise.
+const calm: InsightInput = {
+  period: { start: "2026-01-01", end: "2026-08-31" },
+  comparisonPeriod: { start: "2025-01-01", end: "2025-08-31" },
+  revenue: 5_000_000,
+  previousRevenue: 4_800_000,
+  costs: 4_000_000,
+  previousCosts: 3_850_000,
+  cash: 3_000_000,
+  receivables: 600_000,
+  months: Array.from({ length: 8 }, (_, i) => ({
+    month: `2026-${String(i + 1).padStart(2, "0")}`,
+    revenue: 625_000,
+    costs: 500_000,
+  })),
+  customers: [
+    { name: "A", revenue: 1_000_000 },
+    { name: "B", revenue: 900_000 },
+    { name: "C", revenue: 800_000 },
+    { name: "D", revenue: 2_300_000 },
+  ],
+  trailingMonths: [],
+  trailingPostings: 0,
+};
+check("Rolig regnskap gir ingen observasjoner", deriveInsights(calm).length, 0);
+
+const types = (i: InsightInput) => deriveInsights(i).map((x) => x.type).sort();
+
+// Revenue down a quarter, against the same span of last year.
+check("Fall i omsetning fanges opp",
+  types({ ...calm, revenue: 3_400_000 }).includes("revenue_trend"), true);
+
+// Costs up while revenue is flat.
+check("Kostnadsvekst uten inntektsvekst fanges opp",
+  types({ ...calm, costs: 4_700_000, previousCosts: 3_850_000 })
+    .includes("cost_growth"), true);
+
+// Two months of costs in the bank.
+check("Kort likviditetsrekkevidde fanges opp",
+  types({ ...calm, cash: 900_000 }).includes("liquidity_runway"), true);
+
+// One customer carrying nearly half the revenue.
+check("Kundekonsentrasjon fanges opp",
+  types({ ...calm, customers: [
+    { name: "Stor kunde", revenue: 4_000_000 },
+    { name: "B", revenue: 600_000 },
+    { name: "C", revenue: 400_000 },
+  ] }).includes("customer_concentration"), true);
+
+// Receivables of a full quarter's invoicing.
+check("Treg innbetaling fanges opp",
+  types({ ...calm, receivables: 2_400_000 }).includes("receivables_pressure"), true);
+
+// A single year held: say so rather than reporting no movement.
+check("Manglende fjorårstall sies fra om",
+  types({ ...calm, comparisonPeriod: null, previousRevenue: null, previousCosts: null })
+    .includes("no_comparison"), true);
+
+// Forward-dated postings explain themselves.
+check("Framdaterte posteringer forklares",
+  types({ ...calm, trailingMonths: ["2026-09", "2026-12"], trailingPostings: 30 })
+    .includes("forward_dated_postings"), true);
+
+// Most serious first.
+check("Alvorligste observasjon står først",
+  deriveInsights({ ...calm, cash: 400_000, revenue: 5_100_000 })[0].severity, "high");
+
+// Nothing may be reported without the figures behind it.
+check("Hver observasjon oppgir tallene den bygger på",
+  deriveInsights({ ...calm, revenue: 3_400_000, cash: 900_000 })
+    .every((i) => i.evidence.length > 0 || i.type === "no_comparison"), true);
 
 console.log(failures === 0 ? "\nALLE KONTROLLER OK" : `\n${failures} KONTROLLER FEILET`);
 process.exit(failures === 0 ? 0 : 1);

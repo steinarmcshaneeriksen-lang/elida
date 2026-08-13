@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import { isDepartmentType, isProjectType } from "./parser";
 import { computeCompanyMetrics } from "@/lib/metrics/compute";
+import { generateCompanyInsights } from "@/lib/insights/generate";
 import { recordBalances, type StatedBalance } from "./balances";
 import { fetchAll } from "@/lib/supabase/paginate";
 import {
@@ -103,6 +104,10 @@ export async function importSaft(
   // uploading an earlier year backfills the comparison on years already here.
   const metrics = await computeCompanyMetrics(supabase, companyId);
   const years = metrics.years;
+
+  // The observations on the dashboard read from the figures just written, so
+  // they are derived here rather than left to a table nothing filled.
+  await generateCompanyInsights(supabase, companyId);
 
   // A figure that disagrees with its own source is reported at import rather
   // than left for someone to find on a dashboard.

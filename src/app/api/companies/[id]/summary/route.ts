@@ -26,7 +26,7 @@ import { trailingNote } from "@/lib/data-window";
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: companyId } = await params;
@@ -38,48 +38,48 @@ export async function GET(
     // Show the most recent period the company actually holds data for.
     // Filtering to the current calendar year would show nothing at all to
     // someone who has only uploaded last year's file.
-    const { data: allMetrics } = await supabase
+    const { data: allMetrics } = (await supabase
       .from("financial_metric_snapshots")
       .select("*")
       .eq("company_id", companyId)
       .eq("period_type", "ytd")
       .order("period_end", { ascending: false })
-      .limit(2000) as {
+      .limit(2000)) as {
       data: FinancialMetricSnapshot[] | null;
     };
 
     const latestPeriodEnd = allMetrics?.[0]?.period_end ?? null;
     const metrics = (allMetrics ?? []).filter(
-      (m) => m.period_end === latestPeriodEnd
+      (m) => m.period_end === latestPeriodEnd,
     );
 
     // Load active insights
-    const { data: insights } = await supabase
+    const { data: insights } = (await supabase
       .from("financial_insights")
       .select("*")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
-      .limit(10) as { data: FinancialInsight[] | null };
+      .limit(10)) as { data: FinancialInsight[] | null };
 
     // Load sync state for data quality
-    const { data: syncStates } = await supabase
+    const { data: syncStates } = (await supabase
       .from("integration_sync_state")
       .select("*")
       .eq("company_id", companyId)
-      .order("last_sync_completed_at", { ascending: false }) as {
+      .order("last_sync_completed_at", { ascending: false })) as {
       data: IntegrationSyncState[] | null;
     };
 
     const revenueMetric = metrics.find((m) => m.metric === "revenue_ytd");
     const profitMetric = metrics.find(
-      (m) => m.metric === "operating_profit_ytd"
+      (m) => m.metric === "operating_profit_ytd",
     );
 
     if (revenueMetric && profitMetric) {
       const cashMetric = metrics.find((m) => m.metric === "cash_balance");
       const receivablesMetric = metrics.find(
-        (m) => m.metric === "receivables_total"
+        (m) => m.metric === "receivables_total",
       );
 
       const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
@@ -153,9 +153,10 @@ export async function GET(
  * of looking like months of missing data.
  */
 function periodNote(metric: FinancialMetricSnapshot): string | null {
-  const meta = metric.metadata as
-    | { trailing_months?: string[]; trailing_postings?: number }
-    | null;
+  const meta = metric.metadata as {
+    trailing_months?: string[];
+    trailing_postings?: number;
+  } | null;
 
   if (!meta?.trailing_months?.length) return null;
 
@@ -166,18 +167,36 @@ function periodNote(metric: FinancialMetricSnapshot): string | null {
   });
 }
 
+/** Most serious first — created_at is the same second for the whole set. */
+const SEVERITY_RANK: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  info: 4,
+};
+
 function mapInsights(insights: FinancialInsight[] | null) {
-  return (insights ?? []).map((i) => ({
-    id: i.id,
-    type: i.insight_type,
-    severity: i.severity,
-    title: i.title_nb,
-    description: i.description_nb,
-    metric_current: i.metric_current,
-    metric_reference: i.metric_reference,
-    period: i.period,
-    created_at: i.created_at,
-  }));
+  return (insights ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9),
+    )
+    .map((i) => ({
+      id: i.id,
+      type: i.insight_type,
+      severity: i.severity,
+      title: i.title_nb,
+      description: i.description_nb,
+      metric_current: i.metric_current,
+      metric_reference: i.metric_reference,
+      period: i.period,
+      // The figures the rule fired on, so the reader can check it rather than
+      // take the sentence on trust.
+      evidence: Array.isArray(i.evidence) ? (i.evidence as string[]) : [],
+      created_at: i.created_at,
+    }));
 }
 
 function computeFreshness(lastSync: string | null): string {
@@ -190,12 +209,10 @@ function computeFreshness(lastSync: string | null): string {
   return "outdated";
 }
 
-function computeCompleteness(
-  syncStates: IntegrationSyncState[]
-): string {
+function computeCompleteness(syncStates: IntegrationSyncState[]): string {
   if (syncStates.length === 0) return "no_data";
   const completed = syncStates.filter(
-    (s) => s.sync_status === "completed"
+    (s) => s.sync_status === "completed",
   ).length;
   const ratio = completed / syncStates.length;
   if (ratio >= 0.9) return "complete";

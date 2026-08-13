@@ -14,8 +14,9 @@ interface InsightCardProps {
   severity: InsightSeverity;
   title: string;
   description: string;
-  evidence?: string;
-  category?: string;
+  /** The figures the observation was derived from. */
+  evidence?: string[];
+  period?: string;
   createdAt: string;
 }
 
@@ -35,7 +36,7 @@ export function InsightCard({
   title,
   description,
   evidence,
-  category,
+  period,
   createdAt,
 }: InsightCardProps) {
   const config = severityConfig[severity] ?? severityConfig.info;
@@ -55,15 +56,22 @@ export function InsightCard({
           <p className="mt-1 text-sm leading-relaxed text-foreground-secondary">
             {description}
           </p>
+          {evidence && evidence.length > 0 && (
+            <ul className="mt-2.5 space-y-0.5">
+              {evidence.map((line) => (
+                <li
+                  key={line}
+                  className="text-xs tabular-nums text-foreground-muted"
+                >
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="mt-2.5 flex flex-wrap items-center gap-3">
-            {evidence && (
-              <span className="text-xs text-foreground-muted">
-                Kilde: {evidence}
-              </span>
-            )}
-            {category && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-xs font-medium text-foreground-secondary">
-                {category}
+            {period && (
+              <span className="inline-flex items-center rounded-full bg-surface-hover px-2 py-0.5 text-xs font-medium text-foreground-secondary">
+                {period}
               </span>
             )}
             <span className="text-xs text-foreground-muted">

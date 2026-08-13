@@ -44,6 +44,8 @@ interface SummaryResponse {
     severity: string;
     title: string;
     description: string;
+    period: string | null;
+    evidence: string[];
     created_at: string;
   }>;
   data_quality: {
@@ -150,6 +152,8 @@ export default function DashboardPage() {
                     }
                     title={insight.title}
                     description={insight.description}
+                    evidence={insight.evidence}
+                    period={insight.period ?? undefined}
                     createdAt={insight.created_at}
                   />
                 ))}
