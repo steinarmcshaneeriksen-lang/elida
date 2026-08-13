@@ -9,7 +9,15 @@ import {
   LoadingState,
   ErrorState,
 } from "@/components/dashboard/empty-state";
-import { ArrowUpDown, AlertTriangle, ChevronRight, Info } from "lucide-react";
+import {
+  ArrowUpDown,
+  AlertTriangle,
+  ChevronRight,
+  Info,
+  Receipt,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 
 interface CustomerRow {
   id: string;
@@ -90,32 +98,55 @@ export default function KunderPage() {
         </div>
       )}
 
-      {/* Summary */}
+      {/* Summary — same card language as the dashboard: receivables amber,
+          revenue ocean, so a figure keeps its colour from page to page. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Totalt utestående</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
+        <div data-tone="amber" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Totalt utestående
+            </p>
+            <span className="tone-badge shrink-0">
+              <Receipt size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
             {outstandingIsStated ? formatCurrency(totalOutstanding) : "—"}
           </p>
-          {!outstandingIsStated && (
-            <p className="mt-1 text-xs text-foreground-muted">
-              Ikke oppgitt per kunde i filen
-            </p>
-          )}
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Omsetning i perioden</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
-            {formatCurrency(totalRevenue)}
+          <p className="mt-1 text-xs text-foreground-muted">
+            {outstandingIsStated
+              ? "Inkl. mva — fakturert beløp"
+              : "Ikke oppgitt per kunde i filen"}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Kunder</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
+        <div data-tone="ocean" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Omsetning i perioden
+            </p>
+            <span className="tone-badge shrink-0">
+              <TrendingUp size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            {formatCurrency(totalRevenue)}
+          </p>
+          <p className="mt-1 text-xs text-foreground-muted">Eks. mva</p>
+        </div>
+        <div data-tone="slate" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Kunder
+            </p>
+            <span className="tone-badge shrink-0">
+              <Users size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
             {customers.length}
           </p>
           {outstandingIsStated && (
-            <p className="mt-0.5 text-xs text-foreground-muted">
+            <p className="mt-1 text-xs text-foreground-muted">
               {owingCount} med utestående
             </p>
           )}
@@ -231,7 +262,7 @@ function SortableHeader({
   const isActive = currentKey === sortKey;
   return (
     <th
-      className={`cursor-pointer px-4 py-3 font-medium text-foreground-secondary hover:text-foreground ${
+      className={`th-label cursor-pointer px-4 py-3 hover:text-foreground ${
         align === "right" ? "text-right" : "text-left"
       }`}
       onClick={() => onSort(sortKey)}

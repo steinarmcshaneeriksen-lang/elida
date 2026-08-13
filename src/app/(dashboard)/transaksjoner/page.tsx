@@ -120,25 +120,25 @@ export default function TransaksjonerPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-hover">
-                  <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
+                  <th className="th-label px-4 py-3 text-left">
                     Dato
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
+                  <th className="th-label px-4 py-3 text-left">
                     Bilag
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
+                  <th className="th-label px-4 py-3 text-left">
                     Beskrivelse
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
+                  <th className="th-label px-4 py-3 text-left">
                     Konto
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
+                  <th className="th-label px-4 py-3 text-left">
                     Prosjekt
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
+                  <th className="th-label px-4 py-3 text-left">
                     Avdeling
                   </th>
-                  <th className="px-4 py-3 text-right font-medium text-foreground-secondary">
+                  <th className="th-label px-4 py-3 text-right">
                     Beløp
                   </th>
                 </tr>

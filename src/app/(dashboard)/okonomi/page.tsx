@@ -28,6 +28,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { Tone } from "@/components/dashboard/metric-card";
+import { Panel, SERIES_TONES } from "@/components/ui/panel";
 
 interface FinancialsResponse {
   has_data?: boolean;
@@ -68,6 +69,15 @@ const MONTH_NAMES = [
 function monthLabel(isoMonth: string): string {
   const [, month] = isoMonth.split("-");
   return MONTH_NAMES[Number(month) - 1] ?? isoMonth;
+}
+
+/** "1. jan–13. aug 2026" — the caption read raw ISO dates before. */
+function formatRange({ start, end }: { start: string; end: string }): string {
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  const from = `${sd}. ${MONTH_NAMES[sm - 1]}`;
+  const to = `${ed}. ${MONTH_NAMES[em - 1]} ${ey}`;
+  return sy === ey ? `${from}–${to}` : `${from} ${sy} – ${to}`;
 }
 
 interface RecurringResponse {
@@ -176,8 +186,7 @@ export default function OkonomiPage() {
 
         {bounds && (
           <span className="text-xs text-foreground-muted">
-            Viser {periodRange(period, bounds).start} til{" "}
-            {periodRange(period, bounds).end}
+            Viser {formatRange(periodRange(period, bounds))}
             {!bounds.is_complete && " · året er ikke fullført"}
           </span>
         )}
@@ -322,52 +331,6 @@ export default function OkonomiPage() {
   );
 }
 
-/** The order hues are handed out to a list of series. */
-const SERIES_TONES: Tone[] = ["ocean", "teal", "violet", "amber", "rose", "slate"];
-
-/**
- * A titled block of content.
- *
- * The page was a stack of white rectangles with identical hairline borders;
- * a panel now carries its section's hue in the heading rule and the icon, so
- * the eye can tell one block from the next while scrolling.
- */
-function Panel({
-  tone,
-  icon: Icon,
-  title,
-  description,
-  children,
-}: {
-  tone: Tone;
-  icon: LucideIcon;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section
-      data-tone={tone}
-      className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)]"
-    >
-      <div className="flex items-start gap-3 border-b border-[var(--tone-ring)] bg-[var(--tone-soft)] px-6 py-4">
-        <span className="tone-badge shrink-0">
-          <Icon size={16} strokeWidth={2.2} />
-        </span>
-        <div className="min-w-0">
-          <h3 className="text-base font-semibold text-foreground">{title}</h3>
-          {description && (
-            <p className="mt-0.5 text-xs text-foreground-secondary">
-              {description}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="p-6">{children}</div>
-    </section>
-  );
-}
-
 const CATEGORY_LABELS: Record<string, { label: string; hint: string; tone: Tone }> = {
   product: {
     label: "Lisensprodukt",
@@ -499,15 +462,15 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border text-left text-xs text-foreground-muted">
-                <th className="py-2 font-medium">
+              <tr className="border-b border-border text-left">
+                <th className="th-label py-2">
                   {fromContracts ? "Avtale" : "Inntektslinje"}
                 </th>
-                <th className="py-2 text-right font-medium">
+                <th className="th-label py-2 text-right">
                   {fromContracts ? "Fakturaer/år" : "Måneder"}
                 </th>
-                <th className="py-2 text-right font-medium">Snitt/mnd</th>
-                <th className="py-2 text-right font-medium">
+                <th className="th-label py-2 text-right">Snitt/mnd</th>
+                <th className="th-label py-2 text-right">
                   {fromContracts ? "Per år" : "Totalt"}
                 </th>
               </tr>

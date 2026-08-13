@@ -175,9 +175,9 @@ export default function KundeDetaljPage() {
                     <span className="w-10 text-xs text-foreground-muted">
                       {monthLabel(m.month)}
                     </span>
-                    <div className="h-5 flex-1 rounded bg-surface-hover">
+                    <div className="tone-track h-5 flex-1" data-tone="ocean">
                       <div
-                        className="h-full rounded bg-primary"
+                        className="tone-bar h-full"
                         style={{
                           width: `${Math.max(2, (m.amount / maxMonth) * 100)}%`,
                         }}

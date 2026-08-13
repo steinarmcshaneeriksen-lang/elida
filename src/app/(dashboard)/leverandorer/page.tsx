@@ -8,7 +8,7 @@ import {
   LoadingState,
   ErrorState,
 } from "@/components/dashboard/empty-state";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowUpDown, Receipt, ArrowDownRight, Truck } from "lucide-react";
 
 interface SupplierRow {
   id: string;
@@ -73,23 +73,49 @@ export default function LeverandorerPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      {/* Summary */}
+      {/* Summary — costs keep the amber they have on Økonomi; what we owe
+          out is rose, the outflow colour. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Totale kostnader i perioden</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
+        <div data-tone="amber" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Totale kostnader i perioden
+            </p>
+            <span className="tone-badge shrink-0">
+              <Receipt size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
             {formatCurrency(totalCost)}
           </p>
+          <p className="mt-1 text-xs text-foreground-muted">Eks. mva</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Vi skylder</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
+        <div data-tone="rose" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Vi skylder
+            </p>
+            <span className="tone-badge shrink-0">
+              <ArrowDownRight size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
             {formatCurrency(totalOutstanding)}
           </p>
+          <p className="mt-1 text-xs text-foreground-muted">
+            Inkl. mva — fakturert beløp
+          </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Antall leverandører</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
+        <div data-tone="slate" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Antall leverandører
+            </p>
+            <span className="tone-badge shrink-0">
+              <Truck size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
             {suppliers.length}
           </p>
         </div>
@@ -188,7 +214,7 @@ function SortableHeader({
   const isActive = currentKey === sortKey;
   return (
     <th
-      className={`cursor-pointer px-4 py-3 font-medium text-foreground-secondary hover:text-foreground ${
+      className={`th-label cursor-pointer px-4 py-3 hover:text-foreground ${
         align === "right" ? "text-right" : "text-left"
       }`}
       onClick={() => onSort(sortKey)}

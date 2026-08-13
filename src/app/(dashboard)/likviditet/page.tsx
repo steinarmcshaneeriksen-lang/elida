@@ -14,7 +14,10 @@ import {
   AlertTriangle,
   ShieldCheck,
   Info,
+  type LucideIcon,
 } from "lucide-react";
+import { Panel } from "@/components/ui/panel";
+import type { Tone } from "@/components/dashboard/metric-card";
 
 interface Party {
   id: string;
@@ -76,107 +79,83 @@ export default function LikviditetPage() {
         </div>
       )}
 
+      {/* Money in is teal, money out is rose, the balance itself violet —
+          the same directions the chart below uses. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <div className="flex items-center gap-2 text-foreground-muted">
-            <Droplets size={16} />
-            <span className="text-sm">
-              {stated ? "Bokført likviditet" : "Endring i bankbeholdning"}
-            </span>
-          </div>
-          <p
-            className={`mt-2 text-2xl font-bold tracking-tight ${
-              positive ? "text-foreground" : "text-danger"
-            }`}
-          >
-            {formatCurrency(data.current_balance ?? 0)}
-          </p>
-          <p className="mt-1 text-xs text-foreground-muted">
-            {stated
+        <StatCard
+          tone="violet"
+          icon={<Droplets size={16} strokeWidth={2.2} />}
+          label={stated ? "Bokført likviditet" : "Endring i bankbeholdning"}
+          value={formatCurrency(data.current_balance ?? 0)}
+          valueClass={positive ? "text-foreground" : "text-danger"}
+          detail={
+            stated
               ? "Bokført saldo, ikke live banksaldo"
-              : "Bevegelse i perioden — ikke saldo"}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <div className="flex items-center gap-2 text-foreground-muted">
-            <ArrowUpRight size={16} className="text-success" />
-            <span className="text-sm">
-              {stated ? "Kunder skylder oss" : "Endring kundefordringer"}
-            </span>
-          </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-success">
-            {formatCurrency(data.receivables.total)}
-          </p>
-          <p className="mt-1 text-xs text-foreground-muted">
-            {data.receivables.top.length} kunder · inkl. mva
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <div className="flex items-center gap-2 text-foreground-muted">
-            <ArrowDownRight size={16} className="text-danger" />
-            <span className="text-sm">
-              {stated ? "Vi skylder leverandører" : "Endring leverandørgjeld"}
-            </span>
-          </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-danger">
-            {formatCurrency(data.payables.total)}
-          </p>
-          <p className="mt-1 text-xs text-foreground-muted">
-            {data.payables.top.length} leverandører · inkl. mva
-          </p>
-        </div>
-
+              : "Bevegelse i perioden — ikke saldo"
+          }
+        />
+        <StatCard
+          tone="teal"
+          icon={<ArrowUpRight size={16} strokeWidth={2.2} />}
+          label={stated ? "Kunder skylder oss" : "Endring kundefordringer"}
+          value={formatCurrency(data.receivables.total)}
+          valueClass="text-[var(--tone)]"
+          detail={`${data.receivables.top.length} kunder · inkl. mva`}
+        />
+        <StatCard
+          tone="rose"
+          icon={<ArrowDownRight size={16} strokeWidth={2.2} />}
+          label={stated ? "Vi skylder leverandører" : "Endring leverandørgjeld"}
+          value={formatCurrency(data.payables.total)}
+          valueClass="text-[var(--tone)]"
+          detail={`${data.payables.top.length} leverandører · inkl. mva`}
+        />
         {data.lowest_point && (
-          <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-            <div className="flex items-center gap-2 text-foreground-muted">
-              {data.lowest_point.balance > 0 ? (
-                <ShieldCheck size={16} className="text-success" />
+          <StatCard
+            tone="amber"
+            icon={
+              data.lowest_point.balance > 0 ? (
+                <ShieldCheck size={16} strokeWidth={2.2} />
               ) : (
-                <AlertTriangle size={16} className="text-danger" />
-              )}
-              <span className="text-sm">Laveste punkt i perioden</span>
-            </div>
-            <p
-              className={`mt-2 text-2xl font-bold tracking-tight ${
-                data.lowest_point.balance > 0 ? "text-foreground" : "text-danger"
-              }`}
-            >
-              {formatCurrency(data.lowest_point.balance)}
-            </p>
-            <p className="mt-1 text-xs text-foreground-muted">
-              {monthLabel(data.lowest_point.month)}
-            </p>
-          </div>
+                <AlertTriangle size={16} strokeWidth={2.2} />
+              )
+            }
+            label="Laveste punkt i perioden"
+            value={formatCurrency(data.lowest_point.balance)}
+            valueClass={
+              data.lowest_point.balance > 0 ? "text-foreground" : "text-danger"
+            }
+            detail={monthLabel(data.lowest_point.month)}
+          />
         )}
       </div>
 
-      <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-        <h3 className="mb-1 text-lg font-semibold text-foreground">
-          Bankbeholdning over tid
-        </h3>
-        <p className="mb-5 text-sm text-foreground-muted">
-          {stated
+      <Panel
+        tone="violet"
+        icon={Droplets}
+        title="Bankbeholdning over tid"
+        description={
+          stated
             ? "Bokført saldo på bankkontoer ved utgangen av hver måned."
-            : "Akkumulert bevegelse på bankkontoer. Uten inngående saldo starter kurven på null."}
-        </p>
+            : "Akkumulert bevegelse på bankkontoer. Uten inngående saldo starter kurven på null."
+        }
+      >
         <BalanceChart points={data.monthly} />
-      </section>
+      </Panel>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <PartyList
           title="Største utestående kundefordringer"
-          icon={<ArrowUpRight size={18} className="text-success" />}
+          icon={ArrowUpRight}
           parties={data.receivables.top}
-          tone="success"
+          tone="teal"
           empty="Ingen kunder har utestående saldo."
         />
         <PartyList
           title="Største leverandørgjeld"
-          icon={<ArrowDownRight size={18} className="text-danger" />}
+          icon={ArrowDownRight}
           parties={data.payables.top}
-          tone="danger"
+          tone="rose"
           empty="Ingen leverandørgjeld registrert."
         />
       </div>
@@ -248,41 +227,64 @@ function PartyList({
   empty,
 }: {
   title: string;
-  icon: React.ReactNode;
+  icon: LucideIcon;
   parties: Party[];
-  tone: "success" | "danger";
+  tone: Tone;
   empty: string;
 }) {
-  const toneClass = tone === "success" ? "text-success" : "text-danger";
-
   return (
-    <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-      <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
-        {icon}
-        {title}
-      </h3>
-
+    <Panel tone={tone} icon={icon} title={title}>
       {parties.length === 0 ? (
         <p className="py-6 text-center text-sm text-foreground-muted">{empty}</p>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           {parties.map((p) => (
             <div
               key={p.id}
-              className="flex items-center justify-between rounded-lg border border-border-light px-3 py-2.5"
+              className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-[var(--tone-soft)]"
             >
               <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                 {p.name}
               </span>
-              <span
-                className={`ml-4 shrink-0 text-sm font-semibold tabular-nums ${toneClass}`}
-              >
+              <span className="ml-4 shrink-0 text-sm font-semibold tabular-nums text-[var(--tone)]">
                 {formatCurrency(p.amount)}
               </span>
             </div>
           ))}
         </div>
       )}
-    </section>
+    </Panel>
+  );
+}
+
+/** One liquidity figure with its icon and the colour it keeps on this page. */
+function StatCard({
+  tone,
+  icon,
+  label,
+  value,
+  valueClass,
+  detail,
+}: {
+  tone: Tone;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  valueClass: string;
+  detail: string;
+}) {
+  return (
+    <div data-tone={tone} className="tone-card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-foreground-secondary">{label}</p>
+        <span className="tone-badge shrink-0">{icon}</span>
+      </div>
+      <p
+        className={`mt-2 text-2xl font-bold tracking-tight tabular-nums ${valueClass}`}
+      >
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-foreground-muted">{detail}</p>
+    </div>
   );
 }
