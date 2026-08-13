@@ -100,7 +100,7 @@ export function MetricCard({
     </>
   );
 
-  const className = "tone-card group flex h-full flex-col p-5 pl-6 text-left";
+  const className = "tone-card group flex h-full flex-col p-5 text-left";
 
   if (!href) {
     return (

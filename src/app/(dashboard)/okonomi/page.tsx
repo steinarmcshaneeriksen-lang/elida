@@ -427,7 +427,7 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
                 hint: "inaktive og utkast teller ikke med",
               },
             ] as const).map((box) => (
-              <div key={box.label} data-tone={box.tone} className="tone-card px-4 py-3 pl-5">
+              <div key={box.label} data-tone={box.tone} className="tone-card px-4 py-3">
                 <p className="text-xs font-medium text-foreground-secondary">
                   {box.label}
                 </p>
@@ -474,7 +474,7 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
             <div
               key={key}
               data-tone={CATEGORY_LABELS[key].tone}
-              className="tone-card px-4 py-3 pl-5"
+              className="tone-card px-4 py-3"
             >
               <div className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-[var(--tone)]" />
@@ -575,7 +575,7 @@ function SummaryCard({
   const ChangeIcon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
 
   return (
-    <div data-tone={tone} className="tone-card flex flex-col p-5 pl-6">
+    <div data-tone={tone} className="tone-card flex flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-sm font-medium text-foreground-secondary">{label}</p>
         {Icon && (

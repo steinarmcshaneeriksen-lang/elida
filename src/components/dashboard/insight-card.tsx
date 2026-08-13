@@ -44,7 +44,7 @@ export function InsightCard({
   return (
     <div
       data-tone={config.tone}
-      className="tone-card group flex items-start justify-between gap-4 p-4 pl-5"
+      className="tone-card group flex items-start justify-between gap-4 p-4"
     >
       <div className="flex items-start gap-3">
         <span className="tone-badge mt-0.5 shrink-0 rounded-full">

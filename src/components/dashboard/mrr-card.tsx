@@ -104,7 +104,7 @@ export function MrrCard({ data }: { data: MrrData }) {
   return (
     // Recurring revenue is the headline figure, so the band carries the
     // brand's teal rather than sitting in the same white as everything else.
-    <section data-tone="teal" className="tone-card p-5 pl-6">
+    <section data-tone="teal" className="tone-card p-5">
       <div className="flex flex-wrap items-center gap-x-10 gap-y-5">
         <div className="min-w-[13rem]">
           <div className="flex items-center gap-1.5">
