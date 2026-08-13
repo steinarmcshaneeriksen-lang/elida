@@ -833,6 +833,50 @@ export type Database = {
           },
         ]
       }
+      entity_balances: {
+        Row: {
+          closing_balance: number | null
+          company_id: string
+          entity_key: string
+          entity_type: string
+          id: string
+          opening_balance: number | null
+          source: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          closing_balance?: number | null
+          company_id: string
+          entity_key: string
+          entity_type: string
+          id?: string
+          opening_balance?: number | null
+          source?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          closing_balance?: number | null
+          company_id?: string
+          entity_key?: string
+          entity_type?: string
+          id?: string
+          opening_balance?: number | null
+          source?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_balances_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ephemeral_document_jobs: {
         Row: {
           analysis_result: Json | null
@@ -1908,6 +1952,84 @@ export type Database = {
           },
         ]
       }
+      recurring_contracts: {
+        Row: {
+          company_id: string
+          customer_id: string | null
+          customer_name: string
+          customer_number: string | null
+          department: string | null
+          description: string | null
+          gross_amount: number | null
+          id: string
+          imported_at: string
+          interval_months: number
+          is_active: boolean
+          is_draft: boolean
+          net_amount: number
+          next_invoice_date: string | null
+          org_number: string | null
+          seller: string | null
+          source_id: string | null
+          source_system: string
+        }
+        Insert: {
+          company_id: string
+          customer_id?: string | null
+          customer_name: string
+          customer_number?: string | null
+          department?: string | null
+          description?: string | null
+          gross_amount?: number | null
+          id?: string
+          imported_at?: string
+          interval_months: number
+          is_active?: boolean
+          is_draft?: boolean
+          net_amount: number
+          next_invoice_date?: string | null
+          org_number?: string | null
+          seller?: string | null
+          source_id?: string | null
+          source_system?: string
+        }
+        Update: {
+          company_id?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_number?: string | null
+          department?: string | null
+          description?: string | null
+          gross_amount?: number | null
+          id?: string
+          imported_at?: string
+          interval_months?: number
+          is_active?: boolean
+          is_draft?: boolean
+          net_amount?: number
+          next_invoice_date?: string | null
+          org_number?: string | null
+          seller?: string | null
+          source_id?: string | null
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_contracts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_contracts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       recurring_cost_patterns: {
         Row: {
           avg_amount: number
@@ -2937,3 +3059,5 @@ export type ReportTemplate = Tables<"report_templates">;
 export type Budget = Tables<"budgets">;
 export type BudgetLine = Tables<"budget_lines">;
 export type BudgetAssumption = Tables<"budget_assumptions">;
+export type RecurringContract = Tables<"recurring_contracts">;
+export type EntityBalance = Tables<"entity_balances">;

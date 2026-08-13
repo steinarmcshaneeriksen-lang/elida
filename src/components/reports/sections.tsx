@@ -131,9 +131,9 @@ export function ResultSection({ data }: { data: ReportDataset }) {
     <Section
       title="Økonomisk status"
       note={
-        hasComparison
+        (hasComparison
           ? `${data.period.label} mot ${data.comparison?.label}`
-          : data.period.label
+          : data.period.label) + " · alle beløp eks. mva"
       }
     >
       <table>
@@ -199,7 +199,7 @@ export function ResultSection({ data }: { data: ReportDataset }) {
 
 export function RevenueSection({ data }: { data: ReportDataset }) {
   return (
-    <Section title="Omsetning" note="Utvikling per måned, med driftsresultat som linje">
+    <Section title="Omsetning" note="Utvikling per måned, med driftsresultat som linje · eks. mva">
       <RevenueProfitChart points={data.revenue.by_month} />
 
       {data.revenue.by_category.length > 1 && (
@@ -237,7 +237,7 @@ export function RevenueSection({ data }: { data: ReportDataset }) {
 
 export function CostSection({ data }: { data: ReportDataset }) {
   return (
-    <Section title="Kostnader" note="Fordelt på kostnadstype">
+    <Section title="Kostnader" note="Fordelt på kostnadstype · eks. mva">
       <table>
         <thead>
           <tr>
@@ -386,7 +386,10 @@ export function CashSection({ data }: { data: ReportDataset }) {
 export function WorkingCapitalSection({ data }: { data: ReportDataset }) {
   return (
     <div className="grid grid-cols-2 gap-x-10">
-      <Section title="Kundefordringer" note={`Sum ${nok(data.receivables.total)}`}>
+      <Section
+        title="Kundefordringer"
+        note={`Sum ${nok(data.receivables.total)} inkl. mva`}
+      >
         {data.receivables.top.length > 0 ? (
           <RankedBars
             rows={data.receivables.top.map((p) => ({
@@ -409,7 +412,10 @@ export function WorkingCapitalSection({ data }: { data: ReportDataset }) {
         )}
       </Section>
 
-      <Section title="Leverandørgjeld" note={`Sum ${nok(data.payables.total)}`}>
+      <Section
+        title="Leverandørgjeld"
+        note={`Sum ${nok(data.payables.total)} inkl. mva`}
+      >
         {data.payables.top.length > 0 ? (
           <RankedBars
             rows={data.payables.top.map((p) => ({
@@ -437,7 +443,10 @@ export function CustomerSection({ data }: { data: ReportDataset }) {
   const c = data.revenue.concentration;
 
   return (
-    <Section title="Kunder" note={`Omsetning per kunde, ${data.period.label}`}>
+    <Section
+      title="Kunder"
+      note={`Omsetning per kunde, ${data.period.label} · eks. mva`}
+    >
       <FigureRow
         figures={[
           { label: "Antall kunder med omsetning", value: String(c.customer_count) },
@@ -472,7 +481,10 @@ export function SupplierSection({ data }: { data: ReportDataset }) {
   if (data.expenses.by_supplier.length === 0) return null;
 
   return (
-    <Section title="Leverandører" note={`Kostnad per leverandør, ${data.period.label}`}>
+    <Section
+      title="Leverandører"
+      note={`Kostnad per leverandør, ${data.period.label} · eks. mva`}
+    >
       <RankedBars
         rows={data.expenses.by_supplier.slice(0, 10).map((p) => ({
           label: p.name,
@@ -499,9 +511,10 @@ export function RecurringSection({ data }: { data: ReportDataset }) {
         ]}
       />
       <Footnote>
+        Eks. mva.{" "}
         {r.based_on_product_list
-          ? "Beregnet fra produktlisten. Kvartals- og årskontrakter er fordelt ned på måned."
-          : "Utledet fra posteringstekst fordi ingen produktliste er lastet opp. Tallet er usikkert."}
+          ? "Kvartals- og årskontrakter er fordelt ned på måned."
+          : "Utledet fra posteringstekst fordi ingen liste over gjentakende fakturaer er lastet opp. Tallet er usikkert."}
       </Footnote>
     </Section>
   );

@@ -116,6 +116,7 @@ export default function KundeDetaljPage() {
             <StatCard
               label="Omsetning i perioden"
               value={formatCurrency(data.revenue)}
+              detail="Eks. mva"
             />
             <StatCard
               label="Utestående"
@@ -126,7 +127,7 @@ export default function KundeDetaljPage() {
               }
               detail={
                 data.outstanding_is_stated
-                  ? undefined
+                  ? "Inkl. mva — fakturert beløp"
                   : "Ikke oppgitt i filen — se merknad"
               }
               tone={
@@ -164,6 +165,9 @@ export default function KundeDetaljPage() {
             <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
               <h3 className="mb-4 text-sm font-semibold text-foreground">
                 Omsetning per måned
+                <span className="ml-2 font-normal text-xs text-foreground-muted">
+                  eks. mva
+                </span>
               </h3>
               <div className="space-y-2">
                 {data.monthly_revenue.map((m) => (
@@ -192,6 +196,9 @@ export default function KundeDetaljPage() {
             <section className="overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow)]">
               <h3 className="border-b border-border px-5 py-3 text-sm font-semibold text-foreground">
                 Hva kunden kjøper
+                <span className="ml-2 font-normal text-xs text-foreground-muted">
+                  eks. mva
+                </span>
               </h3>
               <table className="w-full text-sm">
                 <thead>

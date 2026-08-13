@@ -847,9 +847,77 @@ const getUpcomingObligations: ToolHandler = async (companyId, params) => {
  */
 const getRecurringRevenue: ToolHandler = async (companyId) => {
   const coverage = await getCoverage(companyId);
-  if (!coverage.has_data) return noData(coverage);
-
   const supabase = await createClient();
+
+  // A contract list states the run rate outright. Inferring it from posting
+  // text counts one-off work that reads like a subscription, so where
+  // contracts exist they are the answer and the ledger is not consulted.
+  const { data: contracts } = await supabase
+    .from("recurring_contracts")
+    .select(
+      "customer_name, description, interval_months, net_amount, gross_amount, is_active, is_draft, next_invoice_date"
+    )
+    .eq("company_id", companyId);
+
+  const counted = (contracts ?? []).filter((c) => c.is_active && !c.is_draft);
+
+  if (counted.length > 0) {
+    const net = counted.reduce(
+      (t, c) => t + Number(c.net_amount) / c.interval_months,
+      0
+    );
+
+    const byInterval = new Map<number, { count: number; mrr: number }>();
+    for (const c of counted) {
+      const entry = byInterval.get(c.interval_months) ?? { count: 0, mrr: 0 };
+      entry.count++;
+      entry.mrr += Number(c.net_amount) / c.interval_months;
+      byInterval.set(c.interval_months, entry);
+    }
+
+    const top = [...counted]
+      .sort(
+        (a, b) =>
+          Number(b.net_amount) / b.interval_months -
+          Number(a.net_amount) / a.interval_months
+      )
+      .slice(0, 15)
+      .map((c) => ({
+        customer: c.customer_name,
+        monthly_value: Math.round(Number(c.net_amount) / c.interval_months),
+        invoiced_amount: Number(c.net_amount),
+        interval_months: c.interval_months,
+        next_invoice_date: c.next_invoice_date,
+      }));
+
+    return {
+      source: "contract_list",
+      mrr: Math.round(net),
+      arr: Math.round(net) * 12,
+      contracts: {
+        total: contracts?.length ?? 0,
+        counted: counted.length,
+        drafts: (contracts ?? []).filter((c) => c.is_draft).length,
+        inactive: (contracts ?? []).filter((c) => !c.is_active).length,
+      },
+      by_interval: [...byInterval.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([months, v]) => ({
+          interval_months: months,
+          count: v.count,
+          mrr: Math.round(v.mrr),
+        })),
+      largest_contracts: top,
+      note:
+        "Alle beløp er eks. mva. MRR er beregnet fra den opplastede listen over " +
+        "gjentakende fakturaer: beløp per faktura delt på antall måneder mellom " +
+        "hver fakturering. Avtaler som står som utkast eller er inaktive er ikke " +
+        "med. Dette er et sikkert tall, ikke et estimat.",
+      data_source: "contract_list",
+    };
+  }
+
+  if (!coverage.has_data) return noData(coverage);
   const { data } = (await supabase.rpc("company_mrr" as never, {
     p_company_id: companyId,
   } as never)) as unknown as {
@@ -901,9 +969,11 @@ const getRecurringRevenue: ToolHandler = async (companyId) => {
     note:
       coverage.counts.recurring_products > 0
         ? "MRR er beregnet fra produktlisten: kvartals-, halvårs- og årskontrakter " +
-          "er normalisert ned til månedsbeløp. Ufullstendige måneder teller ikke med."
-        : "Ingen produktliste er lastet opp, så gjentakende inntekter er utledet fra " +
-          "posteringstekst og er usikre. Nevn at en produktliste gir et sikrere tall.",
+          "er normalisert ned til månedsbeløp. Alle beløp er eks. mva."
+        : "Ingen liste over gjentakende fakturaer er lastet opp, så tallet er utledet " +
+          "fra posteringstekst og er USIKKERT — det teller med engangssalg som ligner " +
+          "på abonnement. Si dette tydelig, og be brukeren laste opp listen over " +
+          "repeterende fakturaer under «Importer data» for et sikkert tall.",
     data_source: "saft_import",
   };
 };

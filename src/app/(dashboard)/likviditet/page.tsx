@@ -109,7 +109,7 @@ export default function LikviditetPage() {
             {formatCurrency(data.receivables.total)}
           </p>
           <p className="mt-1 text-xs text-foreground-muted">
-            {data.receivables.top.length} kunder med utestående
+            {data.receivables.top.length} kunder · inkl. mva
           </p>
         </div>
 
@@ -124,7 +124,7 @@ export default function LikviditetPage() {
             {formatCurrency(data.payables.total)}
           </p>
           <p className="mt-1 text-xs text-foreground-muted">
-            {data.payables.top.length} leverandører med utestående
+            {data.payables.top.length} leverandører · inkl. mva
           </p>
         </div>
 

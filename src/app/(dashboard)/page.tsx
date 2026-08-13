@@ -190,8 +190,8 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
       comparison: comparisonFor(data.profit),
       detail:
         margin != null
-          ? `Driftsmargin ${margin.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} %`
-          : undefined,
+          ? `Eks. mva · driftsmargin ${margin.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} %`
+          : "Eks. mva",
       href: "/okonomi",
     });
   }
@@ -203,8 +203,8 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
       value: formatCurrency(data.revenue.ytd),
       comparison: comparisonFor(data.revenue),
       detail: data.revenue.has_comparison
-        ? `I fjor: ${formatCurrency(data.revenue.comparison_ytd ?? 0)}`
-        : undefined,
+        ? `Eks. mva · i fjor ${formatCurrency(data.revenue.comparison_ytd ?? 0)}`
+        : "Eks. mva",
       href: "/okonomi",
     });
   }
@@ -234,6 +234,9 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
         direction: "flat",
         label: "bokført ved periodens slutt",
       },
+      // A receivable is what was invoiced, VAT included; unlike revenue it
+      // cannot be stated net without inventing a VAT split per invoice.
+      detail: "Inkl. mva — fakturert beløp",
       href: "/kunder",
     });
   }

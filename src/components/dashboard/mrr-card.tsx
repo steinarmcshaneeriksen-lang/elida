@@ -15,16 +15,27 @@ export interface MrrMonth {
 
 export interface MrrData {
   has_data: boolean;
+  /** contracts: stated by an uploaded contract list. ledger: inferred. */
+  source?: "contracts" | "ledger";
   mrr: {
-    month: string;
+    month: string | null;
     value: number;
+    value_gross: number | null;
     billed_value: number;
     based_on_product_list: boolean;
     previous_value: number | null;
     change_percent: number | null;
     arr: number;
+    arr_gross: number | null;
     average_3m: number;
-    recurring_share: number;
+    recurring_share: number | null;
+  } | null;
+  contracts?: {
+    total: number;
+    counted: number;
+    drafts: number;
+    inactive: number;
+    by_interval: Array<{ months: number; label: string; count: number; mrr: number }>;
   } | null;
   months: MrrMonth[];
 }
@@ -65,19 +76,34 @@ export function MrrCard({ data }: { data: MrrData }) {
       : "text-foreground-muted";
 
   const max = Math.max(...months.map((m) => m.normalised), 1);
+  const fromContracts = data.source === "contracts";
 
-  const basis = [
-    mrr.based_on_product_list
-      ? "Basert på produktlisten din."
-      : "Utledet fra posteringstekst — last opp produktlisten for et sikrere tall.",
-    "Kvartals- og årskontrakter er fordelt ned på måned.",
-    mrr.billed_value !== mrr.value
-      ? `Fakturert i måneden: ${formatCurrency(mrr.billed_value)}.`
-      : "",
-    "Kontrakter som ikke er fakturert innenfor perioden i filen er ikke med.",
-  ]
-    .filter(Boolean)
-    .join(" ");
+  const basis = fromContracts
+    ? [
+        `Beregnet fra ${data.contracts?.counted ?? 0} aktive avtaler i den opplastede fakturalisten.`,
+        "Kvartals-, halvårs- og årsavtaler er delt ned på måned.",
+        data.contracts?.drafts
+          ? `${data.contracts.drafts} avtaler står som utkast og teller ikke med.`
+          : "",
+        data.contracts?.inactive
+          ? `${data.contracts.inactive} avtaler er inaktive og teller ikke med.`
+          : "",
+        "Alle beløp er eks. mva.",
+      ]
+        .filter(Boolean)
+        .join(" ")
+    : [
+        mrr.based_on_product_list
+          ? "Basert på produktlisten din."
+          : "Utledet fra posteringstekst — last opp listen over repeterende fakturaer for et sikkert tall.",
+        "Kvartals- og årskontrakter er fordelt ned på måned.",
+        mrr.billed_value !== mrr.value
+          ? `Fakturert i måneden: ${formatCurrency(mrr.billed_value)}.`
+          : "",
+        "Alle beløp er eks. mva.",
+      ]
+        .filter(Boolean)
+        .join(" ");
 
   return (
     <section className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
@@ -101,6 +127,7 @@ export function MrrCard({ data }: { data: MrrData }) {
             <span className="text-3xl font-bold tracking-tight text-foreground">
               {formatCurrency(mrr.value)}
             </span>
+            <span className="text-xs text-foreground-muted">eks. mva</span>
             {mrr.change_percent != null && (
               <span className={`inline-flex items-center gap-0.5 text-sm font-medium ${trendClass}`}>
                 <TrendIcon size={14} />
@@ -114,16 +141,44 @@ export function MrrCard({ data }: { data: MrrData }) {
           </div>
 
           <p className="mt-1 text-xs text-foreground-muted">
-            MRR i {longMonth(mrr.month)} — siste fullstendige måned
+            {mrr.value_gross != null && (
+              <>{formatCurrency(mrr.value_gross)} inkl. mva · </>
+            )}
+            {fromContracts
+              ? `${data.contracts?.counted ?? 0} aktive avtaler`
+              : mrr.month
+                ? `MRR i ${longMonth(mrr.month)} — siste fullstendige måned`
+                : "MRR"}
           </p>
         </div>
 
-        <Stat label="Årlig takt (ARR)" value={formatCurrency(mrr.arr)} />
-        <Stat label="Snitt siste 3 mnd" value={formatCurrency(mrr.average_3m)} />
         <Stat
-          label="Andel av omsetningen"
-          value={`${mrr.recurring_share} %`}
+          label="Årlig takt (ARR)"
+          value={formatCurrency(mrr.arr)}
+          detail={mrr.arr_gross != null ? `${formatCurrency(mrr.arr_gross)} inkl. mva` : null}
         />
+        {fromContracts ? (
+          <Stat
+            label="Avtaler"
+            value={String(data.contracts?.counted ?? 0)}
+            detail={
+              data.contracts && data.contracts.by_interval.length > 1
+                ? data.contracts.by_interval
+                    .map((i) => `${i.count} ${i.label.toLowerCase()}`)
+                    .join(", ")
+                : null
+            }
+          />
+        ) : (
+          <Stat label="Snitt siste 3 mnd" value={formatCurrency(mrr.average_3m)} />
+        )}
+        {mrr.recurring_share != null && (
+          <Stat
+            label="Andel av omsetningen"
+            value={`${mrr.recurring_share} %`}
+            detail="av siste fullstendige måned"
+          />
+        )}
 
         {months.length > 1 && (
           <div className="ml-auto flex items-end gap-1" aria-hidden>
@@ -167,13 +222,24 @@ export function MrrCard({ data }: { data: MrrData }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string | null;
+}) {
   return (
     <div>
       <p className="text-xs text-foreground-muted">{label}</p>
       <p className="mt-0.5 text-lg font-semibold tabular-nums text-foreground">
         {value}
       </p>
+      {detail && (
+        <p className="mt-0.5 text-[11px] text-foreground-muted">{detail}</p>
+      )}
     </div>
   );
 }

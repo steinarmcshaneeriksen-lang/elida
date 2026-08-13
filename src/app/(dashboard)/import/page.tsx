@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useUser } from "@/lib/hooks/use-user";
 import { refreshCompanyData } from "@/lib/hooks/use-company-data";
-import { formatRelativeTime } from "@/lib/format";
+import { formatCurrency, formatRelativeTime } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
 const SAFT_BUCKET = "saft-imports";
@@ -364,7 +364,7 @@ export default function ImportPage() {
         </div>
       )}
 
-      <ProductListUpload companyId={companyId} />
+      <SpreadsheetUpload companyId={companyId} />
 
       {/* History */}
       {history.length > 0 && (
@@ -469,29 +469,22 @@ function StatusBadge({
 
 
 /**
- * A product list states which products are licences or subscriptions, which
- * turns the recurring-revenue split from an inference into the seller's own
- * classification. These exports are small, so they go through the API
- * directly rather than via storage.
+ * A spreadsheet whose shape Elida works out for itself.
+ *
+ * Requiring a fixed column order means reshaping every export by hand before
+ * it can be used, which is the work the import exists to remove. The header
+ * row is located wherever it sits, the columns are identified by what they
+ * mean rather than where they are, and the file is classified by what its
+ * columns turn out to be.
  */
-function ProductListUpload({ companyId }: { companyId: string | undefined }) {
+function SpreadsheetUpload({ companyId }: { companyId: string | undefined }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [result, setResult] = useState<{
-    counts: {
-      products: number;
-      recurring: number;
-      added: number;
-      price_changed: number;
-      unchanged: number;
-      missing_from_file: number;
-    };
-    price_changes: Array<{ name: string; from: number | null; to: number | null }>;
-    missing_products: string[];
-    groups: string[];
-    warnings: string[];
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [result, setResult] = useState<SpreadsheetResult | null>(null);
+  const [error, setError] = useState<{ message: string; columns?: string[] } | null>(
+    null
+  );
 
   const upload = async (file: File) => {
     if (!companyId || isUploading) return;
@@ -504,20 +497,28 @@ function ProductListUpload({ companyId }: { companyId: string | undefined }) {
       formData.append("file", file);
       formData.append("company_id", companyId);
 
-      const res = await fetch("/api/import/products", {
+      const res = await fetch("/api/import/spreadsheet", {
         method: "POST",
         body: formData,
       });
 
+      const body = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        setError(body?.detail ?? body?.error ?? "Opplasting feilet");
+        setError({
+          message: body?.detail
+            ? `${body.error}. ${body.detail}`
+            : (body?.error ?? "Opplasting feilet"),
+          columns: body?.found_columns,
+        });
         return;
       }
 
-      setResult(await res.json());
+      setResult(body as SpreadsheetResult);
+      // MRR and every figure derived from it has just changed.
+      refreshCompanyData();
     } catch {
-      setError("Kunne ikke koble til. Prøv igjen.");
+      setError({ message: "Kunne ikke koble til. Prøv igjen." });
     } finally {
       setIsUploading(false);
     }
@@ -528,110 +529,198 @@ function ProductListUpload({ companyId }: { companyId: string | undefined }) {
       <div className="mb-1 flex items-center gap-2">
         <Repeat size={18} className="text-foreground-muted" />
         <h3 className="text-base font-semibold text-foreground">
-          Produktliste (valgfritt)
+          Gjentakende fakturaer
         </h3>
       </div>
-      <p className="mb-4 text-sm text-foreground-secondary">
-        SAF-T sier ikke hvilke inntekter som er gjentakende. Laster du opp
-        produktlisten fra regnskapssystemet, brukes produktgruppen — for
-        eksempel «Lisenser» — til å skille abonnementsinntekter fra
-        engangssalg. Uten den gjetter Elida ut fra posteringstekst.
+      <p className="mb-4 max-w-3xl text-sm text-foreground-secondary">
+        SAF-T sier ikke hva som gjentar seg. Last opp listen over repeterende
+        fakturaer fra regnskapssystemet, så leser Elida hver avtale — beløp,
+        hvor ofte den faktureres og om den er aktiv — og regner MRR direkte fra
+        den i stedet for å gjette ut fra posteringstekst. Filen trenger ingen
+        bestemt kolonnerekkefølge; Elida finner kolonnene selv.
       </p>
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept=".xlsx,.xls,.csv"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) upload(file);
-          if (inputRef.current) inputRef.current.value = "";
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragging(true);
         }}
-      />
-      <button
-        onClick={() => inputRef.current?.click()}
-        disabled={!companyId || isUploading}
-        className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground-secondary hover:bg-surface-hover disabled:opacity-40"
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          const file = e.dataTransfer.files?.[0];
+          if (file) upload(file);
+        }}
+        className={`rounded-lg border border-dashed px-5 py-6 text-center transition-colors ${
+          isDragging ? "border-primary bg-primary-50" : "border-border bg-background"
+        }`}
       >
-        {isUploading ? "Leser produktliste …" : "Velg produktliste (Excel)"}
-      </button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".xlsx,.xls,.csv"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) upload(file);
+            if (inputRef.current) inputRef.current.value = "";
+          }}
+        />
+        <p className="text-sm text-foreground-secondary">
+          Dra filen hit, eller{" "}
+          <button
+            onClick={() => inputRef.current?.click()}
+            disabled={!companyId || isUploading}
+            className="font-medium text-primary hover:text-primary-light disabled:opacity-40"
+          >
+            velg en fil
+          </button>
+          . Excel eller CSV.
+        </p>
+        {isUploading && (
+          <p className="mt-2 text-sm text-foreground-muted">Tolker filen …</p>
+        )}
+      </div>
 
-      {error && <p className="mt-3 text-sm text-danger">{error}</p>}
+      {error && (
+        <div className="mt-3 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3">
+          <p className="text-sm text-danger">{error.message}</p>
+          {error.columns && error.columns.length > 0 && (
+            <p className="mt-1 text-xs text-foreground-muted">
+              Kolonner i filen: {error.columns.join(", ")}
+            </p>
+          )}
+        </div>
+      )}
 
-      {result && (
-        <div className="mt-4 space-y-3 rounded-lg bg-background px-4 py-3 text-sm">
-          <p className="text-foreground">
-            {result.counts.products} produkter lest,{" "}
-            <span className="font-semibold">
-              {result.counts.recurring} merket som gjentakende
+      {result && <SpreadsheetResultView result={result} />}
+    </section>
+  );
+}
+
+interface SpreadsheetResult {
+  kind: string;
+  file_name: string;
+  sheet: string;
+  header_row: number;
+  columns_used: Record<string, string>;
+  contracts: number;
+  counted_towards_mrr: number;
+  drafts: number;
+  inactive: number;
+  matched_customers: number;
+  mrr: number;
+  arr: number;
+  by_interval: Array<{ months: number; label: string; count: number; mrr: number }>;
+  skipped: Array<{ row: number; reason: string }>;
+  warnings: string[];
+}
+
+const COLUMN_LABELS: Record<string, string> = {
+  customer_name: "Kunde",
+  customer_number: "Kundenummer",
+  org_number: "Organisasjonsnummer",
+  interval: "Intervall",
+  net_amount: "Beløp eks. mva",
+  gross_amount: "Beløp inkl. mva",
+  active: "Aktiv",
+  invoice_status: "Fakturastatus",
+  next_invoice_date: "Neste fakturadato",
+  description: "Beskrivelse",
+  seller: "Selger",
+  department: "Avdeling",
+};
+
+function SpreadsheetResultView({ result }: { result: SpreadsheetResult }) {
+  return (
+    <div className="mt-4 space-y-4 rounded-lg bg-background px-4 py-4 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+        <div>
+          <p className="text-xs text-foreground-muted">MRR</p>
+          <p className="text-2xl font-bold tabular-nums text-foreground">
+            {formatCurrency(result.mrr)}
+            <span className="ml-1.5 text-xs font-normal text-foreground-muted">
+              eks. mva
             </span>
-            .
           </p>
+        </div>
+        <div>
+          <p className="text-xs text-foreground-muted">ARR</p>
+          <p className="text-lg font-semibold tabular-nums text-foreground">
+            {formatCurrency(result.arr)}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-foreground-muted">Avtaler med i beregningen</p>
+          <p className="text-lg font-semibold tabular-nums text-foreground">
+            {result.counted_towards_mrr} av {result.contracts}
+          </p>
+        </div>
+      </div>
 
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-foreground-secondary">
-            <span>
-              <span className="font-semibold text-foreground">
-                {result.counts.added}
-              </span>{" "}
-              nye
-            </span>
-            <span>
-              <span className="font-semibold text-foreground">
-                {result.counts.price_changed}
-              </span>{" "}
-              med endret pris
-            </span>
-            <span>
-              <span className="font-semibold text-foreground">
-                {result.counts.unchanged}
-              </span>{" "}
-              uendret
-            </span>
-          </div>
+      {result.by_interval.length > 0 && (
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-border text-left text-foreground-muted">
+              <th className="py-1.5 font-medium">Intervall</th>
+              <th className="py-1.5 text-right font-medium">Avtaler</th>
+              <th className="py-1.5 text-right font-medium">Bidrag til MRR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.by_interval.map((i) => (
+              <tr key={i.months} className="border-b border-border-light last:border-0">
+                <td className="py-1.5 text-foreground">{i.label}</td>
+                <td className="py-1.5 text-right tabular-nums text-foreground-secondary">
+                  {i.count}
+                </td>
+                <td className="py-1.5 text-right tabular-nums text-foreground">
+                  {formatCurrency(i.mrr)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
-          {result.price_changes.length > 0 && (
-            <div>
-              <p className="mb-1 text-xs font-medium text-foreground">
-                Prisendringer
-              </p>
-              <ul className="space-y-0.5 text-xs text-foreground-secondary">
-                {result.price_changes.map((c) => (
-                  <li key={c.name}>
-                    {c.name}:{" "}
-                    <span className="tabular-nums">
-                      {c.from ?? "—"} → {c.to ?? "—"}
-                    </span>
+      {result.warnings.map((w, i) => (
+        <p key={i} className="text-xs text-foreground-secondary">
+          {w}
+        </p>
+      ))}
+
+      {/* What Elida decided each column meant, so a wrong reading is visible
+          rather than silently baked into the figures. */}
+      <details className="text-xs">
+        <summary className="cursor-pointer text-foreground-muted hover:text-foreground-secondary">
+          Slik tolket Elida filen
+        </summary>
+        <div className="mt-2 space-y-1 text-foreground-secondary">
+          <p>
+            Ark «{result.sheet}», overskrifter på rad {result.header_row}.
+          </p>
+          <ul className="space-y-0.5">
+            {Object.entries(result.columns_used).map(([field, column]) => (
+              <li key={field}>
+                {COLUMN_LABELS[field] ?? field}: <span className="text-foreground">{column}</span>
+              </li>
+            ))}
+          </ul>
+          {result.skipped.length > 0 && (
+            <div className="pt-1">
+              <p className="font-medium text-warning">Hoppet over</p>
+              <ul className="space-y-0.5">
+                {result.skipped.map((s) => (
+                  <li key={s.row}>
+                    Rad {s.row}: {s.reason}
                   </li>
                 ))}
               </ul>
             </div>
           )}
-
-          {result.counts.missing_from_file > 0 && (
-            <p className="text-xs text-warning">
-              {result.counts.missing_from_file} produkter fra forrige
-              opplasting mangler i denne filen. De er beholdt, siden
-              posteringer viser til dem
-              {result.missing_products.length > 0
-                ? `: ${result.missing_products.slice(0, 5).join(", ")}`
-                : ""}
-              .
-            </p>
-          )}
-
-          {result.groups.length > 0 && (
-            <p className="text-xs text-foreground-muted">
-              Produktgrupper: {result.groups.join(", ")}
-            </p>
-          )}
-          {result.warnings.map((w, i) => (
-            <p key={i} className="text-xs text-warning">
-              {w}
-            </p>
-          ))}
         </div>
-      )}
-    </section>
+      </details>
+    </div>
   );
 }
