@@ -263,6 +263,12 @@ export async function buildReportDataset(
 
   const comparisonPeriod = resolveComparison(request);
 
+  // Balances belong to an accounting year. A report about 2025 must show the
+  // 2025 closing balances, not whatever the latest import left on the parent
+  // tables — which is how a 2025 file once made the 2026 dashboard show 2025's
+  // bank balance.
+  const reportYear = Number(periodEnd.slice(0, 4));
+
   // One read covers both periods; splitting them would double the round trips
   // for no benefit, and the comparison range is always adjacent or a year back.
   const readFrom =
@@ -287,9 +293,9 @@ export async function buildReportDataset(
   ] = await Promise.all([
     loadCompany(supabase, companyId),
     loadPostings(supabase, companyId, readFrom, readTo),
-    loadAccounts(supabase, companyId),
-    loadParties(supabase, companyId, "customers"),
-    loadParties(supabase, companyId, "suppliers"),
+    loadAccounts(supabase, companyId, reportYear),
+    loadParties(supabase, companyId, "customers", reportYear),
+    loadParties(supabase, companyId, "suppliers", reportYear),
     loadInsights(supabase, companyId),
     loadCoverage(supabase, companyId),
     loadMrr(supabase, companyId),
@@ -1205,24 +1211,65 @@ async function loadPostings(
   return all;
 }
 
-async function loadAccounts(supabase: DB, companyId: string): Promise<AccountRow[]> {
-  const { data } = await supabase
-    .from("gl_accounts")
-    .select("account_number, name, opening_balance, closing_balance")
-    .eq("company_id", companyId);
-  return (data ?? []) as AccountRow[];
+async function loadAccounts(
+  supabase: DB,
+  companyId: string,
+  year: number
+): Promise<AccountRow[]> {
+  const [{ data: accounts }, balances] = await Promise.all([
+    supabase.from("gl_accounts").select("account_number, name").eq("company_id", companyId),
+    supabase
+      .from("entity_balances")
+      .select("entity_key, opening_balance, closing_balance")
+      .eq("company_id", companyId)
+      .eq("entity_type", "account")
+      .eq("year", year),
+  ]);
+
+  const byKey = new Map(
+    ((balances.data ?? []) as Array<{
+      entity_key: string;
+      opening_balance: number | null;
+      closing_balance: number | null;
+    }>).map((b) => [b.entity_key, b])
+  );
+
+  return ((accounts ?? []) as Array<{ account_number: string; name: string | null }>).map(
+    (a) => ({
+      account_number: a.account_number,
+      name: a.name,
+      opening_balance: byKey.get(a.account_number)?.opening_balance ?? null,
+      closing_balance: byKey.get(a.account_number)?.closing_balance ?? null,
+    })
+  );
 }
 
 async function loadParties(
   supabase: DB,
   companyId: string,
-  table: "customers" | "suppliers"
+  table: "customers" | "suppliers",
+  year: number
 ): Promise<PartyRow[]> {
-  const { data } = await supabase
-    .from(table)
-    .select("id, name, closing_balance")
-    .eq("company_id", companyId);
-  return (data ?? []) as PartyRow[];
+  const [{ data: parties }, balances] = await Promise.all([
+    supabase.from(table).select("id, name").eq("company_id", companyId),
+    supabase
+      .from("entity_balances")
+      .select("entity_key, closing_balance")
+      .eq("company_id", companyId)
+      .eq("entity_type", table === "customers" ? "customer" : "supplier")
+      .eq("year", year),
+  ]);
+
+  const byId = new Map(
+    ((balances.data ?? []) as Array<{ entity_key: string; closing_balance: number | null }>)
+      .map((b) => [b.entity_key, b.closing_balance])
+  );
+
+  return ((parties ?? []) as Array<{ id: string; name: string }>).map((p) => ({
+    id: p.id,
+    name: p.name,
+    closing_balance: byId.get(p.id) ?? null,
+  }));
 }
 
 async function loadInsights(

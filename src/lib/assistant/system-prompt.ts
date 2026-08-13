@@ -288,7 +288,12 @@ function getCoverageContext(coverage?: Coverage): string {
       ? `${coverage.counts.recurring_products} produkter er merket som gjentakende, så MRR er beregnet fra produktlisten.`
       : "Ingen produktliste er lastet opp, så gjentakende inntekter er utledet fra posteringstekst og er usikre."
   }
-- Kilden er en SAF-T-eksport. Den oppgir saldo per kunde og leverandør, men ikke enkeltfakturaer med forfallsdato. Aldersfordeling og forfallsoversikt kan derfor ikke beregnes — si det framfor å anslå.`;
+- Kilden er en SAF-T-eksport. Den oppgir saldo per kunde og leverandør, men ikke enkeltfakturaer med forfallsdato. Aldersfordeling og forfallsoversikt kan derfor ikke beregnes — si det framfor å anslå.
+- Saldoer hører til et regnskapsår. Spør brukeren om et tidligere år, gjelder saldoene det året, ikke i dag.${
+    coverage.years.length > 1
+      ? "\n- Flere år er importert, så sammenligning mot fjoråret er mulig. Bruk den når det gir mening."
+      : ""
+  }`;
 }
 
 function getDataContext(dataQuality: DataQuality): string {

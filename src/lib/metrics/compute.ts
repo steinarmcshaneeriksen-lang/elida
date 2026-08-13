@@ -56,10 +56,13 @@ function inRange(account: number, range: { from: number; to: number }): boolean 
   return account >= range.from && account <= range.to;
 }
 
-interface AccountBalance {
-  account_number: string;
-  opening_balance: number | null;
-  closing_balance: number | null;
+interface YearBalances {
+  /** Closing balance on bank and cash accounts at the year's period end. */
+  cash: number | null;
+  /** Sum of the per-customer closing balances, when the file states them. */
+  customerReceivables: number | null;
+  /** Fallback: the trade-receivable account range. */
+  accountReceivables: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,17 +73,14 @@ export async function computeCompanyMetrics(
   supabase: DB,
   companyId: string
 ): Promise<ComputedMetrics> {
-  const [postings, accounts, statedReceivables] = await Promise.all([
+  const [postings, balances] = await Promise.all([
     loadPostings(supabase, companyId),
-    loadAccountBalances(supabase, companyId),
-    loadStatedReceivables(supabase, companyId),
+    loadYearBalances(supabase, companyId),
   ]);
 
   if (postings.length === 0) {
     return { years: [], metricsWritten: 0, yearsWithComparison: [] };
   }
-
-  const opening = openingBalancesFor(accounts);
 
   // Group by calendar year. Norwegian financial years follow the calendar
   // year unless a company has an approved deviating year; SAF-T does not
@@ -95,9 +95,6 @@ export async function computeCompanyMetrics(
   }
 
   const years = [...byYear.keys()].sort();
-  // The stated opening balances describe the year the imported file covers,
-  // which is the latest year present.
-  const balanceYear = years[years.length - 1];
   await upsertFinancialYears(supabase, companyId, byYear);
 
   const rows: Record<string, unknown>[] = [];
@@ -115,19 +112,10 @@ export async function computeCompanyMetrics(
     const periodStart = `${year}-01-01`;
     const periodEnd = lastDate;
 
-    const current = summarise(
-      yearPostings,
-      year === balanceYear ? opening : undefined
-    );
-
-    // "Utestående kundefordringer" on the dashboard links through to the
-    // customer list, so it has to be the same total that list shows: the sum
-    // of the balances the accounting system states per customer. The account
-    // range also picks up intercompany and staff receivables, which would make
-    // the two pages disagree.
-    if (year === balanceYear && statedReceivables != null) {
-      current.receivables_total = round(statedReceivables);
-    }
+    // Balance-sheet figures come from the balances recorded for THIS year, not
+    // from whichever file was imported last. A closing balance is a fact about
+    // a date, so summing the year's postings would give the movement instead.
+    const current = summarise(yearPostings, balances.get(year));
 
     // Same slice of the previous year, so the comparison is like for like.
     const previousPostings = byYear.get(year - 1);
@@ -184,22 +172,17 @@ interface PeriodMetrics {
  * Amounts are stored debit-positive. Revenue accounts are credit-normal, so
  * their sum is negative and is flipped to read as income.
  *
- * Profit-and-loss figures are period sums. Balance-sheet figures are not: a
- * balance is the opening balance plus everything posted since. Summing only
- * the period's postings reported the *movement* as the balance, which showed
- * receivables of −320 283 for a company owed 1 417 909, and understated the
- * bank by its opening balance. `openingBalances` supplies the missing half;
- * where it is absent the balance cannot be known and is omitted rather than
- * reported as a movement.
+ * Profit and loss are period sums. A balance is not: it is a fact about a
+ * date, and is read from the balances recorded for that year rather than
+ * derived by adding up the period's postings — which gives the movement, and
+ * once reported receivables of -320 283 for a company owed 1 417 909.
  */
 function summarise(
   postings: Posting[],
-  openingBalances?: { cash: number; receivables: number }
+  balances?: YearBalances
 ): PeriodMetrics {
   let revenue = 0;
   let costs = 0;
-  let cashMovement = 0;
-  let receivablesMovement = 0;
 
   for (const p of postings) {
     const account = parseInt(p.account_number, 10);
@@ -216,9 +199,6 @@ function summarise(
     ) {
       costs += p.amount;
     }
-
-    if (inRange(account, CASH_RANGE)) cashMovement += p.amount;
-    if (inRange(account, RECEIVABLES_RANGE)) receivablesMovement += p.amount;
   }
 
   const metrics: PeriodMetrics = {
@@ -227,35 +207,17 @@ function summarise(
     operating_profit_ytd: round(revenue - costs),
   };
 
-  if (openingBalances) {
-    metrics.cash_balance = round(openingBalances.cash + cashMovement);
-    metrics.receivables_total = round(
-      openingBalances.receivables + receivablesMovement
-    );
-  }
+  if (balances?.cash != null) metrics.cash_balance = round(balances.cash);
+
+  // "Utestående kundefordringer" on the dashboard links through to the
+  // customer list, so it must be the total that list shows: the sum of the
+  // per-customer balances. The account range also sweeps in intercompany and
+  // staff receivables, which would make the two pages disagree, so it is only
+  // the fallback for files that state no party balances.
+  const receivables = balances?.customerReceivables ?? balances?.accountReceivables;
+  if (receivables != null) metrics.receivables_total = round(receivables);
 
   return metrics;
-}
-
-/**
- * Opening balances belong to the accounting year the imported file covers.
- * Applying them to an earlier year would be wrong, so only that year gets a
- * balance-sheet figure; earlier years get profit-and-loss metrics only.
- */
-function openingBalancesFor(
-  accounts: AccountBalance[]
-): { cash: number; receivables: number } {
-  let cash = 0;
-  let receivables = 0;
-
-  for (const a of accounts) {
-    const account = parseInt(a.account_number, 10);
-    if (!Number.isFinite(account) || a.opening_balance == null) continue;
-    if (inRange(account, CASH_RANGE)) cash += Number(a.opening_balance);
-    if (inRange(account, RECEIVABLES_RANGE)) receivables += Number(a.opening_balance);
-  }
-
-  return { cash, receivables };
 }
 
 function round(n: number): number {
@@ -365,43 +327,62 @@ async function upsertFinancialYears(
  * A SAF-T file carries these alongside the postings; without them a balance
  * cannot be reconstructed from an export that starts mid-history.
  */
-async function loadAccountBalances(
+/**
+ * Balances per year, read from entity_balances.
+ *
+ * Before this existed, a file for an earlier year overwrote the later year's
+ * balances on gl_accounts and customers, and the dashboard presented the older
+ * figures as current.
+ */
+async function loadYearBalances(
   supabase: DB,
   companyId: string
-): Promise<AccountBalance[]> {
-  const { data, error } = (await supabase
-    .from("gl_accounts")
-    .select("account_number, opening_balance, closing_balance")
+): Promise<Map<number, YearBalances>> {
+  const { data } = (await supabase
+    .from("entity_balances")
+    .select("entity_type, entity_key, year, closing_balance")
     .eq("company_id", companyId)) as {
-    data: AccountBalance[] | null;
-    error: { message: string } | null;
+    data: Array<{
+      entity_type: string;
+      entity_key: string;
+      year: number;
+      closing_balance: number | null;
+    }> | null;
   };
 
-  if (error) {
-    throw new Error(`Kunne ikke lese kontosaldoer: ${error.message}`);
+  const byYear = new Map<number, YearBalances>();
+
+  const bucket = (year: number) => {
+    let entry = byYear.get(year);
+    if (!entry) {
+      entry = { cash: null, customerReceivables: null, accountReceivables: null };
+      byYear.set(year, entry);
+    }
+    return entry;
+  };
+
+  for (const row of data ?? []) {
+    if (row.closing_balance == null) continue;
+    const value = Number(row.closing_balance);
+    const entry = bucket(row.year);
+
+    if (row.entity_type === "customer") {
+      entry.customerReceivables = (entry.customerReceivables ?? 0) + value;
+      continue;
+    }
+
+    if (row.entity_type !== "account") continue;
+
+    const account = parseInt(row.entity_key, 10);
+    if (!Number.isFinite(account)) continue;
+
+    if (inRange(account, CASH_RANGE)) entry.cash = (entry.cash ?? 0) + value;
+    if (inRange(account, RECEIVABLES_RANGE)) {
+      entry.accountReceivables = (entry.accountReceivables ?? 0) + value;
+    }
   }
 
-  return data ?? [];
-}
-
-/**
- * Sum of the per-customer balances the SAF-T file states. Null when the file
- * omits them, in which case the account range is used instead.
- */
-async function loadStatedReceivables(
-  supabase: DB,
-  companyId: string
-): Promise<number | null> {
-  const { data } = (await supabase
-    .from("customers")
-    .select("closing_balance")
-    .eq("company_id", companyId)
-    .not("closing_balance", "is", null)) as {
-    data: Array<{ closing_balance: number | null }> | null;
-  };
-
-  if (!data || data.length === 0) return null;
-  return data.reduce((total, c) => total + Number(c.closing_balance ?? 0), 0);
+  return byYear;
 }
 
 async function loadPostings(

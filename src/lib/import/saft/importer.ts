@@ -16,6 +16,7 @@ import type {
 } from "./types";
 import { isDepartmentType, isProjectType } from "./parser";
 import { computeCompanyMetrics } from "@/lib/metrics/compute";
+import { recordBalances, type StatedBalance } from "./balances";
 import {
   buildKnownNameMatcher,
   isNameBearingAccount,
@@ -68,11 +69,34 @@ export async function importSaft(
   counts.projects = projects;
 
   reportPartyBalances(file, warnings);
+  reconcileSubLedgers(file, warnings);
   checkBalance(file, warnings);
 
   const ledger = await importLedger(supabase, companyId, file, warnings);
   counts.vouchers = ledger.vouchers;
   counts.transactions = ledger.transactions;
+
+  // Balances belong to the year the file covers. Recorded per year and rolled
+  // through the ledger to fill in the years no file has stated, so importing
+  // an earlier year cannot overwrite a later year's closing balances.
+  const fileYear = resolveFileYear(file);
+  const balances = await recordBalances(supabase, companyId, fileYear, {
+    accounts: file.accounts.map((a) => ({
+      entityKey: a.accountId,
+      openingBalance: a.openingBalance,
+      closingBalance: a.closingBalance,
+    })),
+    customers: await partyKeys(supabase, companyId, "customers", file.customers),
+    suppliers: await partyKeys(supabase, companyId, "suppliers", file.suppliers, true),
+  });
+
+  if (balances.years.length > 1) {
+    warnings.push(
+      `Saldoene er lagret for ${fileYear}. Saldo for ${balances.years
+        .filter((y) => y !== fileYear)
+        .join(", ")} er beregnet fra posteringene, så tallene for hvert år står riktig hver for seg.`
+    );
+  }
 
   // Recompute across every year held, not just the one just imported, so
   // uploading an earlier year backfills the comparison on years already here.
@@ -89,6 +113,76 @@ export async function importSaft(
   }
 
   return { header: file.header, counts, warnings, years };
+}
+
+/**
+ * The accounting year a file covers. The header states the selection period;
+ * where it does not, the latest posting decides, since a SAF-T export always
+ * runs to the end of the period it covers.
+ */
+function resolveFileYear(file: SaftFile): number {
+  const stated = file.header.periodEnd ?? file.header.periodStart;
+  if (stated) {
+    const year = Number(stated.slice(0, 4));
+    if (Number.isFinite(year)) return year;
+  }
+
+  const dates = file.journals
+    .flatMap((j) => j.transactions)
+    .map((t) => t.transactionDate)
+    .filter(Boolean) as string[];
+
+  if (dates.length > 0) {
+    return Number(dates.reduce((a, b) => (a > b ? a : b)).slice(0, 4));
+  }
+
+  return new Date().getFullYear();
+}
+
+/**
+ * Balances are keyed by the party's row id, which is only known after the
+ * party has been written, so the mapping is read back from source_id.
+ */
+async function partyKeys(
+  supabase: DB,
+  companyId: string,
+  table: "customers" | "suppliers",
+  parties: Array<{
+    partyId: string;
+    openingBalance: number | null;
+    closingBalance: number | null;
+  }>,
+  flipSign = false
+): Promise<StatedBalance[]> {
+  if (parties.length === 0) return [];
+
+  const { data } = (await supabase
+    .from(table)
+    .select("id, source_id")
+    .eq("company_id", companyId)
+    .eq("source_system", SAFT_SOURCE_SYSTEM)) as {
+    data: Array<{ id: string; source_id: string | null }> | null;
+  };
+
+  const idBySourceId = new Map(
+    (data ?? [])
+      .filter((r) => r.source_id != null)
+      .map((r) => [r.source_id as string, r.id])
+  );
+
+  const sign = flipSign ? -1 : 1;
+
+  return parties.flatMap((p) => {
+    const id = idBySourceId.get(p.partyId);
+    if (!id) return [];
+    return [
+      {
+        entityKey: id,
+        openingBalance: p.openingBalance == null ? null : sign * p.openingBalance,
+        closingBalance: p.closingBalance == null ? null : sign * p.closingBalance,
+      },
+    ];
+  });
 }
 
 /**
@@ -121,6 +215,64 @@ function reportPartyBalances(file: SaftFile, warnings: string[]): void {
       `Saldo funnet for ${customers} kunder og ${suppliers} leverandører.`
     );
   }
+}
+
+/**
+ * The sub-ledgers must tie to their control accounts: what the customers owe
+ * has to equal the trade-receivable balance, and the same for suppliers and
+ * payables. When they disagree the file itself is inconsistent, and Elida
+ * would otherwise show two different answers to "hva skylder kundene oss"
+ * depending on which page you were on.
+ */
+function reconcileSubLedgers(file: SaftFile, warnings: string[]): void {
+  const accountBalance = (from: number, to: number): number | null => {
+    const matching = file.accounts.filter((a) => {
+      const n = parseInt(a.accountId, 10);
+      return Number.isFinite(n) && n >= from && n <= to && a.closingBalance != null;
+    });
+    if (matching.length === 0) return null;
+    return matching.reduce((total, a) => total + (a.closingBalance ?? 0), 0);
+  };
+
+  const partySum = (parties: { closingBalance: number | null }[]): number | null => {
+    const stated = parties.filter((p) => p.closingBalance != null);
+    if (stated.length === 0) return null;
+    return stated.reduce((total, p) => total + (p.closingBalance ?? 0), 0);
+  };
+
+  const checks: Array<[string, number | null, number | null, string]> = [
+    ["Kundefordringer", partySum(file.customers), accountBalance(1500, 1569), "kundene"],
+    [
+      "Leverandørgjeld",
+      partySum(file.suppliers),
+      // Payables are credit-normal on the account, positive on the party.
+      (() => {
+        const balance = accountBalance(2400, 2499);
+        return balance == null ? null : -balance;
+      })(),
+      "leverandørene",
+    ],
+  ];
+
+  for (const [label, parties, control, who] of checks) {
+    if (parties == null || control == null) continue;
+
+    const difference = parties - control;
+    // Ordinary rounding across hundreds of parties, not a real break.
+    if (Math.abs(difference) < 1) continue;
+
+    warnings.push(
+      `${label}: summen per ${who} er ${format(parties)}, mens kontoen viser ` +
+        `${format(control)} — et avvik på ${format(Math.abs(difference))}. ` +
+        "Avviket ligger i regnskapsfilen, ikke i importen. Elida bruker " +
+        "kontosaldoen som total og saldoen per part på detaljsidene, så de to " +
+        "kan avvike med dette beløpet. Kontroller reskontroavstemmingen."
+    );
+  }
+}
+
+function format(n: number): string {
+  return `${n.toLocaleString("nb-NO", { maximumFractionDigits: 0 })} kr`;
 }
 
 /**

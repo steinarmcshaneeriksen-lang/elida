@@ -46,34 +46,44 @@ interface FinancialsResponse {
 }
 
 /** Maps the selected period onto the date range the API expects. */
-function periodRange(period: Period): { start: string; end: string } {
-  const now = new Date();
-  const iso = (d: Date) => d.toISOString().slice(0, 10);
-  const end = iso(now);
+interface YearBounds {
+  year: number;
+  start: string;
+  end: string;
+  is_complete: boolean;
+}
+
+/**
+ * Period options are anchored to the accounting year being viewed, not to
+ * today. Anchoring them to today meant that after importing a file for a
+ * previous year there was no way to look at it — the import had worked, but
+ * every page still showed the current year and it read as if nothing had
+ * loaded.
+ */
+function periodRange(period: Period, bounds: YearBounds): { start: string; end: string } {
+  const { year, start: firstDay, end: lastDay } = bounds;
+  const iso = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  // For a closed year the last month and quarter are the year's final ones;
+  // for the current year they are the ones the data reaches.
+  const last = new Date(lastDay);
 
   switch (period) {
     case "month":
-      return {
-        start: iso(new Date(now.getFullYear(), now.getMonth(), 1)),
-        end,
-      };
+      return { start: iso(new Date(last.getFullYear(), last.getMonth(), 1)), end: lastDay };
     case "quarter": {
-      const quarterStartMonth = Math.floor(now.getMonth() / 3) * 3;
-      return {
-        start: iso(new Date(now.getFullYear(), quarterStartMonth, 1)),
-        end,
-      };
+      const quarterStart = Math.floor(last.getMonth() / 3) * 3;
+      return { start: iso(new Date(last.getFullYear(), quarterStart, 1)), end: lastDay };
     }
     case "rolling12":
       return {
-        start: iso(
-          new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-        ),
-        end,
+        start: iso(new Date(last.getFullYear() - 1, last.getMonth() + 1, 1)),
+        end: lastDay,
       };
     case "ytd":
     default:
-      return { start: `${now.getFullYear()}-01-01`, end };
+      return { start: `${year}-01-01`, end: lastDay || firstDay };
   }
 }
 
@@ -110,14 +120,24 @@ interface RecurringResponse {
 
 export default function OkonomiPage() {
   const [period, setPeriod] = useState<Period>("ytd");
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
+
+  const yearsQuery = useCompanyData<{ years: YearBounds[] }>("years");
+  const years = useMemo(() => yearsQuery.data?.years ?? [], [yearsQuery.data]);
+
+  // Defaults to the most recent year held, which is what someone opening the
+  // page expects to see.
+  const bounds =
+    years.find((y) => y.year === selectedYear) ?? years[0] ?? null;
 
   const path = useMemo(() => {
-    const { start, end } = periodRange(period);
+    if (!bounds) return null;
+    const { start, end } = periodRange(period, bounds);
     return `financials?period_start=${start}&period_end=${end}`;
-  }, [period]);
+  }, [period, bounds]);
 
   const { data, isLoading, error, isEmpty } =
-    useCompanyData<FinancialsResponse>(path);
+    useCompanyData<FinancialsResponse>(path ?? "financials");
   const recurring = useCompanyData<RecurringResponse>("recurring-revenue");
 
   const monthly = data?.monthly ?? [];
@@ -153,6 +173,32 @@ export default function OkonomiPage() {
             </button>
           ))}
         </div>
+
+        {years.length > 1 && (
+          <div className="flex rounded-lg border border-border bg-surface p-1">
+            {years.map((y) => (
+              <button
+                key={y.year}
+                onClick={() => setSelectedYear(y.year)}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  bounds?.year === y.year
+                    ? "bg-primary text-white"
+                    : "text-foreground-secondary hover:bg-surface-hover"
+                }`}
+              >
+                {y.year}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {bounds && (
+          <span className="text-xs text-foreground-muted">
+            Viser {periodRange(period, bounds).start} til{" "}
+            {periodRange(period, bounds).end}
+            {!bounds.is_complete && " · året er ikke fullført"}
+          </span>
+        )}
       </div>
 
       {isLoading && <LoadingState />}
