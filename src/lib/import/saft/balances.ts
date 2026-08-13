@@ -345,7 +345,8 @@ async function refreshDenormalisedColumns(
     .from("entity_balances")
     .select("entity_type, entity_key, opening_balance, closing_balance")
     .eq("company_id", companyId)
-    .eq("year", latestYear)) as {
+    .eq("year", latestYear)
+    .limit(1000)) as {
     data: Array<{
       entity_type: string;
       entity_key: string;

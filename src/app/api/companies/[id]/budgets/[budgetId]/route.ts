@@ -14,6 +14,7 @@ import {
   type BudgetGrid,
 } from "@/lib/budget/engine";
 import { CATEGORIES, categoryForAccount, signedAmount } from "@/lib/reports/categories";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 export const maxDuration = 60;
 
@@ -345,28 +346,36 @@ async function loadActuals(
 
   const seen = new Set<number>();
 
-  for (let page = 0; ; page++) {
-    const { data } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount, transaction_date")
-      .eq("company_id", companyId)
-      .gte("transaction_date", `${year}-01-01`)
-      .lte("transaction_date", `${year}-12-31`)
-      .gte("account_number", "3000")
-      .lt("account_number", "8000")
-      .range(page * 1000, (page + 1) * 1000 - 1);
+  type ActualRow = {
+    account_number: string;
+    amount: number;
+    transaction_date: string;
+  };
 
-    if (!data || data.length === 0) break;
+  const rows = await fetchAll<ActualRow>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount, transaction_date")
+        .eq("company_id", companyId)
+        .gte("transaction_date", `${year}-01-01`)
+        .lte("transaction_date", `${year}-12-31`)
+        .gte("account_number", "3000")
+        .lt("account_number", "8000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: ActualRow[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "posteringer" }
+  );
 
-    for (const p of data) {
-      const category = categoryForAccount(p.account_number);
-      if (!category) continue;
-      const month = Number(p.transaction_date.slice(5, 7));
-      seen.add(month);
-      grid[category.key][month - 1] += signedAmount(category, Number(p.amount));
-    }
-
-    if (data.length < 1000) break;
+  for (const p of rows) {
+    const category = categoryForAccount(p.account_number);
+    if (!category) continue;
+    const month = Number(p.transaction_date.slice(5, 7));
+    seen.add(month);
+    grid[category.key][month - 1] += signedAmount(category, Number(p.amount));
   }
 
   for (const key of Object.keys(grid)) {
@@ -381,12 +390,23 @@ async function loadOpeningCash(
   supabase: Awaited<ReturnType<typeof createClient>>,
   companyId: string
 ): Promise<number> {
-  const { data } = await supabase
-    .from("gl_accounts")
-    .select("account_number, closing_balance")
-    .eq("company_id", companyId)
-    .gte("account_number", "1900")
-    .lt("account_number", "2000");
+  type BankRow = { account_number: string; closing_balance: number | null };
 
-  return (data ?? []).reduce((t, a) => t + Number(a.closing_balance ?? 0), 0);
+  const data = await fetchAll<BankRow>(
+    (from, to) =>
+      supabase
+        .from("gl_accounts")
+        .select("account_number, closing_balance")
+        .eq("company_id", companyId)
+        .gte("account_number", "1900")
+        .lt("account_number", "2000")
+        .order("account_number", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: BankRow[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "bankkontoer" }
+  );
+
+  return data.reduce((t, a) => t + Number(a.closing_balance ?? 0), 0);
 }

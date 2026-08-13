@@ -23,6 +23,7 @@ import {
   type BudgetGrid,
 } from "@/lib/budget/engine";
 import { CATEGORIES, categoryByKey } from "@/lib/reports/categories";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 type ToolParams = Record<string, unknown>;
 type ToolResult = Record<string, unknown>;
@@ -53,14 +54,25 @@ async function resolveBudget(companyId: string, budgetId?: unknown) {
 
 async function openingCash(companyId: string): Promise<number> {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("gl_accounts")
-    .select("closing_balance")
-    .eq("company_id", companyId)
-    .gte("account_number", "1900")
-    .lt("account_number", "2000");
+  type BankRow = { closing_balance: number | null };
 
-  return (data ?? []).reduce((t, a) => t + Number(a.closing_balance ?? 0), 0);
+  const data = await fetchAll<BankRow>(
+    (from, to) =>
+      supabase
+        .from("gl_accounts")
+        .select("closing_balance")
+        .eq("company_id", companyId)
+        .gte("account_number", "1900")
+        .lt("account_number", "2000")
+        .order("account_number", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: BankRow[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "bankkontoer" }
+  );
+
+  return data.reduce((t, a) => t + Number(a.closing_balance ?? 0), 0);
 }
 
 export const getBudget = async (

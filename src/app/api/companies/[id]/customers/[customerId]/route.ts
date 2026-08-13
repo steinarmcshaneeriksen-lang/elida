@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 interface VoucherLine {
   voucher_id: string | null;
@@ -151,46 +152,63 @@ export async function GET(
 
     // Every posting that names this customer, plus the revenue lines sharing
     // its vouchers — SAF-T names the party on the receivable line only.
-    const { data: postings } = (await supabase
-      .from("account_transactions")
-      .select(
-        "id, transaction_date, account_number, amount, description, voucher_id, gl_accounts(name)"
-      )
-      .eq("company_id", companyId)
-      .eq("customer_id", customerId)
-      .order("transaction_date", { ascending: false })
-      .limit(500)) as {
-      data: Array<{
-        id: string;
-        transaction_date: string;
-        account_number: string;
-        amount: number;
-        description: string | null;
-        voucher_id: string | null;
-        gl_accounts: { name: string | null } | null;
-      }> | null;
+    // Paged rather than capped: a 500-row limit silently understated revenue
+    // for any customer with a longer history than that.
+    type PostingRow = {
+      id: string;
+      transaction_date: string;
+      account_number: string;
+      amount: number;
+      description: string | null;
+      voucher_id: string | null;
     };
 
-    const rows = postings ?? [];
+    const rows = await fetchAll<PostingRow>(
+      (from, to) =>
+        supabase
+          .from("account_transactions")
+          .select(
+            "id, transaction_date, account_number, amount, description, voucher_id"
+          )
+          .eq("company_id", companyId)
+          .eq("customer_id", customerId)
+          .order("transaction_date", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: PostingRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: "posteringer" }
+    );
     const voucherIds = [
       ...new Set(rows.map((r) => r.voucher_id).filter(Boolean)),
     ] as string[];
 
     // Every line on the customer's vouchers, so an event can be told apart:
     // an invoice carries revenue lines, a payment carries a bank line.
-    let voucherLines: VoucherLine[] = [];
+    const voucherLines: VoucherLine[] = [];
 
-    if (voucherIds.length > 0) {
-      const { data } = (await supabase
-        .from("account_transactions")
-        .select(
-          "voucher_id, transaction_date, amount, description, account_number, vouchers(voucher_number, voucher_date)"
-        )
-        .eq("company_id", companyId)
-        .in("voucher_id", voucherIds.slice(0, 300))) as {
-        data: VoucherLine[] | null;
-      };
-      voucherLines = data ?? [];
+    // Vouchers are fetched in batches: an "in" list of thousands of ids would
+    // exceed the URL length, and the response would be capped at 1000 lines.
+    for (let i = 0; i < voucherIds.length; i += 200) {
+      const batch = voucherIds.slice(i, i + 200);
+      const lines = await fetchAll<VoucherLine>(
+        (from, to) =>
+          supabase
+            .from("account_transactions")
+            .select(
+              "voucher_id, transaction_date, amount, description, account_number, vouchers(voucher_number, voucher_date)"
+            )
+            .eq("company_id", companyId)
+            .in("voucher_id", batch)
+            .order("id", { ascending: true })
+            .range(from, to) as PromiseLike<{
+            data: VoucherLine[] | null;
+            error: { message: string } | null;
+          }>,
+        { label: "bilagslinjer" }
+      );
+      voucherLines.push(...lines);
     }
 
     const revenueRows = voucherLines.filter((l) => {

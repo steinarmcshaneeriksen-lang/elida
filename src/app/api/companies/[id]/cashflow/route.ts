@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/cashflow
@@ -13,6 +14,12 @@ import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
  * What the ledger does support is stated plainly: how the balance has moved,
  * what customers still owe, and what is owed to suppliers.
  */
+interface PartyRow {
+  id: string;
+  name: string;
+  closing_balance: number | null;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,7 +31,7 @@ export async function GET(
 
     const supabase = await createClient();
 
-    const [{ data: series }, { data: totals }, { data: customers }, { data: suppliers }] =
+    const [{ data: series }, { data: totals }, customers, suppliers] =
       await Promise.all([
         supabase.rpc("company_cash_series" as never, {
           p_company_id: companyId,
@@ -46,16 +53,34 @@ export async function GET(
             is_stated: boolean;
           }> | null;
         }>,
-        supabase
-          .from("customers")
-          .select("id, name, closing_balance")
-          .eq("company_id", companyId)
-          .not("closing_balance", "is", null),
-        supabase
-          .from("suppliers")
-          .select("id, name, closing_balance")
-          .eq("company_id", companyId)
-          .not("closing_balance", "is", null),
+        fetchAll<PartyRow>(
+          (from, to) =>
+            supabase
+              .from("customers")
+              .select("id, name, closing_balance")
+              .eq("company_id", companyId)
+              .not("closing_balance", "is", null)
+              .order("id", { ascending: true })
+              .range(from, to) as PromiseLike<{
+              data: PartyRow[] | null;
+              error: { message: string } | null;
+            }>,
+          { label: "kunder" }
+        ),
+        fetchAll<PartyRow>(
+          (from, to) =>
+            supabase
+              .from("suppliers")
+              .select("id, name, closing_balance")
+              .eq("company_id", companyId)
+              .not("closing_balance", "is", null)
+              .order("id", { ascending: true })
+              .range(from, to) as PromiseLike<{
+              data: PartyRow[] | null;
+              error: { message: string } | null;
+            }>,
+          { label: "leverandører" }
+        ),
       ]);
 
     const months = (series ?? []).map((m) => ({
@@ -81,12 +106,12 @@ export async function GET(
       });
     }
 
-    const receivable = (customers ?? [])
+    const receivable = customers
       .map((c) => ({ id: c.id, name: c.name, amount: Number(c.closing_balance) }))
       .filter((c) => c.amount > 0)
       .sort((a, b) => b.amount - a.amount);
 
-    const payable = (suppliers ?? [])
+    const payable = suppliers
       .map((s) => ({ id: s.id, name: s.name, amount: Number(s.closing_balance) }))
       .filter((s) => s.amount > 0)
       .sort((a, b) => b.amount - a.amount);

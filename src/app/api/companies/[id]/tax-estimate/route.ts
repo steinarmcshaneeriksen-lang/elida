@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { CORPORATE_TAX_RATE, ACCOUNT_CLASSES } from "@/lib/constants";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/tax-estimate
@@ -24,16 +25,23 @@ export async function GET(
     const today = now.toISOString().split("T")[0];
 
     // Load YTD transactions to compute profit
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount")
-      .eq("company_id", companyId)
-      .gte("transaction_date", yearStart)
-      .lte("transaction_date", today) as {
-      data: Array<{ account_number: string; amount: number }> | null;
-    };
+    const transactions = await fetchAll<{ account_number: string; amount: number }>(
+      (from, to) =>
+        supabase
+          .from("account_transactions")
+          .select("account_number, amount")
+          .eq("company_id", companyId)
+          .gte("transaction_date", yearStart)
+          .lte("transaction_date", today)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{ account_number: string; amount: number }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "posteringer" }
+    );
 
-    if (transactions && transactions.length > 0) {
+    if (transactions.length > 0) {
       const sumByRange = (from: number, to: number) =>
         transactions
           .filter((t) => {

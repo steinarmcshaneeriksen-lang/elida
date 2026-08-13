@@ -19,6 +19,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACCOUNT_CLASSES } from "@/lib/constants";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -338,17 +339,28 @@ async function loadYearBalances(
   supabase: DB,
   companyId: string
 ): Promise<Map<number, YearBalances>> {
-  const { data } = (await supabase
-    .from("entity_balances")
-    .select("entity_type, entity_key, year, closing_balance")
-    .eq("company_id", companyId)) as {
-    data: Array<{
-      entity_type: string;
-      entity_key: string;
-      year: number;
-      closing_balance: number | null;
-    }> | null;
+  type BalanceRow = {
+    entity_type: string;
+    entity_key: string;
+    year: number;
+    closing_balance: number | null;
   };
+
+  // Paged: one row per entity per year runs past 1000 as soon as a second
+  // year is imported, and a short read would drop a year's balances entirely.
+  const data = await fetchAll<BalanceRow>(
+    (from, to) =>
+      supabase
+        .from("entity_balances")
+        .select("entity_type, entity_key, year, closing_balance")
+        .eq("company_id", companyId)
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: BalanceRow[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "saldoer" }
+  );
 
   const byYear = new Map<number, YearBalances>();
 
@@ -361,7 +373,7 @@ async function loadYearBalances(
     return entry;
   };
 
-  for (const row of data ?? []) {
+  for (const row of data) {
     if (row.closing_balance == null) continue;
     const value = Number(row.closing_balance);
     const entry = bucket(row.year);

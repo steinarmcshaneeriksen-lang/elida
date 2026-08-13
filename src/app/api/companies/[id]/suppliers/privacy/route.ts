@@ -28,7 +28,8 @@ export async function GET(
       .select("id, name, supplier_number, org_number, is_anonymised")
       .eq("company_id", companyId)
       .eq("is_possible_private_person", true)
-      .order("name", { ascending: true })) as {
+      .order("name", { ascending: true })
+      .limit(5000)) as {
       data: Array<{
         id: string;
         name: string;

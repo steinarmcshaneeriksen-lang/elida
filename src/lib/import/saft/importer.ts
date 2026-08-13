@@ -17,6 +17,7 @@ import type {
 import { isDepartmentType, isProjectType } from "./parser";
 import { computeCompanyMetrics } from "@/lib/metrics/compute";
 import { recordBalances, type StatedBalance } from "./balances";
+import { fetchAll } from "@/lib/supabase/paginate";
 import {
   buildKnownNameMatcher,
   isNameBearingAccount,
@@ -792,17 +793,23 @@ async function fetchAccountIdMap(
   supabase: DB,
   companyId: string
 ): Promise<Map<string, string>> {
-  const { data, error } = (await supabase
-    .from("gl_accounts")
-    .select("id, account_number")
-    .eq("company_id", companyId)) as {
-    data: Array<{ id: string; account_number: string }> | null;
-    error: { message: string } | null;
-  };
+  type AccountRow = { id: string; account_number: string };
 
-  if (error) throw new Error(`Kunne ikke lese kontoplan: ${error.message}`);
+  const data = await fetchAll<AccountRow>(
+    (from, to) =>
+      supabase
+        .from("gl_accounts")
+        .select("id, account_number")
+        .eq("company_id", companyId)
+        .order("account_number", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: AccountRow[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "kontoplan" }
+  );
 
   const map = new Map<string, string>();
-  for (const row of data ?? []) map.set(row.account_number, row.id);
+  for (const row of data) map.set(row.account_number, row.id);
   return map;
 }

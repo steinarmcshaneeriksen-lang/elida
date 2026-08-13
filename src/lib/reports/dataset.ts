@@ -12,6 +12,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { fetchAll } from "@/lib/supabase/paginate";
 import {
   CATEGORIES,
   PAYROLL_CATEGORY_KEYS,
@@ -1216,25 +1217,47 @@ async function loadAccounts(
   companyId: string,
   year: number
 ): Promise<AccountRow[]> {
-  const [{ data: accounts }, balances] = await Promise.all([
-    supabase.from("gl_accounts").select("account_number, name").eq("company_id", companyId),
-    supabase
-      .from("entity_balances")
-      .select("entity_key, opening_balance, closing_balance")
-      .eq("company_id", companyId)
-      .eq("entity_type", "account")
-      .eq("year", year),
+  type NameRow = { account_number: string; name: string | null };
+  type BalanceRow = {
+    entity_key: string;
+    opening_balance: number | null;
+    closing_balance: number | null;
+  };
+
+  const [accounts, balances] = await Promise.all([
+    fetchAll<NameRow>(
+      (from, to) =>
+        supabase
+          .from("gl_accounts")
+          .select("account_number, name")
+          .eq("company_id", companyId)
+          .order("account_number", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: NameRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: "kontoer" }
+    ),
+    fetchAll<BalanceRow>(
+      (from, to) =>
+        supabase
+          .from("entity_balances")
+          .select("entity_key, opening_balance, closing_balance")
+          .eq("company_id", companyId)
+          .eq("entity_type", "account")
+          .eq("year", year)
+          .order("entity_key", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: BalanceRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: "kontosaldoer" }
+    ),
   ]);
 
-  const byKey = new Map(
-    ((balances.data ?? []) as Array<{
-      entity_key: string;
-      opening_balance: number | null;
-      closing_balance: number | null;
-    }>).map((b) => [b.entity_key, b])
-  );
+  const byKey = new Map(balances.map((b) => [b.entity_key, b]));
 
-  return ((accounts ?? []) as Array<{ account_number: string; name: string | null }>).map(
+  return accounts.map(
     (a) => ({
       account_number: a.account_number,
       name: a.name,
@@ -1250,22 +1273,43 @@ async function loadParties(
   table: "customers" | "suppliers",
   year: number
 ): Promise<PartyRow[]> {
-  const [{ data: parties }, balances] = await Promise.all([
-    supabase.from(table).select("id, name").eq("company_id", companyId),
-    supabase
-      .from("entity_balances")
-      .select("entity_key, closing_balance")
-      .eq("company_id", companyId)
-      .eq("entity_type", table === "customers" ? "customer" : "supplier")
-      .eq("year", year),
+  type NameRow = { id: string; name: string };
+  type BalanceRow = { entity_key: string; closing_balance: number | null };
+
+  const [parties, balances] = await Promise.all([
+    fetchAll<NameRow>(
+      (from, to) =>
+        supabase
+          .from(table)
+          .select("id, name")
+          .eq("company_id", companyId)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: NameRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: table === "customers" ? "kunder" : "leverandører" }
+    ),
+    fetchAll<BalanceRow>(
+      (from, to) =>
+        supabase
+          .from("entity_balances")
+          .select("entity_key, closing_balance")
+          .eq("company_id", companyId)
+          .eq("entity_type", table === "customers" ? "customer" : "supplier")
+          .eq("year", year)
+          .order("entity_key", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: BalanceRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: "partssaldoer" }
+    ),
   ]);
 
-  const byId = new Map(
-    ((balances.data ?? []) as Array<{ entity_key: string; closing_balance: number | null }>)
-      .map((b) => [b.entity_key, b.closing_balance])
-  );
+  const byId = new Map(balances.map((b) => [b.entity_key, b.closing_balance]));
 
-  return ((parties ?? []) as Array<{ id: string; name: string }>).map((p) => ({
+  return parties.map((p) => ({
     id: p.id,
     name: p.name,
     closing_balance: byId.get(p.id) ?? null,
@@ -1361,20 +1405,26 @@ async function loadMrr(
 }
 
 async function loadBudget(supabase: DB, budgetId: string): Promise<BudgetRow | null> {
-  const [{ data: budget }, { data: lines }] = await Promise.all([
+  type LineRow = { category_key: string; month: number; amount: number };
+
+  const [{ data: budget }, lines] = await Promise.all([
     supabase.from("budgets").select("id, name, year").eq("id", budgetId).maybeSingle(),
-    supabase
-      .from("budget_lines")
-      .select("category_key, month, amount")
-      .eq("budget_id", budgetId),
+    fetchAll<LineRow>(
+      (from, to) =>
+        supabase
+          .from("budget_lines")
+          .select("category_key, month, amount")
+          .eq("budget_id", budgetId)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: LineRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: "budsjettlinjer" }
+    ),
   ]);
 
   if (!budget) return null;
 
-  return {
-    id: budget.id,
-    name: budget.name,
-    year: budget.year,
-    lines: (lines ?? []) as BudgetRow["lines"],
-  };
+  return { id: budget.id, name: budget.name, year: budget.year, lines };
 }

@@ -24,6 +24,7 @@ import {
 } from "./columns";
 import { resolveColumns, resolveInterval, type ResolvedColumns } from "./resolve";
 import type { AiFieldSpec } from "./ai-mapper";
+import { fetchAll } from "@/lib/supabase/paginate";
 import {
   parseBoolean,
   parseDate,
@@ -375,23 +376,32 @@ export async function importRecurringContracts(
 ): Promise<RecurringImportResult> {
   // Contracts are matched to customers so the customer page can show what a
   // customer pays every month, not only what they have been invoiced.
-  const { data: customers } = (await supabase
-    .from("customers")
-    .select("id, name, customer_number, org_number")
-    .eq("company_id", companyId)) as {
-    data: Array<{
-      id: string;
-      name: string;
-      customer_number: string | null;
-      org_number: string | null;
-    }> | null;
+  type CustomerRow = {
+    id: string;
+    name: string;
+    customer_number: string | null;
+    org_number: string | null;
   };
+
+  const customers = await fetchAll<CustomerRow>(
+    (from, to) =>
+      supabase
+        .from("customers")
+        .select("id, name, customer_number, org_number")
+        .eq("company_id", companyId)
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: CustomerRow[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "kunder" }
+  );
 
   const byOrg = new Map<string, string>();
   const byNumber = new Map<string, string>();
   const byName = new Map<string, string>();
 
-  for (const c of customers ?? []) {
+  for (const c of customers) {
     if (c.org_number) byOrg.set(c.org_number.replace(/\s/g, ""), c.id);
     if (c.customer_number) byNumber.set(c.customer_number.trim(), c.id);
     byName.set(c.name.trim().toLowerCase(), c.id);

@@ -4,20 +4,18 @@ import { useMemo, useState } from "react";
 import { formatCurrency, formatChange, formatPercent } from "@/lib/format";
 import { useCompanyData } from "@/lib/hooks/use-company-data";
 import {
+  PERIOD_LABELS,
+  comparisonRange,
+  periodRange,
+  type PeriodKey,
+  type YearBounds,
+} from "@/lib/periods";
+import {
   NoDataState,
   LoadingState,
   ErrorState,
 } from "@/components/dashboard/empty-state";
 import { BarChart3, TrendingUp, TrendingDown, Minus, Repeat } from "lucide-react";
-
-type Period = "month" | "quarter" | "ytd" | "rolling12";
-
-const periodLabels: Record<Period, string> = {
-  month: "Måned",
-  quarter: "Kvartal",
-  ytd: "Hittil i år",
-  rolling12: "Siste 12 mnd",
-};
 
 interface FinancialsResponse {
   has_data?: boolean;
@@ -46,47 +44,6 @@ interface FinancialsResponse {
 }
 
 /** Maps the selected period onto the date range the API expects. */
-interface YearBounds {
-  year: number;
-  start: string;
-  end: string;
-  is_complete: boolean;
-}
-
-/**
- * Period options are anchored to the accounting year being viewed, not to
- * today. Anchoring them to today meant that after importing a file for a
- * previous year there was no way to look at it — the import had worked, but
- * every page still showed the current year and it read as if nothing had
- * loaded.
- */
-function periodRange(period: Period, bounds: YearBounds): { start: string; end: string } {
-  const { year, start: firstDay, end: lastDay } = bounds;
-  const iso = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-  // For a closed year the last month and quarter are the year's final ones;
-  // for the current year they are the ones the data reaches.
-  const last = new Date(lastDay);
-
-  switch (period) {
-    case "month":
-      return { start: iso(new Date(last.getFullYear(), last.getMonth(), 1)), end: lastDay };
-    case "quarter": {
-      const quarterStart = Math.floor(last.getMonth() / 3) * 3;
-      return { start: iso(new Date(last.getFullYear(), quarterStart, 1)), end: lastDay };
-    }
-    case "rolling12":
-      return {
-        start: iso(new Date(last.getFullYear() - 1, last.getMonth() + 1, 1)),
-        end: lastDay,
-      };
-    case "ytd":
-    default:
-      return { start: `${year}-01-01`, end: lastDay || firstDay };
-  }
-}
-
 const MONTH_NAMES = [
   "jan", "feb", "mar", "apr", "mai", "jun",
   "jul", "aug", "sep", "okt", "nov", "des",
@@ -119,7 +76,7 @@ interface RecurringResponse {
 }
 
 export default function OkonomiPage() {
-  const [period, setPeriod] = useState<Period>("ytd");
+  const [period, setPeriod] = useState<PeriodKey>("ytd");
   const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   const yearsQuery = useCompanyData<{ years: YearBounds[] }>("years");
@@ -132,8 +89,12 @@ export default function OkonomiPage() {
 
   const path = useMemo(() => {
     if (!bounds) return null;
-    const { start, end } = periodRange(period, bounds);
-    return `financials?period_start=${start}&period_end=${end}`;
+    const range = periodRange(period, bounds);
+    const previous = comparisonRange(range);
+    return (
+      `financials?period_start=${range.start}&period_end=${range.end}` +
+      `&comparison_start=${previous.start}&comparison_end=${previous.end}`
+    );
   }, [period, bounds]);
 
   const { data, isLoading, error, isEmpty } =
@@ -159,7 +120,7 @@ export default function OkonomiPage() {
     <div className="mx-auto max-w-7xl space-y-8">
       <div className="flex flex-wrap items-center gap-4">
         <div className="flex rounded-lg border border-border bg-surface p-1">
-          {(Object.keys(periodLabels) as Period[]).map((p) => (
+          {(Object.keys(PERIOD_LABELS) as PeriodKey[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}
@@ -169,7 +130,7 @@ export default function OkonomiPage() {
                   : "text-foreground-secondary hover:bg-surface-hover"
               }`}
             >
-              {periodLabels[p]}
+              {PERIOD_LABELS[p]}
             </button>
           ))}
         </div>

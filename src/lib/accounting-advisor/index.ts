@@ -262,6 +262,7 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
+      .limit(2000)
           .in("account_number", accountNumbers)
           .returns<GLAccount[]>();
 
@@ -327,6 +328,7 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
+      .limit(2000)
           .in("account_number", txAccountNumbers)
           .returns<GLAccount[]>();
 
@@ -409,6 +411,7 @@ export class AccountingAdvisor {
         .from("gl_accounts")
         .select()
         .eq("company_id", companyId)
+      .limit(2000)
         .eq("account_number", primary.typical_account_number)
         .returns<GLAccount[]>()
         .single();
@@ -430,6 +433,7 @@ export class AccountingAdvisor {
       .from("gl_accounts")
       .select()
       .eq("company_id", companyId)
+      .limit(2000)
       .in("account_number", allAccountNumbers)
       .returns<GLAccount[]>();
 
@@ -510,6 +514,7 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
+      .limit(2000)
           .eq("is_active", true)
           .order("account_number")
           .returns<GLAccount[]>(),

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { CORPORATE_TAX_RATE, VAT_RATES } from "@/lib/constants";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/vat-estimate
@@ -27,22 +28,31 @@ export async function GET(
     const periodEnd = getPeriodEnd(currentMonth, now.getFullYear());
 
     // Load transactions with VAT in the current period
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount, vat_code, vat_amount")
-      .eq("company_id", companyId)
-      .gte("transaction_date", periodStart)
-      .lte("transaction_date", periodEnd)
-      .not("vat_code", "is", null) as {
-      data: Array<{
-        account_number: string;
-        amount: number;
-        vat_code: string | null;
-        vat_amount: number | null;
-      }> | null;
+    type VatRow = {
+      account_number: string;
+      amount: number;
+      vat_code: string | null;
+      vat_amount: number | null;
     };
 
-    if (transactions && transactions.length > 0) {
+    const transactions = await fetchAll<VatRow>(
+      (from, to) =>
+        supabase
+          .from("account_transactions")
+          .select("account_number, amount, vat_code, vat_amount")
+          .eq("company_id", companyId)
+          .gte("transaction_date", periodStart)
+          .lte("transaction_date", periodEnd)
+          .not("vat_code", "is", null)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: VatRow[] | null;
+          error: { message: string } | null;
+        }>,
+      { label: "MVA-posteringer" }
+    );
+
+    if (transactions.length > 0) {
       let outputVat = 0;
       let inputVat = 0;
 

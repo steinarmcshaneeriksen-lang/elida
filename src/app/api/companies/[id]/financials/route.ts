@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { ACCOUNT_CLASSES } from "@/lib/constants";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/financials?period_start=&period_end=&comparison_start=&comparison_end=
@@ -34,31 +35,39 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Load transactions for the current period
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount, description, transaction_date")
-      .eq("company_id", companyId)
-      .gte("transaction_date", periodStart)
-      .lte("transaction_date", periodEnd) as {
-      data: TxRow[] | null;
-    };
+    // Paged. Reading without a range stops at 1000 rows, which on this ledger
+    // meant a year-to-date figure that only covered part of January.
+    const [transactions, compTransactions] = await Promise.all([
+      fetchAll<TxRow>(
+        (from, to) =>
+          supabase
+            .from("account_transactions")
+            .select("account_number, amount, description, transaction_date")
+            .eq("company_id", companyId)
+            .gte("transaction_date", periodStart)
+            .lte("transaction_date", periodEnd)
+            .order("transaction_date", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to) as PromiseLike<{ data: TxRow[] | null; error: { message: string } | null }>,
+        { label: "posteringer" }
+      ),
+      fetchAll<TxRow>(
+        (from, to) =>
+          supabase
+            .from("account_transactions")
+            .select("account_number, amount")
+            .eq("company_id", companyId)
+            .gte("transaction_date", comparisonStart)
+            .lte("transaction_date", comparisonEnd)
+            .order("transaction_date", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to) as PromiseLike<{ data: TxRow[] | null; error: { message: string } | null }>,
+        { label: "sammenligningsposteringer" }
+      ),
+    ]);
 
-    // Load transactions for the comparison period
-    const { data: compTransactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount")
-      .eq("company_id", companyId)
-      .gte("transaction_date", comparisonStart)
-      .lte("transaction_date", comparisonEnd) as {
-      data: TxRow[] | null;
-    };
-
-    if (transactions && transactions.length > 0) {
-      const result = buildFinancialsFromTransactions(
-        transactions,
-        compTransactions ?? []
-      );
+    if (transactions.length > 0) {
+      const result = buildFinancialsFromTransactions(transactions, compTransactions);
       return NextResponse.json({
         has_data: true,
         period_start: periodStart,
@@ -91,14 +100,14 @@ export async function GET(
 // Real data processing
 // ---------------------------------------------------------------------------
 
-interface TxRow {
+export interface TxRow {
   account_number: string;
   amount: number;
   description?: string | null;
   transaction_date?: string;
 }
 
-function buildFinancialsFromTransactions(
+export function buildFinancialsFromTransactions(
   transactions: TxRow[],
   compTransactions: TxRow[]
 ) {

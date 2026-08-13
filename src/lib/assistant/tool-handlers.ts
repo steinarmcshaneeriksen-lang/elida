@@ -11,6 +11,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeFilterTerm } from "@/lib/supabase/filter";
+import { fetchAll } from "@/lib/supabase/paginate";
 import { getBudget, proposeBudgetChange } from "./budget-tools";
 import {
   clampToCoverage,
@@ -175,21 +176,32 @@ const getFinancialSummary: ToolHandler = async (companyId, params) => {
   const resolved = clampToCoverage(requested, coverage);
   const supabase = await createClient();
 
-  const { data: rows } = await supabase
-    .from("account_transactions")
-    .select("account_number, amount")
-    .eq("company_id", companyId)
-    .gte("transaction_date", resolved.start)
-    .lte("transaction_date", resolved.end)
-    .gte("account_number", "3000")
-    .lt("account_number", "9000");
+  // Paged: an unranged read stops at 1000 rows, which would silently report a
+  // fraction of the period as if it were the whole of it.
+  const rows = await fetchAll<{ account_number: string; amount: number }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount")
+        .eq("company_id", companyId)
+        .gte("transaction_date", resolved.start)
+        .lte("transaction_date", resolved.end)
+        .gte("account_number", "3000")
+        .lt("account_number", "9000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ account_number: string; amount: number }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "posteringer" }
+  );
 
   // Revenue is credited and so carries a negative sign in a debit-positive
   // ledger; costs are debited. Both are reported as the positive figures a
   // person expects to read.
   let revenue = 0;
   let costs = 0;
-  for (const r of rows ?? []) {
+  for (const r of rows) {
     const amount = Number(r.amount);
     if (inRange(r.account_number, 3000, 3999)) revenue -= amount;
     else if (inRange(r.account_number, 4000, 7999)) costs += amount;
@@ -215,7 +227,7 @@ const getFinancialSummary: ToolHandler = async (companyId, params) => {
     booked_cash: cash.booked_cash ?? null,
     receivables: receivables.total_outstanding?.amount ?? null,
     payables: payables.total_payables?.amount ?? null,
-    transaction_count: rows?.length ?? 0,
+    transaction_count: rows.length,
     note: coverageNote(requested, resolved, coverage),
     data_source: "saft_import",
   };
@@ -229,16 +241,33 @@ const getRevenueAnalysis: ToolHandler = async (companyId, params) => {
   const resolved = clampToCoverage(requested, coverage);
 
   const supabase = await createClient();
-  const { data: transactions } = await supabase
-    .from("account_transactions")
-    .select("account_number, amount, transaction_date, description")
-    .eq("company_id", companyId)
-    .gte("transaction_date", resolved.start)
-    .lte("transaction_date", resolved.end)
-    .gte("account_number", "3000")
-    .lt("account_number", "4000");
-
-  const rows = transactions ?? [];
+  const rows = await fetchAll<{
+    account_number: string;
+    amount: number;
+    transaction_date: string;
+    description: string | null;
+  }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount, transaction_date, description")
+        .eq("company_id", companyId)
+        .gte("transaction_date", resolved.start)
+        .lte("transaction_date", resolved.end)
+        .gte("account_number", "3000")
+        .lt("account_number", "4000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{
+          account_number: string;
+          amount: number;
+          transaction_date: string;
+          description: string | null;
+        }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "inntektsposteringer" }
+  );
   const total = rows.reduce((sum, t) => sum - Number(t.amount), 0);
 
   const byAccount = new Map<string, number>();
@@ -257,7 +286,8 @@ const getRevenueAnalysis: ToolHandler = async (companyId, params) => {
     .from("gl_accounts")
     .select("account_number, name")
     .eq("company_id", companyId)
-    .in("account_number", [...byAccount.keys()].slice(0, 200));
+    .in("account_number", [...byAccount.keys()].slice(0, 200))
+    .limit(5000);
 
   const names = new Map((accounts ?? []).map((a) => [a.account_number, a.name]));
 
@@ -352,21 +382,30 @@ const getProfitAnalysis: ToolHandler = async (companyId, params) => {
 /** Revenue and cost totals for a date range, split the way a P&L reads. */
 async function profitFor(companyId: string, start: string, end: string) {
   const supabase = await createClient();
-  const { data: rows } = await supabase
-    .from("account_transactions")
-    .select("account_number, amount")
-    .eq("company_id", companyId)
-    .gte("transaction_date", start)
-    .lte("transaction_date", end)
-    .gte("account_number", "3000")
-    .lt("account_number", "8000");
+  const rows = await fetchAll<{ account_number: string; amount: number }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount")
+        .eq("company_id", companyId)
+        .gte("transaction_date", start)
+        .lte("transaction_date", end)
+        .gte("account_number", "3000")
+        .lt("account_number", "8000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ account_number: string; amount: number }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "resultatposteringer" }
+  );
 
   let revenue = 0;
   let cogs = 0;
   let payroll = 0;
   let other = 0;
 
-  for (const r of rows ?? []) {
+  for (const r of rows) {
     const amount = Number(r.amount);
     if (inRange(r.account_number, 3000, 3999)) revenue -= amount;
     else if (inRange(r.account_number, 4000, 4999)) cogs += amount;
@@ -409,16 +448,23 @@ const getCostAnalysis: ToolHandler = async (companyId, params) => {
   const resolved = clampToCoverage(requested, coverage);
 
   const supabase = await createClient();
-  const { data: transactions } = await supabase
-    .from("account_transactions")
-    .select("account_number, amount")
-    .eq("company_id", companyId)
-    .gte("transaction_date", resolved.start)
-    .lte("transaction_date", resolved.end)
-    .gte("account_number", "4000")
-    .lt("account_number", "8000");
-
-  const rows = transactions ?? [];
+  const rows = await fetchAll<{ account_number: string; amount: number }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount")
+        .eq("company_id", companyId)
+        .gte("transaction_date", resolved.start)
+        .lte("transaction_date", resolved.end)
+        .gte("account_number", "4000")
+        .lt("account_number", "8000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ account_number: string; amount: number }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "kostnadsposteringer" }
+  );
   const total = rows.reduce((sum, t) => sum + Number(t.amount), 0);
 
   const byCategory = new Map<string, number>();
@@ -439,7 +485,8 @@ const getCostAnalysis: ToolHandler = async (companyId, params) => {
     .from("gl_accounts")
     .select("account_number, name")
     .eq("company_id", companyId)
-    .in("account_number", [...byAccount.keys()].slice(0, 200));
+    .in("account_number", [...byAccount.keys()].slice(0, 200))
+    .limit(5000);
 
   const names = new Map((accounts ?? []).map((a) => [a.account_number, a.name]));
 
@@ -569,12 +616,33 @@ const getCustomerReceivables: ToolHandler = async (companyId) => {
 
   const supabase = await createClient();
 
-  const [{ data: customers }, { data: summary }] = await Promise.all([
-    supabase
-      .from("customers")
-      .select("id, name, customer_number, org_number, closing_balance")
-      .eq("company_id", companyId)
-      .eq("is_active", true),
+  const [customers, { data: summary }] = await Promise.all([
+    fetchAll<{
+      id: string;
+      name: string;
+      customer_number: string | null;
+      org_number: string | null;
+      closing_balance: number | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, customer_number, org_number, closing_balance")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{
+            id: string;
+            name: string;
+            customer_number: string | null;
+            org_number: string | null;
+            closing_balance: number | null;
+          }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "kunder" }
+    ),
     customerSummary(companyId),
   ]);
 
@@ -714,12 +782,33 @@ const listCustomers: ToolHandler = async (companyId, params) => {
   const limit = Math.min(Number(params.limit ?? 20) || 20, 100);
 
   const supabase = await createClient();
-  const [{ data: customers }, { data: summary }] = await Promise.all([
-    supabase
-      .from("customers")
-      .select("id, name, customer_number, org_number, closing_balance")
-      .eq("company_id", companyId)
-      .eq("is_active", true),
+  const [customers, { data: summary }] = await Promise.all([
+    fetchAll<{
+      id: string;
+      name: string;
+      customer_number: string | null;
+      org_number: string | null;
+      closing_balance: number | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, customer_number, org_number, closing_balance")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{
+            id: string;
+            name: string;
+            customer_number: string | null;
+            org_number: string | null;
+            closing_balance: number | null;
+          }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "kunder" }
+    ),
     customerSummary(companyId),
   ]);
 
@@ -775,12 +864,33 @@ const getSupplierPayables: ToolHandler = async (companyId) => {
 
   const supabase = await createClient();
 
-  const [{ data: suppliers }, { data: summary }] = await Promise.all([
-    supabase
-      .from("suppliers")
-      .select("id, name, supplier_number, org_number, closing_balance")
-      .eq("company_id", companyId)
-      .eq("is_active", true),
+  const [suppliers, { data: summary }] = await Promise.all([
+    fetchAll<{
+      id: string;
+      name: string;
+      supplier_number: string | null;
+      org_number: string | null;
+      closing_balance: number | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("suppliers")
+          .select("id, name, supplier_number, org_number, closing_balance")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{
+            id: string;
+            name: string;
+            supplier_number: string | null;
+            org_number: string | null;
+            closing_balance: number | null;
+          }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "leverandører" }
+    ),
     supplierSummary(companyId),
   ]);
 
@@ -852,14 +962,41 @@ const getRecurringRevenue: ToolHandler = async (companyId) => {
   // A contract list states the run rate outright. Inferring it from posting
   // text counts one-off work that reads like a subscription, so where
   // contracts exist they are the answer and the ledger is not consulted.
-  const { data: contracts } = await supabase
-    .from("recurring_contracts")
-    .select(
-      "customer_name, description, interval_months, net_amount, gross_amount, is_active, is_draft, next_invoice_date"
-    )
-    .eq("company_id", companyId);
+  const contracts = await fetchAll<{
+    customer_name: string;
+    description: string | null;
+    interval_months: number;
+    net_amount: number;
+    gross_amount: number | null;
+    is_active: boolean;
+    is_draft: boolean;
+    next_invoice_date: string | null;
+  }>(
+    (from, to) =>
+      supabase
+        .from("recurring_contracts")
+        .select(
+          "customer_name, description, interval_months, net_amount, gross_amount, is_active, is_draft, next_invoice_date"
+        )
+        .eq("company_id", companyId)
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{
+          customer_name: string;
+          description: string | null;
+          interval_months: number;
+          net_amount: number;
+          gross_amount: number | null;
+          is_active: boolean;
+          is_draft: boolean;
+          next_invoice_date: string | null;
+        }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "avtaler" }
+  );
 
-  const counted = (contracts ?? []).filter((c) => c.is_active && !c.is_draft);
+  const counted = contracts.filter((c) => c.is_active && !c.is_draft);
 
   if (counted.length > 0) {
     const net = counted.reduce(
@@ -895,10 +1032,10 @@ const getRecurringRevenue: ToolHandler = async (companyId) => {
       mrr: Math.round(net),
       arr: Math.round(net) * 12,
       contracts: {
-        total: contracts?.length ?? 0,
+        total: contracts.length,
         counted: counted.length,
-        drafts: (contracts ?? []).filter((c) => c.is_draft).length,
-        inactive: (contracts ?? []).filter((c) => !c.is_active).length,
+        drafts: contracts.filter((c) => c.is_draft).length,
+        inactive: contracts.filter((c) => !c.is_active).length,
       },
       by_interval: [...byInterval.entries()]
         .sort(([a], [b]) => a - b)
@@ -996,7 +1133,8 @@ const getCashPosition: ToolHandler = async (companyId) => {
       .select("account_number, name, closing_balance")
       .eq("company_id", companyId)
       .gte("account_number", "1900")
-      .lt("account_number", "2000"),
+      .lt("account_number", "2000")
+      .limit(5000),
   ]);
 
   const bank = (accounts ?? []).filter((a) => a.closing_balance != null);
@@ -1033,7 +1171,8 @@ const getAccountBalances: ToolHandler = async (companyId, params) => {
     .from("gl_accounts")
     .select("account_number, name, account_type, opening_balance, closing_balance")
     .eq("company_id", companyId)
-    .order("account_number");
+    .order("account_number")
+    .limit(5000);
 
   const prefix = params.account_prefix
     ? String(params.account_prefix).replace(/\D/g, "")
@@ -1239,7 +1378,8 @@ const getChartOfAccounts: ToolHandler = async (companyId) => {
       .select("account_number, name, account_type, is_active")
       .eq("company_id", companyId)
       .eq("is_active", true)
-      .order("account_number");
+      .order("account_number")
+      .limit(5000);
 
     if (accounts && accounts.length > 0) {
       return {

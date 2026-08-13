@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/customers
@@ -13,6 +14,15 @@ import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
  *   revenue and activity — aggregated from the postings attributed to the
  *   customer, which the file supplies through CustomerID on ledger lines.
  */
+interface CustomerRow {
+  id: string;
+  name: string;
+  customer_number: string | null;
+  org_number: string | null;
+  email: string | null;
+  closing_balance: number | null;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,12 +34,21 @@ export async function GET(
 
     const supabase = await createClient();
 
-    const [{ data: rows }, { data: summary }] = await Promise.all([
-      supabase
-        .from("customers")
-        .select("id, name, customer_number, org_number, email, closing_balance")
-        .eq("company_id", companyId)
-        .eq("is_active", true),
+    const [rows, { data: summary }] = await Promise.all([
+      fetchAll<CustomerRow>(
+        (from, to) =>
+          supabase
+            .from("customers")
+            .select("id, name, customer_number, org_number, email, closing_balance")
+            .eq("company_id", companyId)
+            .eq("is_active", true)
+            .order("id", { ascending: true })
+            .range(from, to) as PromiseLike<{
+            data: CustomerRow[] | null;
+            error: { message: string } | null;
+          }>,
+        { label: "kunder" }
+      ),
       supabase.rpc("company_customer_summary" as never, {
         p_company_id: companyId,
       } as never) as unknown as Promise<{
@@ -50,7 +69,7 @@ export async function GET(
       (summary ?? []).map((s) => [s.customer_id, s])
     );
 
-    const customers = (rows ?? []).map((c) => {
+    const customers = rows.map((c) => {
       const agg = byId.get(c.id);
       return {
         id: c.id,

@@ -9,19 +9,31 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES } from "@/lib/reports/categories";
 import { emptyGrid, type BudgetGrid } from "./engine";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
 
 export async function readGrid(supabase: DB, budgetId: string): Promise<BudgetGrid> {
-  const { data: lines } = await supabase
-    .from("budget_lines")
-    .select("category_key, month, amount")
-    .eq("budget_id", budgetId);
+  type LineRow = { category_key: string; month: number; amount: number };
+
+  const lines = await fetchAll<LineRow>(
+    (from, to) =>
+      supabase
+        .from("budget_lines")
+        .select("category_key, month, amount")
+        .eq("budget_id", budgetId)
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: LineRow[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "budsjettlinjer" }
+  );
 
   const grid = emptyGrid();
 
-  for (const line of lines ?? []) {
+  for (const line of lines) {
     if (!grid[line.category_key]) grid[line.category_key] = new Array(12).fill(0);
     grid[line.category_key][line.month - 1] = Number(line.amount);
   }

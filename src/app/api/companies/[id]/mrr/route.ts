@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { intervalLabel } from "@/lib/import/spreadsheet/columns";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/mrr
@@ -29,7 +30,7 @@ export async function GET(
 
     const supabase = await createClient();
 
-    const [{ data: series }, { data: contracts }] = await Promise.all([
+    const [{ data: series }, contracts] = await Promise.all([
       supabase.rpc("company_mrr" as never, {
         p_company_id: companyId,
       } as never) as unknown as Promise<{
@@ -42,10 +43,19 @@ export async function GET(
           normalised_mrr: number;
         }> | null;
       }>,
-      supabase
-        .from("recurring_contracts")
-        .select("interval_months, net_amount, gross_amount, is_active, is_draft")
-        .eq("company_id", companyId),
+      fetchAll<ContractRow>(
+        (from, to) =>
+          supabase
+            .from("recurring_contracts")
+            .select("interval_months, net_amount, gross_amount, is_active, is_draft")
+            .eq("company_id", companyId)
+            .order("id", { ascending: true })
+            .range(from, to) as PromiseLike<{
+            data: ContractRow[] | null;
+            error: { message: string } | null;
+          }>,
+        { label: "avtaler" }
+      ),
     ]);
 
     const months = (series ?? []).map((m) => ({
@@ -60,12 +70,10 @@ export async function GET(
       is_complete: m.is_complete,
     }));
 
-    const counted = (contracts ?? []).filter((c) => c.is_active && !c.is_draft);
+    const counted = contracts.filter((c) => c.is_active && !c.is_draft);
 
     if (counted.length > 0) {
-      return NextResponse.json(
-        fromContracts(counted, contracts ?? [], months)
-      );
+      return NextResponse.json(fromContracts(counted, contracts, months));
     }
 
     return NextResponse.json(fromLedger(months, await hasProductList(supabase, companyId)));

@@ -38,7 +38,8 @@ export async function GET(
       .select("*")
       .eq("company_id", companyId)
       .eq("period_type", "ytd")
-      .order("period_end", { ascending: false }) as {
+      .order("period_end", { ascending: false })
+      .limit(2000) as {
       data: FinancialMetricSnapshot[] | null;
     };
 

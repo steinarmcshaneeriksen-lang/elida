@@ -53,7 +53,8 @@ export async function POST(request: NextRequest) {
     const { data: existingRows } = (await supabase
       .from("products")
       .select("name, sales_price, cost_price, is_recurring")
-      .eq("company_id", companyId)) as {
+      .eq("company_id", companyId)
+      .limit(5000)) as {
       data: Array<{
         name: string;
         sales_price: number | null;
