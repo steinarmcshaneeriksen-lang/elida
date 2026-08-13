@@ -12,6 +12,13 @@
  *      January–June of the previous year, never against the full previous
  *      year, which would otherwise read as a collapse in revenue.
  *
+ *      Where the data ends is a judgement, not the last posting date: an
+ *      export taken in August carries forward-dated periodisations into
+ *      December, and treating those as months of trading compared eight
+ *      months of one year against eleven of another — reported as revenue
+ *      down 38 % for a company that had not fallen at all. See
+ *      `resolveDataWindow`.
+ *
  *   2. Recompute everything, every time. Uploading last year's file after
  *      this year's must backfill the comparison on the year already imported,
  *      so metrics for all years are rebuilt after each import.
@@ -20,6 +27,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACCOUNT_CLASSES } from "@/lib/constants";
 import { fetchAll } from "@/lib/supabase/paginate";
+import { resolveDataWindow, type MonthActivity } from "@/lib/data-window";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -107,18 +115,24 @@ export async function computeCompanyMetrics(
   for (const year of years) {
     const yearPostings = byYear.get(year)!;
 
-    // The period runs to the last posting, not to 31 December, so a partial
-    // year is not treated as a full one.
-    const lastDate = yearPostings
-      .map((p) => p.transaction_date)
-      .reduce((a, b) => (a > b ? a : b));
+    // The period runs to where the bookkeeping ends, not to 31 December and
+    // not to the last stray posting, so a partial year is neither treated as
+    // a full one nor stretched by forward-dated entries.
+    const window = resolveDataWindow(monthActivity(yearPostings));
     const periodStart = `${year}-01-01`;
-    const periodEnd = lastDate;
+    const periodEnd =
+      window?.end ??
+      yearPostings.map((p) => p.transaction_date).reduce((a, b) => (a > b ? a : b));
+
+    // Postings after that end exist — they are real — but they fall outside
+    // the period being reported, so they must not be counted on one side of a
+    // comparison whose other side is cut at the same date a year earlier.
+    const inPeriod = yearPostings.filter((p) => p.transaction_date <= periodEnd);
 
     // Balance-sheet figures come from the balances recorded for THIS year, not
     // from whichever file was imported last. A closing balance is a fact about
     // a date, so summing the year's postings would give the movement instead.
-    const current = summarise(yearPostings, balances.get(year));
+    const current = summarise(inPeriod, balances.get(year));
 
     // Same slice of the previous year, so the comparison is like for like.
     const previousPostings = byYear.get(year - 1);
@@ -132,6 +146,16 @@ export async function computeCompanyMetrics(
       : null;
 
     if (hasComparison) yearsWithComparison.push(year);
+
+    // Carried so a page can explain why the period stops where it does,
+    // rather than looking as though months are missing.
+    const metadata = {
+      trailing_months: window?.trailingMonths ?? [],
+      trailing_postings: window?.trailingPostings ?? 0,
+      last_posting: yearPostings
+        .map((p) => p.transaction_date)
+        .reduce((a, b) => (a > b ? a : b)),
+    };
 
     for (const [metric, value] of Object.entries(current)) {
       if (value == null) continue;
@@ -148,12 +172,13 @@ export async function computeCompanyMetrics(
           comparisonStart: hasComparison ? comparisonStart : null,
           comparisonEnd: hasComparison ? comparisonEnd : null,
           calculatedAt,
+          metadata,
         })
       );
     }
   }
 
-  await replaceSnapshots(supabase, rows);
+  await replaceSnapshots(supabase, companyId, rows);
 
   // The dashboard reads these snapshots while the customer page reads the
   // party balances directly. They describe the same thing and must agree; a
@@ -233,6 +258,25 @@ function round(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+/** Postings bucketed per calendar month, for judging where the year ends. */
+function monthActivity(postings: Posting[]): MonthActivity[] {
+  const byMonth = new Map<string, { count: number; lastDate: string }>();
+
+  for (const p of postings) {
+    const month = p.transaction_date.slice(0, 7);
+    const entry = byMonth.get(month) ?? { count: 0, lastDate: p.transaction_date };
+    entry.count++;
+    if (p.transaction_date > entry.lastDate) entry.lastDate = p.transaction_date;
+    byMonth.set(month, entry);
+  }
+
+  return [...byMonth.entries()].map(([month, v]) => ({
+    month,
+    postingCount: v.count,
+    lastDate: v.lastDate,
+  }));
+}
+
 /** Shifts an ISO date by whole years, clamping 29 February to the 28th. */
 function shiftYear(isoDate: string, delta: number): string {
   const [y, m, d] = isoDate.split("-").map(Number);
@@ -257,6 +301,7 @@ function buildSnapshot(input: {
   comparisonStart: string | null;
   comparisonEnd: string | null;
   calculatedAt: string;
+  metadata?: Record<string, unknown>;
 }): Record<string, unknown> {
   const changeAmount =
     input.comparisonValue != null ? input.value - input.comparisonValue : null;
@@ -285,14 +330,35 @@ function buildSnapshot(input: {
     confidence: "confirmed",
     calculated_at: input.calculatedAt,
     calculation_version: "1",
-    metadata: {},
+    metadata: input.metadata ?? {},
   };
 }
 
+/**
+ * Writes the freshly computed set and removes what it replaces.
+ *
+ * The snapshot key includes the period, so a recomputation that moves a
+ * period end writes new rows and leaves the old ones behind. The dashboard
+ * reads whichever period ends last, so a superseded period kept winning: the
+ * year read to 6 December — a date reached only by forward-dated
+ * periodisations — long after the figures had been corrected to end in
+ * August.
+ */
 async function replaceSnapshots(
   supabase: DB,
+  companyId: string,
   rows: Record<string, unknown>[]
 ): Promise<void> {
+  const { error: deleteError } = await supabase
+    .from("financial_metric_snapshots")
+    .delete()
+    .eq("company_id", companyId)
+    .eq("period_type", "ytd");
+
+  if (deleteError) {
+    throw new Error(`Kunne ikke rydde nøkkeltall: ${deleteError.message}`);
+  }
+
   for (let i = 0; i < rows.length; i += PAGE_SIZE) {
     const { error } = await supabase
       .from("financial_metric_snapshots")

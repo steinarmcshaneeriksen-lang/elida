@@ -24,9 +24,14 @@ export interface YearBounds {
   year: number;
   /** First posting in the year. */
   start: string;
-  /** Last posting in the year, which for the current year is not 31 December. */
+  /**
+   * Where the year's bookkeeping ends — not necessarily its last posting, and
+   * for a year still running not 31 December. See `resolveDataWindow`.
+   */
   end: string;
   is_complete: boolean;
+  /** Set when forward-dated postings were left outside the period. */
+  note?: string | null;
 }
 
 export interface DateRange {

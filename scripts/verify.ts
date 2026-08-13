@@ -6,6 +6,7 @@ import {
 import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual } from "@/lib/budget/engine";
 import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } from "@/lib/reports/categories";
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
+import { resolveDataWindow, trailingNote } from "@/lib/data-window";
 
 let failures = 0;
 
@@ -119,6 +120,51 @@ check("Sammenligning er samme periode i fjor",
   comparisonRange(periodRange("ytd", partial)), { start: "2025-01-01", end: "2025-08-12" });
 check("Skuddår klemmes til 28.",
   comparisonRange({ start: "2024-02-29", end: "2024-02-29" }), { start: "2023-02-28", end: "2023-02-28" });
+
+// --- 6. Where a year's bookkeeping ends ------------------------------------
+// The real shape of 2026 on this ledger: eight busy months, then a handful of
+// forward-dated periodisations. The period must stop in August.
+const busy = [1240, 1187, 1201, 1096, 1150, 1109, 903, 844];
+const twentySix = busy.map((count, i) => ({
+  month: `2026-${String(i + 1).padStart(2, "0")}`,
+  postingCount: count,
+  lastDate: `2026-${String(i + 1).padStart(2, "0")}-28`,
+})).concat([
+  { month: "2026-09", postingCount: 6, lastDate: "2026-09-30" },
+  { month: "2026-10", postingCount: 4, lastDate: "2026-10-31" },
+  { month: "2026-11", postingCount: 4, lastDate: "2026-11-30" },
+  { month: "2026-12", postingCount: 16, lastDate: "2026-12-06" },
+]);
+
+const window2026 = resolveDataWindow(twentySix);
+check("Året slutter i august, ikke 6. desember", window2026?.end, "2026-08-28");
+check("Framdaterte måneder rapporteres", window2026?.trailingMonths,
+  ["2026-09", "2026-10", "2026-11", "2026-12"]);
+check("Framdaterte posteringer telles", window2026?.trailingPostings, 30);
+check("Avkortet periode forklares", trailingNote(window2026!)?.includes("30 framdaterte"), true);
+
+// A finished year keeps all twelve months and gets no note.
+const twentyFive = Array.from({ length: 12 }, (_, i) => ({
+  month: `2025-${String(i + 1).padStart(2, "0")}`,
+  postingCount: 1100 + i,
+  lastDate: `2025-${String(i + 1).padStart(2, "0")}-31`,
+}));
+const window2025 = resolveDataWindow(twentyFive);
+check("Fullt år beholder desember", window2025?.end, "2025-12-31");
+check("Fullt år får ingen forklaring", trailingNote(window2025!), null);
+
+// A quiet December is still December: only a near-empty month is cut.
+const quiet = twentyFive.slice(0, 11).concat([
+  { month: "2025-12", postingCount: 400, lastDate: "2025-12-31" },
+]);
+check("Rolig måned kuttes ikke", resolveDataWindow(quiet)?.end, "2025-12-31");
+
+// A year still in its first month must not cut itself to nothing.
+check("Én måned med data beholdes", resolveDataWindow([
+  { month: "2027-01", postingCount: 12, lastDate: "2027-01-31" },
+])?.end, "2027-01-31");
+
+check("Uten posteringer finnes ingen periode", resolveDataWindow([]), null);
 
 console.log(failures === 0 ? "\nALLE KONTROLLER OK" : `\n${failures} KONTROLLER FEILET`);
 process.exit(failures === 0 ? 0 : 1);

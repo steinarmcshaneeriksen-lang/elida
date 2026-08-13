@@ -84,11 +84,14 @@ export function Sidebar({
                   href={item.href}
                   title={collapsed ? item.label : undefined}
                   aria-current={active ? "page" : undefined}
-                  className={`group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+                  // The active item carries a coloured rail and a tinted
+                  // ground; a slightly bluer background alone was too faint to
+                  // find at a glance.
+                  className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
                     collapsed ? "justify-center" : ""
                   } ${
                     active
-                      ? "bg-primary-50 font-semibold text-primary"
+                      ? "bg-[var(--tone-ocean-soft)] font-semibold text-[var(--tone-ocean)] before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-[var(--tone-ocean)]"
                       : "font-medium text-foreground-secondary hover:bg-surface-hover hover:text-foreground"
                   }`}
                 >
@@ -96,7 +99,7 @@ export function Sidebar({
                     size={19}
                     className={`shrink-0 ${
                       active
-                        ? "text-primary"
+                        ? "text-[var(--tone-ocean)]"
                         : "text-foreground-muted group-hover:text-foreground-secondary"
                     }`}
                   />

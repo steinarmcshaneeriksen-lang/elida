@@ -13,9 +13,20 @@ import { createClient } from "@/lib/supabase/server";
 
 export interface Coverage {
   has_data: boolean;
-  /** Earliest and latest posting date in the ledger. */
+  /**
+   * Earliest posting, and the date the bookkeeping runs to.
+   *
+   * `last_date` is deliberately not the last posting date. An export taken in
+   * August carries forward-dated periodisations into December; answering
+   * "how is the year going" against a period stretched to December compares
+   * eight months of trading with a full year and reports a collapse that did
+   * not happen. It is the period end the metrics were computed for, which
+   * `resolveDataWindow` has already cut at the last month of real bookkeeping.
+   */
   first_date: string | null;
   last_date: string | null;
+  /** The genuinely last posting, forward-dated entries included. */
+  last_posting_date: string | null;
   /** Accounting years with computed figures, newest first. */
   years: Array<{ year: number; start: string; end: string; is_complete: boolean }>;
   counts: {
@@ -32,6 +43,7 @@ const EMPTY: Coverage = {
   has_data: false,
   first_date: null,
   last_date: null,
+  last_posting_date: null,
   years: [],
   counts: {
     transactions: 0,
@@ -47,7 +59,18 @@ export async function getCoverage(companyId: string): Promise<Coverage> {
   try {
     const supabase = await createClient();
 
-    const [first, last, years, txCount, accounts, customers, suppliers, products, imports] =
+    const [
+      first,
+      last,
+      bookkeepingEnd,
+      years,
+      txCount,
+      accounts,
+      customers,
+      suppliers,
+      products,
+      imports,
+    ] =
       await Promise.all([
         supabase
           .from("account_transactions")
@@ -61,6 +84,16 @@ export async function getCoverage(companyId: string): Promise<Coverage> {
           .select("transaction_date")
           .eq("company_id", companyId)
           .order("transaction_date", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        // Where the books end, as decided when the metrics were computed —
+        // cheaper than re-reading every posting on each chat turn.
+        supabase
+          .from("financial_metric_snapshots")
+          .select("period_end")
+          .eq("company_id", companyId)
+          .eq("period_type", "ytd")
+          .order("period_end", { ascending: false })
           .limit(1)
           .maybeSingle(),
         supabase
@@ -100,12 +133,19 @@ export async function getCoverage(companyId: string): Promise<Coverage> {
       ]);
 
     const firstDate = first.data?.transaction_date ?? null;
-    const lastDate = last.data?.transaction_date ?? null;
+    const lastPosting = last.data?.transaction_date ?? null;
+    const periodEnd =
+      (bookkeepingEnd.data as { period_end?: string } | null)?.period_end ?? null;
+
+    // Fall back to the last posting only when no metrics exist yet — right
+    // after an import, before they have been computed.
+    const lastDate = periodEnd ?? lastPosting;
 
     return {
       has_data: firstDate != null,
       first_date: firstDate,
       last_date: lastDate,
+      last_posting_date: lastPosting,
       years: (years.data ?? []).map((y) => ({
         year: y.year,
         start: y.start_date,

@@ -6,6 +6,7 @@ import type {
   FinancialInsight,
   IntegrationSyncState,
 } from "@/lib/types/database";
+import { trailingNote } from "@/lib/data-window";
 
 /**
  * GET /api/companies/[id]/summary
@@ -100,6 +101,9 @@ export async function GET(
           end: revenueMetric.period_end,
           comparison_start: revenueMetric.comparison_period_start,
           comparison_end: revenueMetric.comparison_period_end,
+          // Set when the period was cut short of the last posting because
+          // what follows is forward-dated periodisation rather than trading.
+          note: periodNote(revenueMetric),
         },
         revenue: withComparison(revenueMetric),
         profit: withComparison(profitMetric),
@@ -142,6 +146,25 @@ export async function GET(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * The metrics carry what was left outside the period. Rebuilt into the
+ * sentence the dashboard shows, so a shortened period explains itself instead
+ * of looking like months of missing data.
+ */
+function periodNote(metric: FinancialMetricSnapshot): string | null {
+  const meta = metric.metadata as
+    | { trailing_months?: string[]; trailing_postings?: number }
+    | null;
+
+  if (!meta?.trailing_months?.length) return null;
+
+  return trailingNote({
+    end: metric.period_end,
+    trailingMonths: meta.trailing_months,
+    trailingPostings: meta.trailing_postings ?? 0,
+  });
+}
 
 function mapInsights(insights: FinancialInsight[] | null) {
   return (insights ?? []).map((i) => ({

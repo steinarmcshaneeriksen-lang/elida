@@ -15,7 +15,19 @@ import {
   LoadingState,
   ErrorState,
 } from "@/components/dashboard/empty-state";
-import { BarChart3, TrendingUp, TrendingDown, Minus, Repeat } from "lucide-react";
+import {
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Repeat,
+  Coins,
+  Receipt,
+  Percent,
+  Info,
+  type LucideIcon,
+} from "lucide-react";
+import type { Tone } from "@/components/dashboard/metric-card";
 
 interface FinancialsResponse {
   has_data?: boolean;
@@ -171,6 +183,18 @@ export default function OkonomiPage() {
         )}
       </div>
 
+      {/* Why the period stops before the last posting. Without this the page
+          looks as though months of data are missing. */}
+      {bounds?.note && period === "ytd" && (
+        <div
+          data-tone="amber"
+          className="tone-card flex gap-3 px-5 py-3.5 text-xs leading-relaxed text-foreground-secondary"
+        >
+          <Info size={15} className="mt-0.5 shrink-0 text-[var(--tone)]" />
+          <p>{bounds.note}</p>
+        </div>
+      )}
+
       {isLoading && <LoadingState />}
       {!isLoading && error && <ErrorState message={error} />}
       {isEmpty && <NoDataState />}
@@ -182,6 +206,8 @@ export default function OkonomiPage() {
               label="Omsetning"
               value={formatCurrency(data.revenue?.total ?? 0)}
               change={data.revenue?.change_percent ?? null}
+              tone="ocean"
+              icon={TrendingUp}
             />
             <SummaryCard
               label="Kostnader"
@@ -189,11 +215,15 @@ export default function OkonomiPage() {
               change={data.costs?.change_percent ?? null}
               // Rising costs are unfavourable, so invert the colour cue.
               invert
+              tone="amber"
+              icon={Receipt}
             />
             <SummaryCard
               label="Driftsresultat"
               value={formatCurrency(data.profit?.operating_profit ?? 0)}
               change={data.profit?.operating_profit_change_percent ?? null}
+              tone="teal"
+              icon={Coins}
             />
             <SummaryCard
               label="Driftsmargin"
@@ -206,38 +236,45 @@ export default function OkonomiPage() {
                   ? `I fjor ${formatPercent(data.profit.previous_operating_margin_percent)}`
                   : null
               }
+              tone="violet"
+              icon={Percent}
             />
           </div>
 
           {monthly.length > 0 && (
-            <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-              <div className="mb-6 flex items-center gap-2">
-                <BarChart3 size={18} className="text-foreground-muted" />
-                <h3 className="text-lg font-semibold text-foreground">
-                  Omsetning per måned
-                </h3>
-              </div>
-              <div className="space-y-3">
-                {monthly.map((m) => (
-                  <div key={m.month} className="flex items-center gap-4">
-                    <span className="w-10 text-sm font-medium text-foreground-secondary">
-                      {monthLabel(m.month)}
-                    </span>
-                    <div className="flex-1">
-                      <div
-                        className="h-8 rounded-md bg-primary"
-                        style={{
-                          width: `${Math.max(1, (m.revenue / maxRevenue) * 100)}%`,
-                        }}
-                      />
+            <Panel tone="ocean" icon={BarChart3} title="Omsetning per måned">
+              {/* The best month is worth seeing at a glance, so it keeps the
+                  full hue while the rest sit a shade back. A column of twelve
+                  identical navy blocks told you nothing but the lengths. */}
+              <div className="space-y-2">
+                {monthly.map((m) => {
+                  const share = m.revenue / maxRevenue;
+                  const best = m.revenue > 0 && m.revenue === maxRevenue;
+                  return (
+                    <div
+                      key={m.month}
+                      className="group flex items-center gap-4 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--tone-soft)]"
+                    >
+                      <span className="w-9 text-sm font-medium text-foreground-secondary">
+                        {monthLabel(m.month)}
+                      </span>
+                      <div className="tone-track h-7 flex-1">
+                        <div
+                          className="tone-bar h-7 transition-[width] duration-500"
+                          style={{
+                            width: `${Math.max(share * 100, m.revenue > 0 ? 2 : 0)}%`,
+                            opacity: best ? 1 : 0.78,
+                          }}
+                        />
+                      </div>
+                      <span className="w-28 shrink-0 text-right text-sm font-semibold tabular-nums text-foreground">
+                        {formatCurrency(m.revenue)}
+                      </span>
                     </div>
-                    <span className="w-28 text-right text-sm font-medium tabular-nums text-foreground">
-                      {formatCurrency(m.revenue)}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
-            </section>
+            </Panel>
           )}
 
           {recurring.data?.has_data && recurring.data.totals && (
@@ -245,24 +282,28 @@ export default function OkonomiPage() {
           )}
 
           {costCategories.length > 0 && (
-            <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-              <h3 className="mb-6 text-lg font-semibold text-foreground">
-                Kostnader etter kategori
-              </h3>
+            <Panel tone="amber" icon={Receipt} title="Kostnader etter kategori">
               <div className="space-y-4">
-                {costCategories.map((cat) => (
-                  <div key={cat.category} className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">
-                        {cat.category}
+                {costCategories.map((cat, i) => (
+                  // Each category keeps its own hue down the list, so a row can
+                  // be followed from its label to its bar.
+                  <div
+                    key={cat.category}
+                    data-tone={SERIES_TONES[i % SERIES_TONES.length]}
+                    className="space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--tone)]" />
+                        <span className="truncate">{cat.category}</span>
                       </span>
-                      <span className="text-sm tabular-nums text-foreground">
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
                         {formatCurrency(cat.amount)}
                       </span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-surface-hover">
+                    <div className="tone-track h-2.5 w-full overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-primary"
+                        className="tone-bar h-full transition-[width] duration-500"
                         style={{ width: `${cat.percent}%` }}
                       />
                     </div>
@@ -273,7 +314,7 @@ export default function OkonomiPage() {
                   </div>
                 ))}
               </div>
-            </section>
+            </Panel>
           )}
         </>
       )}
@@ -281,26 +322,72 @@ export default function OkonomiPage() {
   );
 }
 
-const CATEGORY_LABELS: Record<string, { label: string; hint: string; className: string }> = {
+/** The order hues are handed out to a list of series. */
+const SERIES_TONES: Tone[] = ["ocean", "teal", "violet", "amber", "rose", "slate"];
+
+/**
+ * A titled block of content.
+ *
+ * The page was a stack of white rectangles with identical hairline borders;
+ * a panel now carries its section's hue in the heading rule and the icon, so
+ * the eye can tell one block from the next while scrolling.
+ */
+function Panel({
+  tone,
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  tone: Tone;
+  icon: LucideIcon;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section
+      data-tone={tone}
+      className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)]"
+    >
+      <div className="flex items-start gap-3 border-b border-[var(--tone-ring)] bg-[var(--tone-soft)] px-6 py-4">
+        <span className="tone-badge shrink-0">
+          <Icon size={16} strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-base font-semibold text-foreground">{title}</h3>
+          {description && (
+            <p className="mt-0.5 text-xs text-foreground-secondary">
+              {description}
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="p-6">{children}</div>
+    </section>
+  );
+}
+
+const CATEGORY_LABELS: Record<string, { label: string; hint: string; tone: Tone }> = {
   product: {
     label: "Lisensprodukt",
     hint: "Produktet ligger i en lisensgruppe i produktlisten din",
-    className: "bg-success",
+    tone: "teal",
   },
   licensed: {
     label: "Lisens og abonnement",
     hint: "Teksten oppgir lisens, abonnement eller månedspris",
-    className: "bg-accent",
+    tone: "ocean",
   },
   regular: {
     label: "Gjentar seg månedlig",
     hint: "Samme linje i tre måneder eller mer, uten at teksten sier det",
-    className: "bg-primary",
+    tone: "violet",
   },
   one_off: {
     label: "Engangsinntekter",
     hint: "Ingen av delene",
-    className: "bg-surface-hover",
+    tone: "slate",
   },
 };
 
@@ -317,42 +404,41 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
     .slice(0, fromContracts ? 12 : 8);
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-      <div className="mb-1 flex items-center gap-2">
-        <Repeat size={18} className="text-foreground-muted" />
-        <h3 className="text-lg font-semibold text-foreground">
-          Gjentakende inntekter
-        </h3>
-      </div>
-
+    <Panel
+      tone="teal"
+      icon={Repeat}
+      title="Gjentakende inntekter"
+      description={
+        fromContracts
+          ? `${totals.contract_count} aktive avtaler fra den opplastede fakturalisten, delt ned på måned. Alle beløp er eks. mva.`
+          : undefined
+      }
+    >
       {fromContracts ? (
         <>
-          <p className="mb-5 text-sm text-foreground-muted">
-            {totals.contract_count} aktive avtaler fra den opplastede
-            fakturalisten, delt ned på måned. Alle beløp er eks. mva.
-          </p>
           <div className="mb-6 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg bg-background px-3 py-2.5">
-              <p className="text-xs font-medium text-foreground">MRR</p>
-              <p className="mt-1 text-lg font-semibold text-foreground">
-                {formatCurrency(totals.mrr ?? 0)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-background px-3 py-2.5">
-              <p className="text-xs font-medium text-foreground">ARR</p>
-              <p className="mt-1 text-lg font-semibold text-foreground">
-                {formatCurrency(totals.total)}
-              </p>
-            </div>
-            <div className="rounded-lg bg-background px-3 py-2.5">
-              <p className="text-xs font-medium text-foreground">Avtaler</p>
-              <p className="mt-1 text-lg font-semibold text-foreground">
-                {totals.contract_count} av {totals.contracts_total}
-              </p>
-              <p className="mt-0.5 text-xs text-foreground-muted">
-                inaktive og utkast teller ikke med
-              </p>
-            </div>
+            {([
+              { tone: "teal", label: "MRR", value: formatCurrency(totals.mrr ?? 0) },
+              { tone: "ocean", label: "ARR", value: formatCurrency(totals.total) },
+              {
+                tone: "violet",
+                label: "Avtaler",
+                value: `${totals.contract_count} av ${totals.contracts_total}`,
+                hint: "inaktive og utkast teller ikke med",
+              },
+            ] as const).map((box) => (
+              <div key={box.label} data-tone={box.tone} className="tone-card px-4 py-3 pl-5">
+                <p className="text-xs font-medium text-foreground-secondary">
+                  {box.label}
+                </p>
+                <p className="mt-1 text-lg font-bold tabular-nums text-foreground">
+                  {box.value}
+                </p>
+                {"hint" in box && (
+                  <p className="mt-0.5 text-xs text-foreground-muted">{box.hint}</p>
+                )}
+              </div>
+            ))}
           </div>
         </>
       ) : (
@@ -372,7 +458,8 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
           return (
             <div
               key={key}
-              className={CATEGORY_LABELS[key].className}
+              data-tone={CATEGORY_LABELS[key].tone}
+              className="bg-[var(--tone)]"
               style={{ width: `${pct}%` }}
               title={`${CATEGORY_LABELS[key].label}: ${formatCurrency(value)}`}
             />
@@ -384,11 +471,13 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
         {(["product", "licensed", "regular", "one_off"] as const).map((key) => {
           const value = key === "one_off" ? totals.one_off : totals[key];
           return (
-            <div key={key} className="rounded-lg bg-background px-3 py-2.5">
+            <div
+              key={key}
+              data-tone={CATEGORY_LABELS[key].tone}
+              className="tone-card px-4 py-3 pl-5"
+            >
               <div className="flex items-center gap-1.5">
-                <span
-                  className={`h-2 w-2 rounded-full ${CATEGORY_LABELS[key].className}`}
-                />
+                <span className="h-2 w-2 rounded-full bg-[var(--tone)]" />
                 <p className="text-xs font-medium text-foreground">
                   {CATEGORY_LABELS[key].label}
                 </p>
@@ -432,7 +521,8 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
                   <td className="py-2.5 pr-4">
                     <span className="flex items-center gap-2">
                       <span
-                        className={`h-2 w-2 shrink-0 rounded-full ${CATEGORY_LABELS[item.category].className}`}
+                        data-tone={CATEGORY_LABELS[item.category].tone}
+                        className="h-2 w-2 shrink-0 rounded-full bg-[var(--tone)]"
                       />
                       <span className="text-foreground">{item.description}</span>
                     </span>
@@ -452,7 +542,7 @@ function RecurringRevenue({ data }: { data: RecurringResponse }) {
           </table>
         </div>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -463,6 +553,8 @@ function SummaryCard({
   invert = false,
   unit = "percent",
   detail = null,
+  tone = "slate",
+  icon: Icon,
 }: {
   label: string;
   value: string;
@@ -471,46 +563,39 @@ function SummaryCard({
   /** Percentages compare as percent; a margin compares in points. */
   unit?: "percent" | "points";
   detail?: string | null;
+  tone?: Tone;
+  icon?: LucideIcon;
 }) {
   const isUp = (change ?? 0) > 0.5;
   const isDown = (change ?? 0) < -0.5;
+  // Rising costs are a worse result than falling ones, so the colour follows
+  // whether the movement is good, not whether the arrow points up.
   const favourable = invert ? isDown : isUp;
+  const chip = !isUp && !isDown ? "flat" : favourable ? "up" : "down";
+  const ChangeIcon = isUp ? TrendingUp : isDown ? TrendingDown : Minus;
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-      <p className="text-sm text-foreground-muted">{label}</p>
-      <p className="mt-1 text-xl font-bold tracking-tight text-foreground">
+    <div data-tone={tone} className="tone-card flex flex-col p-5 pl-6">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-foreground-secondary">{label}</p>
+        {Icon && (
+          <span className="tone-badge shrink-0">
+            <Icon size={16} strokeWidth={2.2} />
+          </span>
+        )}
+      </div>
+      <p className="mt-2 text-xl font-bold tracking-tight tabular-nums text-foreground">
         {value}
       </p>
-      <div className="mt-2 flex items-center gap-1">
+      <div className="mt-2.5 flex h-6 items-center gap-2">
         {change == null ? (
           <span className="text-xs text-foreground-muted">
             Ingen sammenligning tilgjengelig
           </span>
         ) : (
           <>
-            {isUp ? (
-              <TrendingUp
-                size={14}
-                className={favourable ? "text-success" : "text-danger"}
-              />
-            ) : isDown ? (
-              <TrendingDown
-                size={14}
-                className={favourable ? "text-success" : "text-danger"}
-              />
-            ) : (
-              <Minus size={14} className="text-foreground-muted" />
-            )}
-            <span
-              className={`text-sm font-medium ${
-                isUp || isDown
-                  ? favourable
-                    ? "text-success"
-                    : "text-danger"
-                  : "text-foreground-muted"
-              }`}
-            >
+            <span className={`chip chip--${chip}`}>
+              <ChangeIcon size={13} strokeWidth={2.5} />
               {unit === "points"
                 ? `${change > 0 ? "+" : ""}${change.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} pp`
                 : formatChange(change)}
@@ -520,7 +605,7 @@ function SummaryCard({
         )}
       </div>
       {detail && (
-        <p className="mt-1 text-xs text-foreground-muted">{detail}</p>
+        <p className="mt-1.5 text-xs text-foreground-muted">{detail}</p>
       )}
     </div>
   );

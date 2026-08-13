@@ -216,9 +216,8 @@ function BalanceChart({
             </span>
             <div className="relative h-5 flex-1 rounded bg-surface-hover">
               <div
-                className={`absolute top-0 h-full rounded ${
-                  negative ? "bg-danger" : "bg-primary"
-                }`}
+                data-tone={negative ? "rose" : "teal"}
+                className="tone-bar absolute top-0 h-full"
                 style={{
                   left: negative
                     ? `${zeroOffset - barSize}%`

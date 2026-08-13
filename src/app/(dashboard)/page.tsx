@@ -1,6 +1,13 @@
 "use client";
 
-import { MetricCard } from "@/components/dashboard/metric-card";
+import { MetricCard, type Tone } from "@/components/dashboard/metric-card";
+import {
+  TrendingUp,
+  LineChart,
+  Wallet,
+  Receipt,
+  type LucideIcon,
+} from "lucide-react";
 import { InsightCard } from "@/components/dashboard/insight-card";
 import {
   NoDataState,
@@ -26,6 +33,7 @@ interface SummaryResponse {
     end: string;
     comparison_start: string | null;
     comparison_end: string | null;
+    note: string | null;
   } | null;
   revenue: Metric | null;
   profit: Metric | null;
@@ -82,6 +90,11 @@ export default function DashboardPage() {
               : ". Last opp foregående år for å se utvikling."}
           </p>
         )}
+        {data?.period?.note && (
+          <p className="mt-2 max-w-2xl text-xs text-foreground-muted">
+            {data.period.note}
+          </p>
+        )}
       </div>
 
       {isLoading && <LoadingState />}
@@ -105,6 +118,8 @@ export default function DashboardPage() {
                   comparison={metric.comparison}
                   detail={metric.detail}
                   href={metric.href}
+                  tone={metric.tone}
+                  icon={metric.icon}
                 />
               ))}
             </div>
@@ -172,6 +187,8 @@ interface DashboardMetric {
   };
   detail?: string;
   href: string;
+  tone: Tone;
+  icon: LucideIcon;
 }
 
 function buildMetrics(data: SummaryResponse): DashboardMetric[] {
@@ -192,6 +209,8 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
           ? `Eks. mva · driftsmargin ${margin.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} %`
           : "Eks. mva",
       href: "/okonomi",
+      tone: "teal",
+      icon: LineChart,
     });
   }
 
@@ -205,6 +224,8 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
         ? `Eks. mva · i fjor ${formatCurrency(data.revenue.comparison_ytd ?? 0)}`
         : "Eks. mva",
       href: "/okonomi",
+      tone: "ocean",
+      icon: TrendingUp,
     });
   }
 
@@ -220,6 +241,8 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
       },
       detail: "Bokført saldo, ikke live banksaldo.",
       href: "/likviditet",
+      tone: "violet",
+      icon: Wallet,
     });
   }
 
@@ -237,6 +260,8 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
       // cannot be stated net without inventing a VAT split per invoice.
       detail: "Inkl. mva — fakturert beløp",
       href: "/kunder",
+      tone: "amber",
+      icon: Receipt,
     });
   }
 

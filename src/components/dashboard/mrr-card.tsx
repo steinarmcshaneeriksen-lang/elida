@@ -69,11 +69,7 @@ export function MrrCard({ data }: { data: MrrData }) {
   const up = (mrr.change_percent ?? 0) > 0.5;
   const down = (mrr.change_percent ?? 0) < -0.5;
   const TrendIcon = up ? TrendingUp : down ? TrendingDown : Minus;
-  const trendClass = up
-    ? "text-success"
-    : down
-      ? "text-danger"
-      : "text-foreground-muted";
+  const trendChip = up ? "up" : down ? "down" : "flat";
 
   const max = Math.max(...months.map((m) => m.normalised), 1);
   const fromContracts = data.source === "contracts";
@@ -106,11 +102,15 @@ export function MrrCard({ data }: { data: MrrData }) {
         .join(" ");
 
   return (
-    <section className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
+    // Recurring revenue is the headline figure, so the band carries the
+    // brand's teal rather than sitting in the same white as everything else.
+    <section data-tone="teal" className="tone-card p-5 pl-6">
       <div className="flex flex-wrap items-center gap-x-10 gap-y-5">
         <div className="min-w-[13rem]">
           <div className="flex items-center gap-1.5">
-            <Repeat size={14} className="text-accent" />
+            <span className="tone-badge h-6 w-6 rounded-md">
+              <Repeat size={13} strokeWidth={2.4} />
+            </span>
             <span className="text-xs font-medium uppercase tracking-wide text-foreground-muted">
               Gjentakende inntekter
             </span>
@@ -129,8 +129,8 @@ export function MrrCard({ data }: { data: MrrData }) {
             </span>
             <span className="text-xs text-foreground-muted">eks. mva</span>
             {mrr.change_percent != null && (
-              <span className={`inline-flex items-center gap-0.5 text-sm font-medium ${trendClass}`}>
-                <TrendIcon size={14} />
+              <span className={`chip chip--${trendChip}`}>
+                <TrendIcon size={13} strokeWidth={2.5} />
                 {mrr.change_percent > 0 ? "+" : ""}
                 {mrr.change_percent.toLocaleString("nb-NO", {
                   maximumFractionDigits: 1,
@@ -194,9 +194,9 @@ export function MrrCard({ data }: { data: MrrData }) {
                   <div
                     className={`w-full rounded-sm ${
                       m.is_complete
-                        ? "bg-accent"
+                        ? "bg-[var(--tone)]"
                         : // A part-month is drawn, but visibly not comparable.
-                          "bg-accent/25 outline outline-1 outline-dashed outline-accent/50"
+                          "bg-[var(--tone)]/25 outline outline-1 outline-dashed outline-[var(--tone)]/50"
                     }`}
                     style={{
                       height: `${Math.max(6, (m.normalised / max) * 100)}%`,
@@ -214,7 +214,7 @@ export function MrrCard({ data }: { data: MrrData }) {
 
       <Link
         href="/okonomi"
-        className="mt-4 inline-flex text-xs font-medium text-primary hover:text-primary-light"
+        className="mt-4 inline-flex text-xs font-semibold text-[var(--tone)] hover:underline"
       >
         Se hva som gjentar seg →
       </Link>
