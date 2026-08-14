@@ -35,6 +35,7 @@ import {
   computeEmployeeCost,
   distributeAnnual,
   generateBudgetGrid,
+  rampIncrement,
   rampToTarget,
   type BudgetGrid,
 } from "@/lib/budget/engine";
@@ -142,6 +143,47 @@ function budgetChoiceResult(
           "år og navn. Ikke velg selv.",
     data_source: "budget",
   };
+}
+
+/**
+ * What comes back every month by contract, today.
+ *
+ * The same arithmetic the MRR figure on the dashboard uses: each live contract
+ * divided by the months between its invoices, so a yearly agreement counts as a
+ * twelfth. Null where no contract list has been uploaded — inferring it from
+ * posting text counts one-off work that reads like a subscription, and a growth
+ * target is not worth setting against a guess.
+ */
+async function currentMrr(companyId: string): Promise<number | null> {
+  const supabase = await createClient();
+  type Row = {
+    interval_months: number;
+    net_amount: number;
+    is_active: boolean;
+    is_draft: boolean;
+  };
+
+  const contracts = await fetchAll<Row>(
+    (from, to) =>
+      supabase
+        .from("recurring_contracts")
+        .select("interval_months, net_amount, is_active, is_draft")
+        .eq("company_id", companyId)
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Row[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "avtaler" }
+  );
+
+  const live = contracts.filter((c) => c.is_active && !c.is_draft);
+  if (live.length === 0) return null;
+
+  return live.reduce(
+    (total, c) => total + Number(c.net_amount) / Math.max(c.interval_months, 1),
+    0
+  );
 }
 
 async function openingCash(companyId: string): Promise<number> {
@@ -299,6 +341,70 @@ export const proposeBudgetChange = async (
       break;
     }
 
+    /*
+     * "Øk MRR til 400 000 innen 31.12" — the question this whole tool kept
+     * failing to answer.
+     *
+     * There is no MRR line in a budget. There is a revenue line, and recurring
+     * revenue is a part of it, so a target for one was being applied to the
+     * other: 400 000 set against a revenue line budgeting 651 706 read as a
+     * 25 % cut. The assistant's way out was to ask which of the two the user
+     * meant — of someone who had written "øke mrr til 400k" in the sentence
+     * being answered.
+     *
+     * Today's recurring revenue is a figure the system holds. So the target is
+     * measured against it, the difference is what the budget has to find, and
+     * that difference is what gets ramped onto revenue. Nothing to ask.
+     */
+    case "grow_recurring": {
+      const goal = Number(params.amount);
+      if (!Number.isFinite(goal)) {
+        return { error: "Mangler månedlig målbeløp for gjentakende inntekt." };
+      }
+
+      const current = await currentMrr(companyId);
+      if (current == null) {
+        return {
+          error:
+            "Finner ingen gjentakende inntekt å måle målet mot. Be brukeren " +
+            "laste opp listen over repeterende fakturaer under «Importer " +
+            "data», eller oppgi dagens MRR selv.",
+        };
+      }
+
+      const targetMonth = clampMonth(params.target_month ?? 12);
+      if (targetMonth < fromMonth) {
+        return {
+          error:
+            "Målmåneden ligger før startmåneden. Et mål kan ikke nås før " +
+            "opptrappingen begynner.",
+        };
+      }
+
+      const increase = Math.round(goal - current);
+      after = rampIncrement(before, "revenue", increase, fromMonth, targetMonth);
+
+      target = {
+        direction: increase > 0 ? "opp" : increase < 0 ? "ned" : "uendret",
+        fromLevel: Math.round(current),
+        toLevel: Math.round(goal),
+        warning:
+          increase <= 0
+            ? `Dagens gjentakende inntekt er ${format(current)} per måned, ` +
+              `altså allerede på eller over målet på ${format(goal)}. Si det, ` +
+              "og spør hva brukeren egentlig vil oppnå."
+            : null,
+      };
+
+      description =
+        `Gjentakende inntekt trappes opp fra ${format(current)} til ` +
+        `${format(goal)} per måned innen utgangen av ` +
+        `${MONTH_LONG[targetMonth - 1]}. Det er ${format(increase)} mer i ` +
+        `måneden, lagt til omsetningen med jevn økning fra ` +
+        `${MONTH_LONG[fromMonth - 1]}`;
+      break;
+    }
+
     case "add_employee": {
       const salary = Number(params.amount);
       if (!Number.isFinite(salary)) return { error: "Mangler årslønn." };
@@ -416,6 +522,7 @@ export const CHANGE_LABELS: Record<string, string> = {
   adjust_percent: "Prosentjustering av en kategori",
   set_annual: "Nytt årsbeløp for en kategori",
   reach_target: "Opptrapping mot et månedlig mål",
+  grow_recurring: "Vekst i gjentakende inntekt (MRR)",
   add_cost: "Ny fast månedlig kostnad",
   add_employee: "Ny ansatt",
 };

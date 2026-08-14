@@ -3,7 +3,7 @@ import {
   buildFinancialsFromTransactions,
   type TxRow,
 } from "@/app/api/companies/[id]/financials/route";
-import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual, basisFromActivity, fillGaps } from "@/lib/budget/engine";
+import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual, basisFromActivity, fillGaps, rampIncrement } from "@/lib/budget/engine";
 import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } from "@/lib/reports/categories";
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
 import { resolveDataWindow, partialMonthNote, type MonthActivity } from "@/lib/data-window";
@@ -528,6 +528,28 @@ check("Systemprompten tillater ett spørsmål om gangen",
   /ALDRI mer enn ett spørsmål/.test(prompt), true);
 check("Systemprompten forbyr mellomtitler i svaret",
   /Mellomtitler\./.test(prompt), true);
+check("Systemprompten forbyr å spørre om det brukeren nettopp sa",
+  /Spør aldri om noe brukeren nettopp har sagt/.test(prompt), true);
+
+// «Øk MRR til 400 000» har ingen budsjettlinje å treffe: budsjettet har en
+// omsetningslinje, og MRR er en del av den. Målet ble satt mot hele linja, som
+// leste 400 000 mot 651 706 og trappet NED. Nå måles målet mot dagens MRR, og
+// differansen er det som legges på omsetningen.
+let mrrGrid = emptyGrid();
+mrrGrid.revenue = new Array(12).fill(650000);
+const grown = rampIncrement(mrrGrid, "revenue", 42000, 8, 12);
+
+check("Månedene før opptrappingen er urørt", grown.revenue.slice(0, 7),
+  new Array(7).fill(650000));
+check("Første måned tar første steg", grown.revenue[7], 650000 + 42000 / 5);
+check("Målmåneden har hele økningen", grown.revenue[11], 692000);
+check("Økningen legges til, den erstatter ikke",
+  computeBudgetResult(grown).annual.revenue >
+  computeBudgetResult(mrrGrid).annual.revenue, true);
+
+const held = rampIncrement(mrrGrid, "revenue", 42000, 6, 9);
+check("Nivået holdes etter målmåneden", held.revenue.slice(9),
+  [692000, 692000, 692000]);
 
 // Valg med et opplagt standardsvar skal ikke stilles som spørsmål. «base,
 // optimistic eller cautious» var både et unødvendig spørsmål og tre engelske

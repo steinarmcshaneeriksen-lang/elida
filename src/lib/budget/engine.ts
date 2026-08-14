@@ -298,6 +298,39 @@ export function rampToTarget(
   return { ...grid, [categoryKey]: base };
 }
 
+/**
+ * Ramps an *addition* onto whatever a line already budgets.
+ *
+ * `rampToTarget` sets the level: by the target month the line IS the figure
+ * given. That is the wrong shape for growth on top of a business that is
+ * already trading. "Øk MRR til 400 000" does not mean the whole revenue line
+ * becomes 400 000 — it means the recurring part reaches 400 000, and what that
+ * costs the budget is the difference, added to every month from the ramp
+ * onwards while the seasonal shape underneath is left alone.
+ *
+ * The increment climbs evenly to `monthlyIncrease` by the target month and is
+ * held after it.
+ */
+export function rampIncrement(
+  grid: BudgetGrid,
+  categoryKey: string,
+  monthlyIncrease: number,
+  fromMonth: number,
+  targetMonth: number
+): BudgetGrid {
+  const base = [...(grid[categoryKey] ?? new Array(12).fill(0))];
+  const from = Math.min(Math.max(fromMonth, 1), 12);
+  const target = Math.min(Math.max(targetMonth, from), 12);
+  const steps = target - from + 1;
+
+  for (let month = from; month <= 12; month++) {
+    const progress = month > target ? 1 : steps === 1 ? 1 : (month - from + 1) / steps;
+    base[month - 1] = round(base[month - 1] + monthlyIncrease * progress);
+  }
+
+  return { ...grid, [categoryKey]: base };
+}
+
 /** Adds a fixed monthly cost from a given month onwards. */
 export function addRecurringCost(
   grid: BudgetGrid,

@@ -241,7 +241,7 @@ export const TOOLS: ToolDefinition[] = [
         change_type: {
           type: "string",
           description:
-            'Type endring: "adjust_percent" (juster en kategori med prosent), "set_annual" (sett årsbeløp for en kategori), "reach_target" (trapp opp jevnt til et månedlig målbeløp innen en gitt måned), "add_cost" (ny fast månedlig kostnad), "add_employee" (ny ansatt).',
+            'Type endring: "grow_recurring" (BRUK DENNE når brukeren snakker om MRR, gjentakende inntekt, abonnement eller faste avtaler — den henter dagens MRR selv, regner ut hva målet krever i økt omsetning, og trapper det opp. Ikke spør om brukeren mener MRR eller total omsetning når brukeren allerede har sagt MRR), "reach_target" (sett HELE kategorien til et månedlig nivå innen en gitt måned — kun når brukeren mener samlet omsetning, ikke MRR), "adjust_percent" (juster en kategori med prosent), "set_annual" (sett årsbeløp for en kategori), "add_cost" (ny fast månedlig kostnad), "add_employee" (ny ansatt).',
         },
         category_key: {
           type: "string",
@@ -249,9 +249,9 @@ export const TOOLS: ToolDefinition[] = [
             'Kategori: revenue, other_revenue, cogs, payroll, employer_costs, premises, it_software, consultants, sales_marketing, travel, vehicles, office, equipment, depreciation, other_costs.',
         },
         percent: { type: "number", description: "Prosentendring for adjust_percent." },
-        amount: { type: "number", description: "Årsbeløp for set_annual, månedlig målbeløp for reach_target, månedsbeløp for add_cost, årslønn for add_employee." },
+        amount: { type: "number", description: "Månedlig MRR-mål for grow_recurring, månedlig nivå for reach_target, årsbeløp for set_annual, månedsbeløp for add_cost, årslønn for add_employee." },
         from_month: { type: "number", description: "Måned 1–12 endringen gjelder fra." },
-        target_month: { type: "number", description: "Måned 1–12 målet skal være nådd innen. Kun for reach_target." },
+        target_month: { type: "number", description: "Måned 1–12 målet skal være nådd innen. For grow_recurring og reach_target." },
         name: { type: "string", description: "Navn på kostnaden eller stillingen." },
         confirmed: { type: "boolean", description: "Sett true KUN etter at brukeren har bekreftet forslaget." },
         confirm_code: { type: "string", description: "Koden fra forrige kall. Send den uendret tilbake sammen med confirmed: true." },
