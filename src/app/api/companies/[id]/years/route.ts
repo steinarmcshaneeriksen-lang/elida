@@ -87,8 +87,11 @@ export async function GET(
       return {
         year: y.year,
         start: first ? `${y.year}-01-01` : y.start_date,
-        end: window?.end ?? y.end_date,
-        is_complete: (window?.end ?? "") >= `${y.year}-12-31`,
+        // The last whole month, so every period the selector offers is a
+        // round number of months and compares against the same months a year
+        // earlier. A half-booked final month is reported in `note`.
+        end: window?.completeEnd ?? y.end_date,
+        is_complete: (window?.completeEnd ?? "") >= `${y.year}-12-31`,
         // Forward-dated postings beyond the end, so a page can say why the
         // period stops where it does rather than looking as if data is missing.
         trailing_months: window?.trailingMonths ?? [],

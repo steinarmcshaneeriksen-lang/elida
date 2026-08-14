@@ -71,13 +71,17 @@ function monthLabel(isoMonth: string): string {
   return MONTH_NAMES[Number(month) - 1] ?? isoMonth;
 }
 
-/** "1. jan–13. aug 2026" — the caption read raw ISO dates before. */
+/**
+ * "jan–jul 2026". Whole months: periods run to a month boundary, so printing
+ * the day only ever restated the length of a month.
+ */
 function formatRange({ start, end }: { start: string; end: string }): string {
-  const [sy, sm, sd] = start.split("-").map(Number);
-  const [ey, em, ed] = end.split("-").map(Number);
-  const from = `${sd}. ${MONTH_NAMES[sm - 1]}`;
-  const to = `${ed}. ${MONTH_NAMES[em - 1]} ${ey}`;
-  return sy === ey ? `${from}–${to}` : `${from} ${sy} – ${to}`;
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em] = end.split("-").map(Number);
+
+  if (sy === ey && sm === em) return `${MONTH_NAMES[sm - 1]} ${ey}`;
+  if (sy === ey) return `${MONTH_NAMES[sm - 1]}–${MONTH_NAMES[em - 1]} ${ey}`;
+  return `${MONTH_NAMES[sm - 1]} ${sy} – ${MONTH_NAMES[em - 1]} ${ey}`;
 }
 
 interface RecurringResponse {

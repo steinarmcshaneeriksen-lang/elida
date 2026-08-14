@@ -145,6 +145,9 @@ const twentySix = busy.map((count, i) => ({
 
 const window2026 = resolveDataWindow(twentySix);
 check("Året slutter i august, ikke 6. desember", window2026?.end, "2026-08-28");
+// August ends on the 28th here, close enough to month-end to count as done.
+check("En måned som når månedsslutt beholdes hel", window2026?.completeEnd, "2026-08-31");
+check("Ingen påbegynt måned når bøkene når månedsslutt", window2026?.partial, null);
 check("Framdaterte måneder rapporteres", window2026?.trailingMonths,
   ["2026-09", "2026-10", "2026-11", "2026-12"]);
 check("Framdaterte posteringer telles", window2026?.trailingPostings, 30);
@@ -172,6 +175,39 @@ check("Én måned med data beholdes", resolveDataWindow([
 ])?.end, "2027-01-31");
 
 check("Uten posteringer finnes ingen periode", resolveDataWindow([]), null);
+
+// --- 6b. Den påbegynte måneden -----------------------------------------------
+// The real export: eight months, the last of which stops on the 13th. A period
+// ending "13. august" is the day somebody pressed export, not an accounting
+// period, and pairing it with 13 August last year compares two arbitrary
+// stretches of a month. Reporting stops at the last whole month.
+const partOfAugust = [1240, 1445, 1430, 1197, 1343, 1606, 1146, 844].map(
+  (count, i) => ({
+    month: `2026-${String(i + 1).padStart(2, "0")}`,
+    postingCount: count,
+    lastDate: i === 7 ? "2026-08-13" : `2026-${String(i + 1).padStart(2, "0")}-28`,
+  })
+);
+
+const cut = resolveDataWindow(partOfAugust);
+check("Bøkene stopper 13. august", cut?.end, "2026-08-13");
+check("Rapportering stopper ved juli", cut?.completeEnd, "2026-07-31");
+check("August rapporteres som påbegynt", cut?.partial,
+  { month: "2026-08", lastDate: "2026-08-13", postingCount: 844 });
+check("Den påbegynte måneden forklares",
+  trailingNote(cut!)?.includes("august er påbegynt"), true);
+
+// A finished year is untouched: December reaching the 31st is a whole month.
+check("Fullt år rapporteres til 31. desember", window2025?.completeEnd, "2025-12-31");
+check("Fullt år har ingen påbegynt måned", window2025?.partial, null);
+
+// A company one month into its first year has nothing to fall back to, so the
+// part month is all there is and must not be held back to nothing.
+const firstMonth = resolveDataWindow([
+  { month: "2027-01", postingCount: 40, lastDate: "2027-01-12" },
+]);
+check("Første måned holdes ikke tilbake", firstMonth?.partial, null);
+check("Første måned rapporteres ut måneden", firstMonth?.completeEnd, "2027-01-31");
 
 // --- 7. Observasjoner ------------------------------------------------------
 // A healthy company with a comparison year and nothing out of the ordinary

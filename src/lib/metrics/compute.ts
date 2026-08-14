@@ -115,13 +115,15 @@ export async function computeCompanyMetrics(
   for (const year of years) {
     const yearPostings = byYear.get(year)!;
 
-    // The period runs to where the bookkeeping ends, not to 31 December and
-    // not to the last stray posting, so a partial year is neither treated as
-    // a full one nor stretched by forward-dated entries.
+    // The period runs to the last WHOLE month of bookkeeping. Not to
+    // 31 December, which a part year has not reached; not to the last stray
+    // posting, which may be a periodisation dated months ahead; and not to
+    // the day the export was taken, because "1 January to 13 August" is not a
+    // period anyone reports or compares in.
     const window = resolveDataWindow(monthActivity(yearPostings));
     const periodStart = `${year}-01-01`;
     const periodEnd =
-      window?.end ??
+      window?.completeEnd ??
       yearPostings.map((p) => p.transaction_date).reduce((a, b) => (a > b ? a : b));
 
     // Postings after that end exist — they are real — but they fall outside
@@ -152,6 +154,8 @@ export async function computeCompanyMetrics(
     const metadata = {
       trailing_months: window?.trailingMonths ?? [],
       trailing_postings: window?.trailingPostings ?? 0,
+      // The month the export stopped inside, held back from the period.
+      partial_month: window?.partial ?? null,
       last_posting: yearPostings
         .map((p) => p.transaction_date)
         .reduce((a, b) => (a > b ? a : b)),

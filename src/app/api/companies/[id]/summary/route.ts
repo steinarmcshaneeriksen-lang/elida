@@ -230,13 +230,20 @@ function periodNote(metric: FinancialMetricSnapshot): string | null {
   const meta = metric.metadata as {
     trailing_months?: string[];
     trailing_postings?: number;
+    partial_month?: {
+      month: string;
+      lastDate: string;
+      postingCount: number;
+    } | null;
   } | null;
 
-  if (!meta?.trailing_months?.length) return null;
+  if (!meta) return null;
 
   return trailingNote({
     end: metric.period_end,
-    trailingMonths: meta.trailing_months,
+    completeEnd: metric.period_end,
+    partial: meta.partial_month ?? null,
+    trailingMonths: meta.trailing_months ?? [],
     trailingPostings: meta.trailing_postings ?? 0,
   });
 }

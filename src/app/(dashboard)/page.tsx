@@ -103,8 +103,10 @@ export default function DashboardPage() {
         <p className="mt-1 text-sm text-foreground-secondary">
           Her er hva som skjer i {company?.name ?? "selskapet"}
           {data?.period ? ` — ${formatPeriod(data.period.start, data.period.end)}` : ""}.
+          {/* The comparison is the same months a year earlier, so it needs the
+              year, not the months repeated back. */}
           {data?.period?.comparison_start && data.period.comparison_end
-            ? ` Sammenlignet med ${formatPeriod(data.period.comparison_start, data.period.comparison_end)}.`
+            ? ` Tallene er sammenlignet med ${comparisonYear(data.period.comparison_end)}.`
             : ""}
         </p>
       </div>
@@ -351,13 +353,26 @@ const MONTHS = [
   "juli", "august", "september", "oktober", "november", "desember",
 ];
 
-/** "januar–13. august 2026", collapsing the year when both ends share it. */
+/**
+ * "januar–juli 2026".
+ *
+ * Whole months, because that is what the period now is. It used to print the
+ * end date — "januar–13. august 2026, sammenlignet med januar–13. august
+ * 2025" — which is precise about something arbitrary: the 13th is the day the
+ * export was taken, not a point anyone reports or plans around.
+ */
 function formatPeriod(start: string, end: string): string {
   const [sy, sm] = start.split("-").map(Number);
-  const [ey, em, ed] = end.split("-").map(Number);
-  const from = MONTHS[sm - 1];
-  const to = `${ed}. ${MONTHS[em - 1]}`;
-  return sy === ey ? `${from}–${to} ${ey}` : `${from} ${sy} – ${to} ${ey}`;
+  const [ey, em] = end.split("-").map(Number);
+
+  if (sy === ey && sm === em) return `${MONTHS[sm - 1]} ${ey}`;
+  if (sy === ey) return `${MONTHS[sm - 1]}–${MONTHS[em - 1]} ${ey}`;
+  return `${MONTHS[sm - 1]} ${sy} – ${MONTHS[em - 1]} ${ey}`;
+}
+
+/** "2025-07-31" → "samme periode i 2025". */
+function comparisonYear(end: string): string {
+  return `samme periode i ${end.slice(0, 4)}`;
 }
 
 function monthName(iso: string): string {
