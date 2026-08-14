@@ -307,11 +307,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </div>
         )}
 
+        {/* 10px at 60 % opacity was 5.8:1 on the navy bubble — the smallest
+            text in the product at the lowest contrast in it. 11px at 80 %
+            reads at 9.1:1. */}
         <div
-          className={`text-[10px] mt-1 ${
-            isUser
-              ? "text-white/60"
-              : "text-foreground-muted"
+          className={`mt-1 text-[11px] ${
+            isUser ? "text-white/80" : "text-foreground-muted"
           }`}
         >
           {message.timestamp.toLocaleTimeString("nb-NO", {

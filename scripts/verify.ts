@@ -270,12 +270,23 @@ const HUES = ["ocean", "teal", "violet", "copper", "rose", "slate"] as const;
 
 // The ink variant is the one allowed to carry a figure or a label.
 for (const hue of HUES) {
-  atLeast(`${hue}-ink som tekst`, token(`tone-${hue}-ink`), token("surface"), CONTRAST.TEXT);
+  atLeast(`${hue}-ink som tekst`, token(`tone-${hue}-ink`), token("surface"), CONTRAST.TONE_TEXT);
 }
 
 // The fill variant only has to work as a mark: an icon on its badge.
 for (const hue of HUES) {
   atLeast(`hvitt ikon på ${hue}`, "#ffffff", token(`tone-${hue}`), CONTRAST.GRAPHIC);
+}
+
+// The semantic inks, all of which are drawn as text somewhere.
+for (const name of ["success", "warning", "danger", "info"] as const) {
+  atLeast(`${name} som tekst`, token(name), token("surface"), CONTRAST.TONE_TEXT);
+  atLeast(
+    `${name} på egen bakgrunn`,
+    token(name),
+    token(`${name}-light`),
+    CONTRAST.TONE_TEXT
+  );
 }
 
 // White on the navy the buttons are built from, including the hover step.

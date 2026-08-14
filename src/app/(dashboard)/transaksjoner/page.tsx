@@ -183,13 +183,16 @@ export default function TransaksjonerPage() {
                     <td className="px-4 py-3 text-foreground-secondary">
                       {txn.department_name ?? "—"}
                     </td>
+                    {/* The sign carries the direction; the colour only
+                        reinforces it. Debit and credit told apart by green
+                        against red is the one pair colour blindness removes. */}
                     <td
-                      className={`whitespace-nowrap px-4 py-3 text-right tabular-nums font-medium ${
+                      className={`whitespace-nowrap px-4 py-3 text-right font-medium tabular-nums ${
                         txn.amount >= 0 ? "text-success" : "text-danger"
                       }`}
                     >
-                      {txn.amount >= 0 ? "+" : ""}
-                      {formatCurrency(txn.amount)}
+                      {txn.amount >= 0 ? "+" : "−"}
+                      {formatCurrency(Math.abs(txn.amount))}
                     </td>
                   </tr>
                 ))}

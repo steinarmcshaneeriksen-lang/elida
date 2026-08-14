@@ -257,7 +257,7 @@ export function ChatPanel() {
             </button>
           </div>
 
-          <p className="text-[10px] text-foreground-muted mt-1.5 text-center">
+          <p className="mt-1.5 text-center text-[11px] text-foreground-muted">
             Elida kan gjøre feil. Verifiser viktige tall med regnskapsfører.
           </p>
         </div>

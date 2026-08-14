@@ -73,15 +73,25 @@
   --tone-slate-ink: #475569;
   --tone-slate-soft: #f1f5f9;
 
-  /* Semantic */
-  --success: #16a34a;
-  --success-light: #dcfce7;
+  /* Semantic
+     One green and one red for the whole product. --success shipped at
+     #16a34a, which is 3.3:1 as text and was used for every positive amount
+     in the ledger; it now matches the green the change chips use. --danger
+     matches the chips' red and the rose ink, so "down", "owed out" and
+     "negative" are the same colour everywhere rather than three reds a few
+     degrees apart.
+
+     Both are also always paired with something that is not colour: a sign, an
+     arrow, or a word. Green and red are precisely the pair a colour-blind
+     reader cannot separate. */
+  --success: #15803d;
+  --success-light: #eaf7ee;
   --warning: #c2410c;
-  --warning-light: #f8e9e2;
-  --danger: #dc2626;
-  --danger-light: #fee2e2;
-  --info: #2563eb;
-  --info-light: #dbeafe;
+  --warning-light: #fbf0eb;
+  --danger: #c2183c;
+  --danger-light: #fceef1;
+  --info: #1d4ed8;
+  --info-light: #eef4fe;
 
   /* Surface */
   --background: #f8f9fb;
@@ -92,15 +102,24 @@
   --border-light: #f1f5f9;
 
   /* Text
-     --foreground-muted was #94a3b8, which is 2.6:1 on white and 2.3:1 on the
-     grey surfaces it kept landing on — grey text on a grey ground, well under
-     the 4.5:1 minimum. It carried detail lines, table headings, hints and
-     units, so most of the small text in the product was unreadable for
-     anyone who does not have perfect contrast sensitivity. It is now 5.4:1
-     on white and 5.0:1 on the darkest surface it sits on. */
+     Three inks, and the third is not a lighter grey.
+
+     The mistake here was building hierarchy out of lightness: --foreground
+     for headings, a lighter grey for body, a lighter one again for the small
+     print. That put the smallest text at the lowest contrast, which is
+     backwards — small text needs more contrast than body text, not less, and
+     the muted grey landed on grey surfaces besides. It shipped at #94a3b8:
+     2.6:1 on white, 2.3:1 on the grey it sat on, against a 4.5:1 minimum,
+     carrying nearly every detail line, unit, hint and table heading in the
+     product.
+
+     All three now clear 7:1 (AAA) on every surface they are drawn on, and
+     they sit close together on purpose. Hierarchy comes from size, weight
+     and position — the things that do not fail when contrast sensitivity or
+     colour vision does. */
   --foreground: #0f172a;
-  --foreground-secondary: #475569;
-  --foreground-muted: #5c6b7f;
+  --foreground-secondary: #3f4b5c;
+  --foreground-muted: #434f61;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
@@ -252,8 +271,8 @@ button.tone-card:hover {
   line-height: 1.35;
   white-space: nowrap;
 }
-.chip--up   { color: #15803d; background: #eaf7ee; box-shadow: inset 0 0 0 1px #c2e3cd; }
-.chip--down { color: #a8102f; background: #fceef1; box-shadow: inset 0 0 0 1px #f2c4cf; }
+.chip--up   { color: var(--success); background: var(--success-light); box-shadow: inset 0 0 0 1px #c2e3cd; }
+.chip--down { color: var(--danger);  background: var(--danger-light);  box-shadow: inset 0 0 0 1px #f2c4cf; }
 .chip--flat { color: var(--foreground-secondary); background: var(--surface-hover); box-shadow: inset 0 0 0 1px var(--border); }
 
 /* A bar is a flat block of its hue. The gradient it used to carry made the

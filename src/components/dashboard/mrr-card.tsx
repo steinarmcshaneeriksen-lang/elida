@@ -185,7 +185,7 @@ export function MrrCard({ data }: { data: MrrData }) {
             {months.slice(-12).map((m) => (
               <div
                 key={m.month}
-                className="flex w-4 flex-col items-center gap-1"
+                className="flex w-5 flex-col items-center gap-1"
                 title={`${longMonth(m.month)}: ${formatCurrency(m.normalised)}${
                   m.is_complete ? "" : " (ufullstendig måned)"
                 }`}
@@ -203,7 +203,7 @@ export function MrrCard({ data }: { data: MrrData }) {
                     }}
                   />
                 </div>
-                <span className="text-[9px] text-foreground-muted">
+                <span className="text-[11px] text-foreground-muted">
                   {MONTHS[Number(m.month.split("-")[1]) - 1]}
                 </span>
               </div>

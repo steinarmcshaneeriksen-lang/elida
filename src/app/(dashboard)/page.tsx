@@ -6,6 +6,7 @@ import {
   LineChart,
   Wallet,
   Receipt,
+  Info,
   type LucideIcon,
 } from "lucide-react";
 import { InsightCard } from "@/components/dashboard/insight-card";
@@ -85,19 +86,33 @@ export default function DashboardPage() {
           {company ? ` til ${company.name}` : ""}.
         </p>
         {data?.period && (
-          <p className="mt-2 text-xs text-foreground-muted">
+          // Which period the figures cover is not small print — it is what
+          // makes every number below it mean something. Body size, body ink.
+          <p className="mt-2 text-sm text-foreground-secondary">
             Tallene gjelder {formatPeriod(data.period.start, data.period.end)}
             {data.period.comparison_start && data.period.comparison_end
               ? `, sammenlignet med ${formatPeriod(data.period.comparison_start, data.period.comparison_end)}.`
               : ". Last opp foregående år for å se utvikling."}
           </p>
         )}
-        {data?.period?.note && (
-          <p className="mt-2 max-w-2xl text-xs text-foreground-muted">
+      </div>
+
+      {/* Why the period stops before the last posting in the books. This was a
+          grey paragraph in the page heading; it is the same explanation the
+          Økonomi page gives, so it gets the same shape. */}
+      {data?.period?.note && (
+        <div
+          data-tone="copper"
+          className="tone-card flex max-w-3xl gap-3 p-4"
+        >
+          <span className="tone-badge shrink-0">
+            <Info size={16} strokeWidth={2.2} />
+          </span>
+          <p className="text-sm leading-relaxed text-foreground-secondary">
             {data.period.note}
           </p>
-        )}
-      </div>
+        </div>
+      )}
 
       {isLoading && <LoadingState />}
       {!isLoading && error && <ErrorState message={error} />}

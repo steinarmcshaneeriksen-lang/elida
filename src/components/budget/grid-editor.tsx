@@ -522,13 +522,18 @@ function CategoryRow({
                 >
                   {compact(value)}
                   {isActual && actual !== 0 && (
+                    // The actual figure beside the budgeted one. Whether it
+                    // came out well was conveyed by green or red alone at 9px,
+                    // which is unreadable to a colour-blind reader; the arrow
+                    // says it without colour.
                     <span
-                      className={`ml-1 text-[9px] ${
+                      className={`ml-1 text-[11px] font-medium ${
                         isFavourable(category.kind, actual, value)
                           ? "text-success"
                           : "text-danger"
                       }`}
                     >
+                      {isFavourable(category.kind, actual, value) ? "▲" : "▼"}
                       {compact(actual)}
                     </span>
                   )}

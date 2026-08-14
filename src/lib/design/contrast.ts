@@ -40,14 +40,22 @@ export function contrastRatio(a: string, b: string): number {
 /**
  * Thresholds.
  *
- * TEXT is the AA minimum for body-sized text. GRAPHIC is the AA minimum for a
- * meaningful non-text mark — an icon on its badge, a bar against its track —
- * which is where several of the hues sit: teal is legible as a bar at 3.3:1
- * and would not be legible as a number, which is why fills and inks are
- * separate tokens.
+ * GRAPHIC is the AA minimum for a meaningful non-text mark — an icon on its
+ * badge, a bar against its track — which is where several of the hues sit:
+ * teal is legible as a bar at 3.3:1 and would not be legible as a number,
+ * which is why fills and inks are separate tokens.
  */
 export const CONTRAST = {
-  TEXT: 4.5,
+  /**
+   * Every ink the product draws text with. AAA rather than the AA floor,
+   * because the three inks deliberately sit close together — hierarchy comes
+   * from size and weight — and because the smallest text in the product is
+   * 11px, where the AA minimum is not enough.
+   */
+  TEXT: 7,
+  /** A hue carrying a figure or a label. AA for text. */
+  TONE_TEXT: 4.5,
+  /** A meaningful non-text mark: an icon on its badge, a bar on its track. */
   GRAPHIC: 3,
 } as const;
 
