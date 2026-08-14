@@ -40,6 +40,7 @@ import {
 } from "@/lib/budget/engine";
 import { CATEGORIES, categoryByKey } from "@/lib/reports/categories";
 import { fetchAll } from "@/lib/supabase/paginate";
+import { confirmationCode, mayApply, refusalNote } from "./confirm";
 
 type ToolParams = Record<string, unknown>;
 type ToolResult = Record<string, unknown>;
@@ -49,23 +50,98 @@ const MONTH_LONG = [
   "juli", "august", "september", "oktober", "november", "desember",
 ];
 
-async function resolveBudget(companyId: string, budgetId?: unknown) {
+interface BudgetRow {
+  id: string;
+  name: string;
+  year: number;
+  status: string;
+  scenario: string;
+}
+
+/**
+ * Which budget this is about.
+ *
+ * "Det nyeste" was the rule, and it silently picked one. A user asked for a
+ * plan running to December 2026, no 2026 budget existed, and the change landed
+ * on the 2027 draft — the only budget in the company — without the year ever
+ * being said out loud. The wrong year is not a detail in a budget.
+ *
+ * So a single budget is still used without asking, because there is nothing to
+ * confuse it with. Where there are several, or where the caller named a year
+ * the company has no budget for, nothing is chosen: the list comes back and
+ * the user picks.
+ */
+async function resolveBudget(
+  companyId: string,
+  budgetId?: unknown,
+  year?: unknown
+): Promise<
+  | { budget: BudgetRow; choices?: undefined }
+  | { budget?: undefined; choices: BudgetRow[]; reason: "none" | "ambiguous" | "no_such_year" }
+> {
   const supabase = await createClient();
 
-  const query = supabase
+  const { data } = (await supabase
     .from("budgets")
     .select("id, name, year, status, scenario")
-    .eq("company_id", companyId);
+    .eq("company_id", companyId)
+    .order("year", { ascending: false })
+    .order("created_at", { ascending: false })) as { data: BudgetRow[] | null };
 
-  const { data } = budgetId
-    ? await query.eq("id", String(budgetId)).maybeSingle()
-    : await query
-        .order("year", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+  const all = data ?? [];
+  if (all.length === 0) return { choices: [], reason: "none" };
 
-  return data;
+  if (budgetId) {
+    const named = all.find((b) => b.id === String(budgetId));
+    return named ? { budget: named } : { choices: all, reason: "no_such_year" };
+  }
+
+  const wanted = Number(year);
+  if (Number.isInteger(wanted)) {
+    const forYear = all.filter((b) => b.year === wanted);
+    if (forYear.length === 0) return { choices: all, reason: "no_such_year" };
+    if (forYear.length > 1) return { choices: forYear, reason: "ambiguous" };
+    return { budget: forYear[0] };
+  }
+
+  if (all.length > 1) return { choices: all, reason: "ambiguous" };
+  return { budget: all[0] };
+}
+
+/** What to say when no single budget could be settled on. */
+function budgetChoiceResult(
+  choices: BudgetRow[],
+  reason: "none" | "ambiguous" | "no_such_year"
+): ToolResult {
+  if (reason === "none") {
+    return {
+      has_budget: false,
+      note:
+        "Selskapet har ingen budsjetter ennå. Foreslå å lage ett — Elida " +
+        "fyller det første utkastet med tallene fra de siste tolv månedene " +
+        "med reell drift. Ikke oppgi budsjettall.",
+    };
+  }
+
+  return {
+    has_budget: true,
+    needs_choice: true,
+    budgets: choices.map((b) => ({
+      id: b.id,
+      name: b.name,
+      year: b.year,
+      status: b.status === "approved" ? "godkjent" : "utkast",
+    })),
+    note:
+      reason === "no_such_year"
+        ? "Selskapet har ikke noe budsjett for det året. Si hvilke år det " +
+          "finnes budsjett for, og spør hvilket brukeren mener — eller om " +
+          "det skal lages et nytt for året de spurte om. Ikke bruk et annet " +
+          "år uten å si det."
+        : "Selskapet har flere budsjetter. Spør hvilket det gjelder, og oppgi " +
+          "år og navn. Ikke velg selv.",
+    data_source: "budget",
+  };
 }
 
 async function openingCash(companyId: string): Promise<number> {
@@ -95,17 +171,9 @@ export const getBudget = async (
   companyId: string,
   params: ToolParams
 ): Promise<ToolResult> => {
-  const budget = await resolveBudget(companyId, params.budget_id);
-
-  if (!budget) {
-    return {
-      has_budget: false,
-      note:
-        "Selskapet har ingen budsjetter ennå. Be brukeren lage ett under " +
-        "«Budsjett» — Elida lager et førsteutkast fra de siste tolv månedene. " +
-        "Ikke oppgi budsjettall.",
-    };
-  }
+  const chosen = await resolveBudget(companyId, params.budget_id, params.year);
+  if (!chosen.budget) return budgetChoiceResult(chosen.choices, chosen.reason);
+  const budget = chosen.budget;
 
   const supabase = await createClient();
   const grid = await readGrid(supabase, budget.id);
@@ -147,16 +215,11 @@ export const proposeBudgetChange = async (
   companyId: string,
   params: ToolParams
 ): Promise<ToolResult> => {
-  const budget = await resolveBudget(companyId, params.budget_id);
-
-  if (!budget) {
-    return {
-      applied: false,
-      note:
-        "Selskapet har ingen budsjetter ennå, så det er ingenting å endre. Be " +
-        "brukeren lage et budsjett først.",
-    };
+  const chosen = await resolveBudget(companyId, params.budget_id, params.year);
+  if (!chosen.budget) {
+    return { applied: false, ...budgetChoiceResult(chosen.choices, chosen.reason) };
   }
+  const budget = chosen.budget;
 
   const supabase = await createClient();
   const before = await readGrid(supabase, budget.id);
@@ -169,6 +232,7 @@ export const proposeBudgetChange = async (
   let after: BudgetGrid;
   let description: string;
   let employeeCost: ReturnType<typeof computeEmployeeCost> | null = null;
+  let target: TargetMove | null = null;
 
   switch (changeType) {
     case "adjust_percent": {
@@ -224,10 +288,13 @@ export const proposeBudgetChange = async (
       }
 
       after = rampToTarget(before, categoryKey, monthly, fromMonth, targetMonth);
+      target = describeTarget(before, categoryKey, monthly, fromMonth, targetMonth);
+
       description =
-        `${categoryByKey(categoryKey)!.label} trappes opp til ${format(monthly)} ` +
-        `per måned innen utgangen av ${MONTH_LONG[targetMonth - 1]}, ` +
-        `med jevn økning fra ${MONTH_LONG[fromMonth - 1]}`;
+        `${categoryByKey(categoryKey)!.label} ${target.direction === "ned" ? "trappes ned" : "trappes opp"} ` +
+        `til ${format(monthly)} per måned innen utgangen av ` +
+        `${MONTH_LONG[targetMonth - 1]}, med jevn endring fra ` +
+        `${MONTH_LONG[fromMonth - 1]}`;
       break;
     }
 
@@ -255,33 +322,59 @@ export const proposeBudgetChange = async (
   const cashAfter = computeCashEffect(after, opening);
 
   /*
-   * Written only on an explicit yes, and never to an approved budget.
+   * Written only against a proposal the user has actually been shown, and
+   * never to an approved budget.
    *
-   * An approved budget has been agreed by someone. Changing it is a new
-   * version, made deliberately in the budget screen — not something a sentence
-   * in a chat window does on the way past.
+   * The flag on its own was the whole guard, and a first call that set it got
+   * the write — which is how a budget came to be rewritten under an answer
+   * saying "ingenting er lagret eller endret". The code is computed over the
+   * figures this proposal was made against, so it can only come from a previous
+   * call, and it stops matching if those figures move.
    */
-  const confirmed = params.confirmed === true;
-  const locked = budget.status === "approved";
+  const facts = {
+    budget: budget.id,
+    change: changeType,
+    category: categoryKey,
+    from: fromMonth,
+    to: clampMonth(params.target_month ?? 12),
+    amount: Number(params.amount),
+    percent: Number(params.percent),
+    // The state the proposal was read off, so a stale one cannot be applied.
+    before: resultBefore.annual,
+  };
 
-  if (confirmed && !locked) {
+  const code = confirmationCode("budget_change", facts);
+  const locked = budget.status === "approved";
+  const applied = !locked && mayApply(params, "budget_change", facts);
+
+  if (applied) {
     await writeGrid(supabase, budget.id, after);
   }
 
   return {
-    applied: confirmed && !locked,
-    requires_confirmation: !confirmed,
+    applied,
+    requires_confirmation: !applied && !locked,
+    // Handed back so the next call can prove the user saw this proposal.
+    confirm_code: applied ? undefined : code,
     budget: {
       id: budget.id,
       name: budget.name,
       year: budget.year,
-      status: budget.status,
+      status: budget.status === "approved" ? "godkjent" : "utkast",
     },
     change: {
-      type: changeType,
+      // Norwegian, because whatever is written here ends up in the answer. The
+      // reader is a business owner, not someone reading a function name.
+      what: CHANGE_LABELS[changeType] ?? "Budsjettendring",
       description,
-      category_key: categoryKey,
-      from_month: fromMonth,
+      category: categoryKey ? categoryByKey(categoryKey)?.label ?? null : null,
+      from_month: MONTH_LONG[fromMonth - 1],
+    },
+    target: target && {
+      direction: target.direction,
+      from_level: target.fromLevel,
+      to_level: target.toLevel,
+      warning: target.warning,
     },
     effect: {
       revenue_before: resultBefore.annual.revenue,
@@ -301,15 +394,29 @@ export const proposeBudgetChange = async (
       ? "Budsjettet er GODKJENT og kan ikke endres herfra. Tallene over viser " +
         "hva endringen ville gjort. Si at brukeren må lage en ny versjon " +
         "under «Budsjett» hvis den skal gjennomføres."
-      : confirmed
-        ? "Endringen er GJENNOMFØRT og budsjettet er lagret. Oppsummer hva " +
-          "som ble endret og hva det gjorde med resultatet."
-        : "Dette er et FORSLAG. Budsjettet er IKKE endret. Vis effekten og " +
-          "spør om den skal gjennomføres. Kall verktøyet på nytt med " +
-          "confirmed: true først når brukeren har sagt ja. Ikke påstå at " +
-          "budsjettet er oppdatert.",
+      : applied
+        ? "Endringen er GJENNOMFØRT og budsjettet er lagret. Si hvilket " +
+          "budsjett og hvilket år, og hva endringen gjorde med resultatet."
+        : [
+            "Dette er et FORSLAG. Budsjettet er IKKE endret.",
+            `Det gjelder ${budget.name} (${budget.year}) — si hvilket år, slik at`,
+            "brukeren kan si fra hvis det er feil budsjett.",
+            refusalNote(typeof params.confirm_code === "string"),
+            target?.warning ?? "",
+          ]
+            .filter(Boolean)
+            .join(" "),
     data_source: "budget",
   };
+};
+
+/** What each kind of change is called in the answer. */
+export const CHANGE_LABELS: Record<string, string> = {
+  adjust_percent: "Prosentjustering av en kategori",
+  set_annual: "Nytt årsbeløp for en kategori",
+  reach_target: "Opptrapping mot et månedlig mål",
+  add_cost: "Ny fast månedlig kostnad",
+  add_employee: "Ny ansatt",
 };
 
 /**
@@ -322,7 +429,6 @@ export const createBudget = async (
   companyId: string,
   params: ToolParams
 ): Promise<ToolResult> => {
-  const confirmed = params.confirmed === true;
   const year = Number(params.year);
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
     return { error: "Mangler et gyldig årstall for budsjettet." };
@@ -331,14 +437,26 @@ export const createBudget = async (
   const name = String(params.name ?? `Budsjett ${year}`).slice(0, 120);
   const basedOn = String(params.based_on ?? "last_12_months");
 
-  if (!confirmed) {
+  const facts = { company: companyId, name, year, based_on: basedOn };
+
+  if (!mayApply(params, "create_budget", facts)) {
     return {
       created: false,
       requires_confirmation: true,
-      would_create: { name, year, based_on: basedOn },
+      confirm_code: confirmationCode("create_budget", facts),
+      would_create: {
+        name,
+        year,
+        grunnlag:
+          basedOn === "last_12_months"
+            ? "de siste tolv månedene med reell drift"
+            : basedOn,
+      },
       note:
-        "Dette er et FORSLAG. Budsjettet er ikke opprettet. Bekreft med " +
-        "brukeren og kall verktøyet på nytt med confirmed: true.",
+        "Dette er et FORSLAG. Budsjettet er ikke opprettet. Si hvilket år det " +
+        "gjelder og hva det bygger på, spør om det skal lages, og kall " +
+        "verktøyet på nytt med samme «confirm_code» først når brukeren har " +
+        "sagt ja.",
       data_source: "budget",
     };
   }
@@ -412,6 +530,69 @@ export const createBudget = async (
     data_source: "budget",
   };
 };
+
+interface TargetMove {
+  direction: "opp" | "ned" | "uendret";
+  fromLevel: number;
+  toLevel: number;
+  warning: string | null;
+}
+
+/**
+ * Which way a target actually moves the budget.
+ *
+ * A ramp to a monthly figure is not by itself an increase, and it was treated
+ * as one. "Øk til 400 000 i måneden" was applied to a revenue line already
+ * budgeting 717 000 a month, and the ramp obediently walked it *down* — a 25 %
+ * cut, described back to the user as an increase, with the annual total falling
+ * and nobody saying so.
+ *
+ * Two things are worth saying out loud here. That the target is below where the
+ * budget already stands. And that recurring revenue is not the same thing as
+ * revenue: MRR is the part that comes back every month by contract, and a
+ * target for MRR set against the whole revenue line is a target against the
+ * wrong number.
+ */
+function describeTarget(
+  grid: BudgetGrid,
+  categoryKey: string,
+  monthlyTarget: number,
+  fromMonth: number,
+  targetMonth: number
+): TargetMove {
+  const months = grid[categoryKey] ?? new Array(12).fill(0);
+  // The level the climb starts from: the last month before the ramp begins.
+  const fromLevel = Math.round(fromMonth > 1 ? months[fromMonth - 2] : months[0]);
+  const toLevel = Math.round(monthlyTarget);
+
+  const direction = toLevel > fromLevel ? "opp" : toLevel < fromLevel ? "ned" : "uendret";
+
+  let warning: string | null = null;
+
+  if (direction === "ned") {
+    const cut = fromLevel - toLevel;
+    warning =
+      `Målet på ${format(toLevel)} per måned er LAVERE enn nivået budsjettet ` +
+      `allerede ligger på i ${MONTH_LONG[Math.max(fromMonth - 2, 0)]} ` +
+      `(${format(fromLevel)}). Endringen SENKER ` +
+      `${categoryByKey(categoryKey)!.label.toLowerCase()} med ${format(cut)} per ` +
+      `måned, den øker den ikke. Si dette rett ut før du spør om noe skal ` +
+      `gjennomføres. Hvis brukeren mente gjentakende inntekt (MRR), er det ikke ` +
+      `det samme tallet som samlet omsetning: MRR er den delen som kommer igjen ` +
+      `hver måned, og er lavere. Hent den med get_recurring_revenue og regn om ` +
+      `målet, framfor å sette det mot hele omsetningen.`;
+  } else if (direction === "uendret") {
+    warning =
+      `Budsjettet ligger allerede på ${format(toLevel)} per måned fra denne ` +
+      `måneden. Endringen gjør ingenting. Sjekk om den allerede er utført.`;
+  } else if (categoryKey === "revenue" && targetMonth - fromMonth < 3) {
+    warning =
+      `Opptrappingen har bare ${targetMonth - fromMonth + 1} måneder på seg. ` +
+      `Si hvor bratt den er per måned, så brukeren ser hva som må til.`;
+  }
+
+  return { direction, fromLevel, toLevel, warning };
+}
 
 function clampMonth(value: unknown): number {
   const month = Number(value);

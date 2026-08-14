@@ -152,6 +152,7 @@ export const TOOLS: ToolDefinition[] = [
         based_on: { type: "string", description: "last_12_months (standard), previous_year eller empty." },
         scenario: { type: "string", description: "base, optimistic eller cautious." },
         confirmed: { type: "boolean", description: "Sett true KUN etter at brukeren har bekreftet." },
+        confirm_code: { type: "string", description: "Koden fra forrige kall. Send den uendret tilbake sammen med confirmed: true." },
       },
       required: ["year"] },
     "Oppretter budsjett"),
@@ -165,6 +166,7 @@ export const TOOLS: ToolDefinition[] = [
         period_end: { type: "string", description: "ÅÅÅÅ-MM-DD." },
         title: { type: "string", description: "Valgfri tittel." },
         confirmed: { type: "boolean", description: "Sett true KUN etter at brukeren har bekreftet." },
+        confirm_code: { type: "string", description: "Koden fra forrige kall. Send den uendret tilbake sammen med confirmed: true." },
       } },
     "Lager rapport"),
 
@@ -225,14 +227,18 @@ export const TOOLS: ToolDefinition[] = [
 
   tool("get_budget",
     "Henter selskapets budsjett: budsjettert beløp per kategori per måned, faktiske tall så langt, avvik, budsjettert resultat og estimert likviditet. Bruk denne for alle spørsmål om budsjett.",
-    { properties: { budget_id: { type: "string", description: "Valgfri budsjett-ID. Uten denne brukes det nyeste budsjettet." } } },
+    { properties: {
+        budget_id: { type: "string", description: "Valgfri budsjett-ID." },
+        year: { type: "number", description: "Året budsjettet gjelder. Har selskapet flere budsjetter, spør verktøyet hvilket framfor å velge selv." },
+      } },
     "Henter budsjett"),
 
   tool("propose_budget_change",
     "Regner ut hva en budsjettendring vil bety, og gjennomfører den når brukeren har bekreftet. Kall FØRST uten confirmed for å vise effekten, så med confirmed: true når brukeren har sagt ja. Godkjente budsjetter kan ikke endres. Bruk denne til «øk salgsbudsjettet med 10 %», «legg inn en ny ansatt fra mars med 700 000 i lønn», «få omsetningen opp til 400 000 i måneden innen desember», eller «hva skjer hvis salget blir 20 % lavere».",
     {
       properties: {
-        budget_id: { type: "string", description: "Valgfri budsjett-ID. Uten denne brukes det nyeste budsjettet." },
+        budget_id: { type: "string", description: "Budsjettets ID. Bruk den fra get_budget når du vet hvilket budsjett det gjelder." },
+        year: { type: "number", description: "Året budsjettet gjelder, når brukeren har sagt hvilket år. Har selskapet flere budsjetter og verken ID eller år er oppgitt, velger verktøyet ingen — det spør deg hvilket." },
         change_type: {
           type: "string",
           description:
@@ -249,6 +255,7 @@ export const TOOLS: ToolDefinition[] = [
         target_month: { type: "number", description: "Måned 1–12 målet skal være nådd innen. Kun for reach_target." },
         name: { type: "string", description: "Navn på kostnaden eller stillingen." },
         confirmed: { type: "boolean", description: "Sett true KUN etter at brukeren har bekreftet forslaget." },
+        confirm_code: { type: "string", description: "Koden fra forrige kall. Send den uendret tilbake sammen med confirmed: true." },
       },
       required: ["change_type"],
     },

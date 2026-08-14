@@ -11,6 +11,9 @@ import { deriveInsights, type InsightInput } from "@/lib/insights/derive";
 import { nextVatTerm, upcomingVatTerms, daysUntil } from "@/lib/tax/vat-terms";
 import { classifyIntent } from "@/lib/assistant/intent-classifier";
 import { TOOLS, TOOL_LABELS } from "@/lib/assistant/tools";
+import { confirmationCode, mayApply } from "@/lib/assistant/confirm";
+import { CHANGE_LABELS } from "@/lib/assistant/budget-tools";
+import { getSystemPrompt } from "@/lib/assistant/system-prompt";
 import { TOOL_HANDLERS } from "@/lib/assistant/tool-handlers";
 import { scoreProductSheet, parseProductSheet } from "@/lib/import/spreadsheet/products";
 import { scoreRecurringSheet } from "@/lib/import/spreadsheet/recurring";
@@ -467,6 +470,55 @@ check("Foreslåtte verktøy finnes",
    "Lag et budsjett for 2027", "Hvor kan vi kutte kostnader?"]
     .flatMap((q) => classifyIntent(q).suggestedTools)
     .filter((n) => !toolNames.includes(n)), []);
+
+// --- 7g. Bekreftelse er ikke et flagg ---------------------------------------
+// "Vis først, utfør etter bekreftelse" var skrevet ned og bedt pent om. En
+// modell som setter flagget i første kall fikk skrivingen likevel, og gjorde
+// det: et budsjett ble overskrevet mens svaret på skjermen sa «ingenting er
+// lagret eller endret». Koden regnes over tallene forslaget ble laget på, så
+// den kan bare komme fra et tidligere kall — og slutter å stemme hvis tallene
+// har flyttet seg.
+const facts = { budget: "b1", change: "reach_target", amount: 400000 };
+const code = confirmationCode("budget_change", facts);
+
+check("Flagget alene gir ingen skriving",
+  mayApply({ confirmed: true }, "budget_change", facts), false);
+check("Gjettet kode gir ingen skriving",
+  mayApply({ confirmed: true, confirm_code: "0000000000" }, "budget_change", facts), false);
+check("Koden alene, uten brukerens ja, gir ingen skriving",
+  mayApply({ confirm_code: code }, "budget_change", facts), false);
+check("Ja pluss kode fra forslaget skriver",
+  mayApply({ confirmed: true, confirm_code: code }, "budget_change", facts), true);
+
+// Et forslag vist for ett sett tall kan ikke brukes på et annet.
+check("Koden slutter å stemme når tallene har endret seg",
+  mayApply({ confirmed: true, confirm_code: code }, "budget_change",
+    { ...facts, amount: 500000 }), false);
+check("Koden gjelder bare sin egen handling",
+  mayApply({ confirmed: true, confirm_code: code }, "create_report", facts), false);
+
+// Nøkkelrekkefølge er ikke en endring.
+check("Koden er den samme uansett rekkefølge på feltene",
+  confirmationCode("budget_change", { amount: 400000, change: "reach_target", budget: "b1" }),
+  code);
+
+// --- 7h. Norsk, ikke systemtekst --------------------------------------------
+// «reach_target» og «get_vat_deadline» havnet i svaret fordi de sto i
+// verktøysvarene og i systemprompten. Leseren er en bedriftseier på 66 uten
+// regnskapsutdanning, og et funksjonsnavn midt i en norsk setning er ikke noe
+// hen skal måtte tyde.
+const prompt = getSystemPrompt("intermediate", "Testbedrift AS",
+  { lastSyncTime: null, dataFreshness: "unknown" });
+
+check("Systemprompten forbyr verktøynavn i svaret",
+  /ALDRI verktøynavn/.test(prompt), true);
+check("Systemprompten nevner reach_target som noe som IKKE skal skrives",
+  /ikke «reach_target»|ikke «propose_budget_change»/.test(prompt), true);
+
+// Hvert felt brukeren kan se navnet på, forklart på norsk.
+check("Hver endringstype har en norsk beskrivelse",
+  ["adjust_percent", "set_annual", "reach_target", "add_cost", "add_employee"]
+    .filter((k) => !CHANGE_LABELS[k] || /_/.test(CHANGE_LABELS[k])), []);
 
 // --- 7f. Hva slags fil er dette? --------------------------------------------
 // Every upload used to go through the recurring-contract parser, whatever it

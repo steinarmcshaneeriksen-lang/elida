@@ -23,6 +23,7 @@ import {
   REPORT_TYPES,
 } from "@/lib/reports/types";
 import { getCoverage } from "./coverage";
+import { confirmationCode, mayApply } from "./confirm";
 
 type ToolParams = Record<string, unknown>;
 type ToolResult = Record<string, unknown>;
@@ -55,21 +56,22 @@ export const createReport = async (
   const range = resolveRange(params, coverage);
   if ("error" in range) return { created: false, ...range, available: AVAILABLE };
 
-  const confirmed = params.confirmed === true;
+  const facts = { company: companyId, type: type.key, period: range };
 
-  if (!confirmed) {
+  if (!mayApply(params, "create_report", facts)) {
     return {
       created: false,
       requires_confirmation: true,
+      confirm_code: confirmationCode("create_report", facts),
       would_create: {
-        report_type: type.key,
-        title: type.title,
-        period: range,
+        rapport: type.title,
+        periode: `${range.start} til ${range.end}`,
       },
       available: AVAILABLE,
       note:
-        "Dette er et FORSLAG. Rapporten er ikke laget. Bekreft type og " +
-        "periode med brukeren, og kall verktøyet på nytt med confirmed: true.",
+        "Dette er et FORSLAG. Rapporten er ikke laget. Si hvilken rapport og " +
+        "hvilken periode, spør om den skal lages, og kall verktøyet på nytt " +
+        "med samme «confirm_code» først når brukeren har sagt ja.",
       data_source: "reports",
     };
   }
