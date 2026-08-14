@@ -82,7 +82,7 @@ export function InsightCard({
       </div>
       <ChevronRight
         size={18}
-        className="mt-1 shrink-0 text-[var(--tone)] opacity-0 group-hover:opacity-100"
+        className="mt-1 shrink-0 text-[var(--tone-ink)] opacity-0 group-hover:opacity-100"
       />
     </div>
   );

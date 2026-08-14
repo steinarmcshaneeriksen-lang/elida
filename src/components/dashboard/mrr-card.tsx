@@ -214,7 +214,7 @@ export function MrrCard({ data }: { data: MrrData }) {
 
       <Link
         href="/okonomi"
-        className="mt-4 inline-flex text-xs font-semibold text-[var(--tone)] hover:underline"
+        className="mt-4 inline-flex text-xs font-semibold text-[var(--tone-ink)] hover:underline"
       >
         Se hva som gjentar seg →
       </Link>

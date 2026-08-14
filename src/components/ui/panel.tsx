@@ -43,7 +43,7 @@ export function Panel({
       data-tone={tone}
       className="overflow-hidden rounded-[var(--radius-lg)] border border-border bg-surface shadow-[var(--shadow-sm)]"
     >
-      <div className="flex items-start gap-3 border-b border-[var(--tone-ring)] bg-[var(--tone-soft)] px-6 py-4">
+      <div className="flex items-start gap-3 border-b border-border px-6 py-4">
         <span className="tone-badge shrink-0">
           <Icon size={16} strokeWidth={2.2} />
         </span>

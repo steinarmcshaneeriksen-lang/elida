@@ -29,42 +29,49 @@
   /* ---------------------------------------------------------------------
      Data palette
 
-     Every figure on every page used to be drawn in the one navy, so a
-     dashboard read as a wall of identical bars with nothing to tell one
-     series from another. Five hues plus a deliberate neutral carry the
-     data: one per series, each with a tint for backgrounds and a soft ring
-     for borders.
+     Colour marks the data, never the panel it sits in. Tinting whole card
+     grounds made the pages look washed — and a wash is the one place colour
+     does least work, because it sits behind text rather than beside it.
+     A hue now appears only where it identifies something: an icon badge, a
+     bar, a dot, a figure.
 
-     The warm slot was #d97706 — an amber whose cream tint read as yellow
-     everywhere it appeared, and it appeared a lot: costs, receivables,
-     warnings. It is now a terracotta with no yellow cast. The five chromatic
-     hues pass the CVD-separation and contrast checks as a set, in the order
-     SERIES_TONES hands them out; slate sits below the chroma floor on
-     purpose — it marks "other/one-off", not a series.
+     Two values per hue, because the requirements differ:
+
+       --tone-*      the fill. Used for bars, badges and dots, where the
+                     mark is large and only has to be told apart from its
+                     neighbours.
+       --tone-*-ink  the same hue, dark enough to be read as text at 4.5:1
+                     on white. Teal at fill strength is 3.7:1 — legible as a
+                     bar, not as a number.
+
+     Adjacent pairs in SERIES_TONES are checked for deuteranopia and
+     tritanopia separation, so a list of series stays readable without
+     colour. Slate sits below the chroma floor on purpose — it marks
+     "other", not a series.
      --------------------------------------------------------------------- */
   --tone-ocean: #2563eb;
-  --tone-ocean-soft: #e9f0fd;
-  --tone-ocean-ring: #bcd2f9;
+  --tone-ocean-ink: #1d4ed8;
+  --tone-ocean-soft: #eef4fe;
 
   --tone-teal: #0d9488;
-  --tone-teal-soft: #e7f4f3;
-  --tone-teal-ring: #b6dfdb;
+  --tone-teal-ink: #0f766e;
+  --tone-teal-soft: #edf7f6;
 
   --tone-violet: #7c3aed;
-  --tone-violet-soft: #f2ebfd;
-  --tone-violet-ring: #d8c4fa;
+  --tone-violet-ink: #6d28d9;
+  --tone-violet-soft: #f4f0fe;
 
   --tone-copper: #c2410c;
-  --tone-copper-soft: #f8e9e2;
-  --tone-copper-ring: #edc6b6;
+  --tone-copper-ink: #b03a0a;
+  --tone-copper-soft: #fbf0eb;
 
   --tone-rose: #e11d48;
-  --tone-rose-soft: #fce8ed;
-  --tone-rose-ring: #f6bbc8;
+  --tone-rose-ink: #c2183c;
+  --tone-rose-soft: #fdf0f3;
 
   --tone-slate: #475569;
-  --tone-slate-soft: #edf2f7;
-  --tone-slate-ring: #d7e0ea;
+  --tone-slate-ink: #475569;
+  --tone-slate-soft: #f1f5f9;
 
   /* Semantic */
   --success: #16a34a;
@@ -84,10 +91,16 @@
   --border: #e2e8f0;
   --border-light: #f1f5f9;
 
-  /* Text */
+  /* Text
+     --foreground-muted was #94a3b8, which is 2.6:1 on white and 2.3:1 on the
+     grey surfaces it kept landing on — grey text on a grey ground, well under
+     the 4.5:1 minimum. It carried detail lines, table headings, hints and
+     units, so most of the small text in the product was unreadable for
+     anyone who does not have perfect contrast sensitivity. It is now 5.4:1
+     on white and 5.0:1 on the darkest surface it sits on. */
   --foreground: #0f172a;
   --foreground-secondary: #475569;
-  --foreground-muted: #94a3b8;
+  --foreground-muted: #5c6b7f;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
@@ -144,36 +157,45 @@
   --color-tone-copper: var(--tone-copper);
   --color-tone-rose: var(--tone-rose);
   --color-tone-slate: var(--tone-slate);
+  --color-tone-ocean-ink: var(--tone-ocean-ink);
+  --color-tone-teal-ink: var(--tone-teal-ink);
+  --color-tone-violet-ink: var(--tone-violet-ink);
+  --color-tone-copper-ink: var(--tone-copper-ink);
+  --color-tone-rose-ink: var(--tone-rose-ink);
   --font-sans: var(--font-inter);
 }
 
 /* ---------------------------------------------------------------------------
    Tone
 
-   A card, a bar or a badge sets `data-tone` and inherits a hue, its tint and
-   its ring from one place. Nothing hard-codes a colour, so the palette can be
+   An element sets `data-tone` and inherits the hue, its text-safe ink and its
+   tint from one place. Nothing hard-codes a colour, so the palette can be
    changed here rather than in forty components.
    --------------------------------------------------------------------------- */
 [data-tone] {
   --tone: var(--tone-slate);
+  --tone-ink: var(--tone-slate-ink);
   --tone-soft: var(--tone-slate-soft);
-  --tone-ring: var(--tone-slate-ring);
 }
-[data-tone="ocean"]  { --tone: var(--tone-ocean);  --tone-soft: var(--tone-ocean-soft);  --tone-ring: var(--tone-ocean-ring); }
-[data-tone="teal"]   { --tone: var(--tone-teal);   --tone-soft: var(--tone-teal-soft);   --tone-ring: var(--tone-teal-ring); }
-[data-tone="violet"] { --tone: var(--tone-violet); --tone-soft: var(--tone-violet-soft); --tone-ring: var(--tone-violet-ring); }
-[data-tone="copper"] { --tone: var(--tone-copper); --tone-soft: var(--tone-copper-soft); --tone-ring: var(--tone-copper-ring); }
-[data-tone="rose"]   { --tone: var(--tone-rose);   --tone-soft: var(--tone-rose-soft);   --tone-ring: var(--tone-rose-ring); }
+[data-tone="ocean"]  { --tone: var(--tone-ocean);  --tone-ink: var(--tone-ocean-ink);  --tone-soft: var(--tone-ocean-soft); }
+[data-tone="teal"]   { --tone: var(--tone-teal);   --tone-ink: var(--tone-teal-ink);   --tone-soft: var(--tone-teal-soft); }
+[data-tone="violet"] { --tone: var(--tone-violet); --tone-ink: var(--tone-violet-ink); --tone-soft: var(--tone-violet-soft); }
+[data-tone="copper"] { --tone: var(--tone-copper); --tone-ink: var(--tone-copper-ink); --tone-soft: var(--tone-copper-soft); }
+[data-tone="rose"]   { --tone: var(--tone-rose);   --tone-ink: var(--tone-rose-ink);   --tone-soft: var(--tone-rose-soft); }
 
-/* A card that belongs to a tone: tinted ground fading to white, and a lift on
-   hover that picks up the same hue. The colour is carried by the ground, the
-   icon and the figures — no rule down the edge. */
+/*
+ * A card.
+ *
+ * White ground, one neutral border. The tinted gradient this used to carry
+ * made every box on every page look painted, and it was the worst possible
+ * place for the colour: behind the text, where it lowered contrast and
+ * identified nothing. The hue now lives in the badge, the bar and the figure —
+ * beside the text, where it can be read.
+ */
 .tone-card {
   position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, var(--tone-soft) 0%, var(--surface) 78%);
-  border: 1px solid var(--tone-ring);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   /* The global transition list covers colours but not transform, so the
@@ -184,15 +206,22 @@
     border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Only a card that goes somewhere reacts to the pointer, and it does it in
+   neutral: a lift and a firmer edge, not a colour change. */
 a.tone-card:hover,
 button.tone-card:hover {
-  border-color: color-mix(in srgb, var(--tone) 45%, var(--tone-ring));
-  box-shadow: 0 10px 24px -12px color-mix(in srgb, var(--tone) 55%, transparent),
-    0 2px 6px -2px rgba(15, 23, 42, 0.06);
+  border-color: #cbd5e1;
+  box-shadow:
+    0 8px 20px -12px rgba(15, 23, 42, 0.18),
+    0 2px 6px -2px rgba(15, 23, 42, 0.07);
   transform: translateY(-1px);
 }
 
-/* The small square that carries a card's icon. */
+/*
+ * The badge carrying a card's icon — the one place a hue is allowed a ground.
+ * It is small, it sits beside the label rather than behind it, and the icon
+ * inside it is a shape, so it never carries meaning by colour alone.
+ */
 .tone-badge {
   display: inline-flex;
   align-items: center;
@@ -200,13 +229,17 @@ button.tone-card:hover {
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  color: var(--tone);
-  background: color-mix(in srgb, var(--tone) 12%, #fff);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 22%, transparent);
+  color: #fff;
+  background: var(--tone);
 }
 
-/* A change figure reads as a chip, not as loose coloured text next to a
-   number — bare red text on white was most of what made the pages look flat. */
+/*
+ * A change figure reads as a chip.
+ *
+ * Up is green and down is red — the pair colour-blind readers cannot separate
+ * — so the arrow inside is not decoration, it is the encoding. The colours
+ * also differ in lightness, which survives any form of colour blindness.
+ */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -219,21 +252,20 @@ button.tone-card:hover {
   line-height: 1.35;
   white-space: nowrap;
 }
-.chip--up   { color: #15803d; background: #e9f9ef; box-shadow: inset 0 0 0 1px #bfe9cd; }
-.chip--down { color: #be123c; background: #fff0f3; box-shadow: inset 0 0 0 1px #fbcdd7; }
+.chip--up   { color: #15803d; background: #eaf7ee; box-shadow: inset 0 0 0 1px #c2e3cd; }
+.chip--down { color: #a8102f; background: #fceef1; box-shadow: inset 0 0 0 1px #f2c4cf; }
 .chip--flat { color: var(--foreground-secondary); background: var(--surface-hover); box-shadow: inset 0 0 0 1px var(--border); }
 
-/* A bar carries the tone as a gradient rather than a flat block. */
+/* A bar is a flat block of its hue. The gradient it used to carry made the
+   left end pale, which read as a different colour from the right end. */
 .tone-bar {
-  background: linear-gradient(90deg,
-    color-mix(in srgb, var(--tone) 78%, #fff) 0%,
-    var(--tone) 100%);
-  border-radius: 6px;
+  background: var(--tone);
+  border-radius: 5px;
 }
 
 .tone-track {
-  background: var(--surface-hover);
-  border-radius: 999px;
+  background: #eef1f5;
+  border-radius: 5px;
 }
 
 /* Every solid primary surface — buttons, active pills, the chat avatar —
@@ -407,13 +439,10 @@ button.bg-primary:active:not(:disabled) {
 
 /* Base styles */
 body {
-  /* Two very faint washes behind the flat ground. Cards read as sitting on
-     something rather than dissolving into an identical white page. */
-  background:
-    radial-gradient(1100px 520px at 8% -12%, rgba(13, 148, 136, 0.07), transparent 70%),
-    radial-gradient(900px 460px at 96% -6%, rgba(37, 99, 235, 0.07), transparent 70%),
-    var(--background);
-  background-attachment: fixed;
+  /* Flat. Two faint colour washes used to sit behind the page; combined with
+     the tinted cards they were most of what made the product look painted. A
+     white card on a light grey ground separates on its own. */
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -478,5 +507,7 @@ table {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.07em;
-  color: var(--foreground-muted);
+  /* Secondary, not muted: these labels sit on the grey header row, where
+     muted grey on grey was 2.3:1. */
+  color: var(--foreground-secondary);
 }

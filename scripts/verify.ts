@@ -8,6 +8,12 @@ import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } f
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
 import { resolveDataWindow, trailingNote } from "@/lib/data-window";
 import { deriveInsights, type InsightInput } from "@/lib/insights/derive";
+import { readFileSync } from "node:fs";
+import {
+  CONTRAST,
+  parseRootTokens,
+  ratio,
+} from "@/lib/design/contrast";
 
 let failures = 0;
 
@@ -233,6 +239,50 @@ check("Framdaterte posteringer forklares",
     .includes("forward_dated_postings"), true);
 
 // Most serious first.
+// --- 8. Kontrast --------------------------------------------------------
+// Read from the stylesheet, so the palette cannot drift past the threshold
+// without a check going red. The muted token once shipped at 2.3:1 on the grey
+// it sat on — grey text on a grey ground — and nothing caught it.
+const tokens = parseRootTokens(readFileSync("src/app/globals.css", "utf8"));
+const token = (name: string) => {
+  const value = tokens.get(name);
+  if (!value) throw new Error(`Mangler token --${name} i globals.css`);
+  return value;
+};
+
+const atLeast = (name: string, fg: string, bg: string, min: number) => {
+  const r = ratio(fg, bg);
+  const ok = r >= min;
+  if (!ok) failures++;
+  console.log(
+    `${ok ? "PASS" : "FAIL"}  ${name} — ${r}:1${ok ? "" : `\n      krever minst ${min}:1`}`
+  );
+};
+
+// Every text token against every surface it is drawn on.
+for (const surface of ["surface", "background", "surface-hover"] as const) {
+  for (const ink of ["foreground", "foreground-secondary", "foreground-muted"] as const) {
+    atLeast(`${ink} på ${surface}`, token(ink), token(surface), CONTRAST.TEXT);
+  }
+}
+
+const HUES = ["ocean", "teal", "violet", "copper", "rose", "slate"] as const;
+
+// The ink variant is the one allowed to carry a figure or a label.
+for (const hue of HUES) {
+  atLeast(`${hue}-ink som tekst`, token(`tone-${hue}-ink`), token("surface"), CONTRAST.TEXT);
+}
+
+// The fill variant only has to work as a mark: an icon on its badge.
+for (const hue of HUES) {
+  atLeast(`hvitt ikon på ${hue}`, "#ffffff", token(`tone-${hue}`), CONTRAST.GRAPHIC);
+}
+
+// White on the navy the buttons are built from, including the hover step.
+for (const step of ["primary", "primary-light", "primary-dark"] as const) {
+  atLeast(`hvit tekst på ${step}`, "#ffffff", token(step), CONTRAST.TEXT);
+}
+
 check("Alvorligste observasjon står først",
   deriveInsights({ ...calm, cash: 400_000, revenue: 5_100_000 })[0].severity, "high");
 

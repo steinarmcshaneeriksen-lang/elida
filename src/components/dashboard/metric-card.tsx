@@ -93,7 +93,7 @@ export function MetricCard({
         {href && (
           <ArrowRight
             size={15}
-            className="mb-0.5 shrink-0 text-[var(--tone)] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+            className="mb-0.5 shrink-0 text-[var(--tone-ink)] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
           />
         )}
       </div>

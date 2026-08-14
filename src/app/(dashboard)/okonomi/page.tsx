@@ -199,7 +199,7 @@ export default function OkonomiPage() {
           data-tone="copper"
           className="tone-card flex gap-3 px-5 py-3.5 text-xs leading-relaxed text-foreground-secondary"
         >
-          <Info size={15} className="mt-0.5 shrink-0 text-[var(--tone)]" />
+          <Info size={15} className="mt-0.5 shrink-0 text-[var(--tone-ink)]" />
           <p>{bounds.note}</p>
         </div>
       )}
@@ -252,17 +252,18 @@ export default function OkonomiPage() {
 
           {monthly.length > 0 && (
             <Panel tone="ocean" icon={BarChart3} title="Omsetning per måned">
-              {/* The best month is worth seeing at a glance, so it keeps the
-                  full hue while the rest sit a shade back. A column of twelve
-                  identical navy blocks told you nothing but the lengths. */}
+              {/* Every bar the same hue at full strength. Fading the
+                  also-rans to highlight the best month made one colour look
+                  like several, which is exactly what a reader who cannot
+                  separate hues has to fall back on. The lengths and the
+                  figures say which month is biggest. */}
               <div className="space-y-2">
                 {monthly.map((m) => {
                   const share = m.revenue / maxRevenue;
-                  const best = m.revenue > 0 && m.revenue === maxRevenue;
                   return (
                     <div
                       key={m.month}
-                      className="group flex items-center gap-4 rounded-lg px-2 py-1 transition-colors hover:bg-[var(--tone-soft)]"
+                      className="group flex items-center gap-4 rounded-lg px-2 py-1 transition-colors hover:bg-surface-hover"
                     >
                       <span className="w-9 text-sm font-medium text-foreground-secondary">
                         {monthLabel(m.month)}
@@ -272,7 +273,6 @@ export default function OkonomiPage() {
                           className="tone-bar h-7 transition-[width] duration-500"
                           style={{
                             width: `${Math.max(share * 100, m.revenue > 0 ? 2 : 0)}%`,
-                            opacity: best ? 1 : 0.78,
                           }}
                         />
                       </div>

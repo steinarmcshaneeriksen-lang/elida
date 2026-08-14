@@ -99,7 +99,7 @@ export default function LikviditetPage() {
           icon={<ArrowUpRight size={16} strokeWidth={2.2} />}
           label={stated ? "Kunder skylder oss" : "Endring kundefordringer"}
           value={formatCurrency(data.receivables.total)}
-          valueClass="text-[var(--tone)]"
+          valueClass="text-[var(--tone-ink)]"
           detail={`${data.receivables.top.length} kunder · inkl. mva`}
         />
         <StatCard
@@ -107,7 +107,7 @@ export default function LikviditetPage() {
           icon={<ArrowDownRight size={16} strokeWidth={2.2} />}
           label={stated ? "Vi skylder leverandører" : "Endring leverandørgjeld"}
           value={formatCurrency(data.payables.total)}
-          valueClass="text-[var(--tone)]"
+          valueClass="text-[var(--tone-ink)]"
           detail={`${data.payables.top.length} leverandører · inkl. mva`}
         />
         {data.lowest_point && (
@@ -241,12 +241,12 @@ function PartyList({
           {parties.map((p) => (
             <div
               key={p.id}
-              className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-[var(--tone-soft)]"
+              className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-hover"
             >
               <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                 {p.name}
               </span>
-              <span className="ml-4 shrink-0 text-sm font-semibold tabular-nums text-[var(--tone)]">
+              <span className="ml-4 shrink-0 text-sm font-semibold tabular-nums text-[var(--tone-ink)]">
                 {formatCurrency(p.amount)}
               </span>
             </div>
