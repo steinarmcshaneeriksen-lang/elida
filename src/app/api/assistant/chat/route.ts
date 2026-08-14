@@ -404,7 +404,7 @@ export async function POST(request: NextRequest) {
                 calls.map(async (call) => {
                   try {
                     const args = JSON.parse(call.args || "{}");
-                    const result = await executeTool(call.name, company_id, args);
+                    const result = await executeTool(call.name, company_id, args, auth.userId);
                     return {
                       message: {
                         role: "tool" as const,

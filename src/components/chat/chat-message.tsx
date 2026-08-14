@@ -1,5 +1,7 @@
 "use client";
 
+import { TOOL_LABELS } from "@/lib/assistant/tools";
+
 import { useState } from "react";
 import {
   ChevronDown,
@@ -11,27 +13,6 @@ import {
 } from "lucide-react";
 import type { ChatMessage as ChatMessageType, ToolCallInfo } from "./chat-provider";
 
-const TOOL_LABELS: Record<string, string> = {
-  get_financial_summary: "Henter økonomisammendrag",
-  get_revenue_analysis: "Analyserer inntekter",
-  get_profit_analysis: "Analyserer resultat",
-  get_cost_analysis: "Analyserer kostnader",
-  get_account_breakdown: "Henter kontodetaljer",
-  get_customer_receivables: "Henter kundefordringer",
-  get_customer_payment_profile: "Henter betalingsprofil",
-  get_overdue_invoices: "Henter forfalte fakturaer",
-  get_supplier_payables: "Henter leverandørgjeld",
-  get_upcoming_obligations: "Henter kommende forpliktelser",
-  get_cash_forecast: "Beregner kontantstrømprognose",
-  get_vat_estimate: "Estimerer MVA",
-  get_tax_estimate: "Estimerer skatt",
-  get_chart_of_accounts: "Henter kontoplan",
-  find_similar_vendor_transactions: "Søker etter lignende transaksjoner",
-  find_similar_description_transactions: "Søker i beskrivelser",
-  get_vendor_posting_history: "Henter posteringshistorikk",
-  search_accounting_rules: "Søker i regnskapsregler",
-  run_scenario: "Kjører scenarioanalyse",
-};
 
 function renderMarkdown(text: string): string {
   let html = text

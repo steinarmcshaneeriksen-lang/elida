@@ -255,6 +255,49 @@ export function distributeAnnual(
   return next;
 }
 
+/**
+ * Grows a category from where it is now to a stated monthly level by a stated
+ * month, and holds it there.
+ *
+ * "Få MRR opp til 400 000 innen 31.12" is a target with a date, and neither a
+ * percentage uplift nor an annual total expresses it: the first does not know
+ * where to stop, the second says nothing about when. The ramp is linear
+ * because a plan that claims to know the curve of its own growth is claiming
+ * more than anyone knows — an even climb is a target divided by the months
+ * available, which is what a person means by it.
+ *
+ * Months before `fromMonth` are left alone. They are usually already booked,
+ * and a plan cannot change what has happened.
+ */
+export function rampToTarget(
+  grid: BudgetGrid,
+  categoryKey: string,
+  monthlyTarget: number,
+  fromMonth: number,
+  targetMonth: number
+): BudgetGrid {
+  const base = [...(grid[categoryKey] ?? new Array(12).fill(0))];
+  const from = Math.min(Math.max(fromMonth, 1), 12);
+  const target = Math.min(Math.max(targetMonth, from), 12);
+
+  // Where the climb starts: the last month before the ramp that has a figure,
+  // or the target itself if there is no history to climb from.
+  const start = from > 1 ? base[from - 2] : base[0];
+  const steps = target - from + 1;
+
+  for (let month = from; month <= 12; month++) {
+    if (month <= target) {
+      const progress = steps === 1 ? 1 : (month - from + 1) / steps;
+      base[month - 1] = round(start + (monthlyTarget - start) * progress);
+    } else {
+      // Past the target month the level is held, not extrapolated.
+      base[month - 1] = round(monthlyTarget);
+    }
+  }
+
+  return { ...grid, [categoryKey]: base };
+}
+
 /** Adds a fixed monthly cost from a given month onwards. */
 export function addRecurringCost(
   grid: BudgetGrid,

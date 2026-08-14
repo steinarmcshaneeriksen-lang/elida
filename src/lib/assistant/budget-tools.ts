@@ -1,17 +1,31 @@
 /**
  * Budget handlers for the assistant.
  *
- * The assistant may read the budget freely and may work out what a change
- * would do, but it never writes one. A budget change arrives as a costed
- * proposal the user confirms — otherwise a sentence in a chat window silently
- * rewrites the numbers a board decision rests on.
+ * The assistant reads the budget freely, works out what a change would do, and
+ * — once the user has said yes — carries it out.
+ *
+ * It could not before. `propose_budget_change` returned `applied: false` in
+ * every branch, nothing in the interface offered to confirm anything, and no
+ * tool could create a budget at all, so "lag et budsjett som viser dette" had
+ * no path to a budget. The assistant could describe work it was unable to do.
+ *
+ * Two lines keep that from becoming a chat window quietly rewriting the
+ * numbers a board decision rests on:
+ *
+ *   A change is applied only when the caller passes `confirmed: true`, which
+ *   the model is told to set only after the user has agreed to a proposal it
+ *   has already shown them.
+ *
+ *   Approved budgets are never written to, confirmed or not. An approved
+ *   budget has been agreed by someone; changing it is a new version, made
+ *   deliberately, not a side effect of a sentence.
  *
  * The arithmetic is the budget engine's, not the model's, so a hire costs what
- * the rules say it costs.
+ * the rules say it costs and a target ramps the way the engine ramps it.
  */
 
 import { createClient } from "@/lib/supabase/server";
-import { readGrid } from "@/lib/budget/store";
+import { readGrid, writeGrid } from "@/lib/budget/store";
 import {
   addEmployee,
   addRecurringCost,
@@ -20,6 +34,8 @@ import {
   computeCashEffect,
   computeEmployeeCost,
   distributeAnnual,
+  generateBudgetGrid,
+  rampToTarget,
   type BudgetGrid,
 } from "@/lib/budget/engine";
 import { CATEGORIES, categoryByKey } from "@/lib/reports/categories";
@@ -190,6 +206,31 @@ export const proposeBudgetChange = async (
       break;
     }
 
+    case "reach_target": {
+      if (!categoryKey || !categoryByKey(categoryKey)) {
+        return { error: `Ukjent kategori: ${categoryKey}` };
+      }
+      const monthly = Number(params.amount);
+      if (!Number.isFinite(monthly)) {
+        return { error: "Mangler månedlig målbeløp." };
+      }
+      const targetMonth = clampMonth(params.target_month ?? 12);
+      if (targetMonth < fromMonth) {
+        return {
+          error:
+            "Målmåneden ligger før startmåneden. Et mål kan ikke nås før " +
+            "opptrappingen begynner.",
+        };
+      }
+
+      after = rampToTarget(before, categoryKey, monthly, fromMonth, targetMonth);
+      description =
+        `${categoryByKey(categoryKey)!.label} trappes opp til ${format(monthly)} ` +
+        `per måned innen utgangen av ${MONTH_LONG[targetMonth - 1]}, ` +
+        `med jevn økning fra ${MONTH_LONG[fromMonth - 1]}`;
+      break;
+    }
+
     case "add_employee": {
       const salary = Number(params.amount);
       if (!Number.isFinite(salary)) return { error: "Mangler årslønn." };
@@ -213,10 +254,29 @@ export const proposeBudgetChange = async (
   const cashBefore = computeCashEffect(before, opening);
   const cashAfter = computeCashEffect(after, opening);
 
+  /*
+   * Written only on an explicit yes, and never to an approved budget.
+   *
+   * An approved budget has been agreed by someone. Changing it is a new
+   * version, made deliberately in the budget screen — not something a sentence
+   * in a chat window does on the way past.
+   */
+  const confirmed = params.confirmed === true;
+  const locked = budget.status === "approved";
+
+  if (confirmed && !locked) {
+    await writeGrid(supabase, budget.id, after);
+  }
+
   return {
-    applied: false,
-    requires_confirmation: true,
-    budget: { id: budget.id, name: budget.name, year: budget.year },
+    applied: confirmed && !locked,
+    requires_confirmation: !confirmed,
+    budget: {
+      id: budget.id,
+      name: budget.name,
+      year: budget.year,
+      status: budget.status,
+    },
     change: {
       type: changeType,
       description,
@@ -237,11 +297,118 @@ export const proposeBudgetChange = async (
       lowest_cash_month_after: MONTH_LONG[cashAfter.lowest.month - 1],
     },
     employee_cost: employeeCost,
+    note: locked
+      ? "Budsjettet er GODKJENT og kan ikke endres herfra. Tallene over viser " +
+        "hva endringen ville gjort. Si at brukeren må lage en ny versjon " +
+        "under «Budsjett» hvis den skal gjennomføres."
+      : confirmed
+        ? "Endringen er GJENNOMFØRT og budsjettet er lagret. Oppsummer hva " +
+          "som ble endret og hva det gjorde med resultatet."
+        : "Dette er et FORSLAG. Budsjettet er IKKE endret. Vis effekten og " +
+          "spør om den skal gjennomføres. Kall verktøyet på nytt med " +
+          "confirmed: true først når brukeren har sagt ja. Ikke påstå at " +
+          "budsjettet er oppdatert.",
+    data_source: "budget",
+  };
+};
+
+/**
+ * Creates a budget, so "lag et budsjett som viser dette" has somewhere to go.
+ *
+ * A draft, always: the year's figures start from what the company actually did
+ * and the user edits from there. Nothing here can touch an existing budget.
+ */
+export const createBudget = async (
+  companyId: string,
+  params: ToolParams
+): Promise<ToolResult> => {
+  const confirmed = params.confirmed === true;
+  const year = Number(params.year);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    return { error: "Mangler et gyldig årstall for budsjettet." };
+  }
+
+  const name = String(params.name ?? `Budsjett ${year}`).slice(0, 120);
+  const basedOn = String(params.based_on ?? "last_12_months");
+
+  if (!confirmed) {
+    return {
+      created: false,
+      requires_confirmation: true,
+      would_create: { name, year, based_on: basedOn },
+      note:
+        "Dette er et FORSLAG. Budsjettet er ikke opprettet. Bekreft med " +
+        "brukeren og kall verktøyet på nytt med confirmed: true.",
+      data_source: "budget",
+    };
+  }
+
+  const supabase = await createClient();
+
+  const { data: budget, error } = (await supabase
+    .from("budgets")
+    .insert({
+      company_id: companyId,
+      name,
+      year,
+      status: "draft",
+      scenario: String(params.scenario ?? "base"),
+      based_on: basedOn,
+    } as never)
+    .select("id, name, year, status")
+    .single()) as {
+    data: { id: string; name: string; year: number; status: string } | null;
+    error: { code?: string; message: string } | null;
+  };
+
+  if (error || !budget) {
+    return {
+      created: false,
+      error:
+        error?.code === "23505"
+          ? `Det finnes allerede et budsjett som heter «${name}».`
+          : "Kunne ikke opprette budsjettet.",
+    };
+  }
+
+  const generated = await generateBudgetGrid(supabase, {
+    companyId,
+    year,
+    basedOn,
+  });
+
+  await writeGrid(supabase, budget.id, generated.grid);
+
+  if (generated.basis) {
+    await supabase
+      .from("budgets")
+      .update({
+        basis_start: generated.basis.start,
+        basis_end: generated.basis.end,
+        basis_gap_months: generated.gapMonths,
+      } as never)
+      .eq("id", budget.id);
+  }
+
+  const result = computeBudgetResult(generated.grid);
+
+  return {
+    created: true,
+    budget: {
+      id: budget.id,
+      name: budget.name,
+      year: budget.year,
+      status: budget.status,
+    },
+    basis: generated.basis,
+    // Months the basis said nothing about, filled from the rest of the year.
+    basis_gap_months: generated.gapMonths,
+    annual: result.annual,
     note:
-      "Dette er et FORSLAG. Budsjettet er ikke endret. Presenter effekten for " +
-      "brukeren og spør om endringen skal gjennomføres. Si at de gjør den " +
-      "under «Budsjett», eller bekrefter her hvis grensesnittet tilbyr det. " +
-      "Ikke påstå at budsjettet er oppdatert.",
+      "Budsjettet er opprettet som UTKAST og fylt med tallene fra " +
+      "grunnlagsperioden. Si hvilken periode det bygger på. Bruk " +
+      "propose_budget_change med denne budsjett-id-en for å legge inn mål " +
+      "eller endringer.",
     data_source: "budget",
   };
 };

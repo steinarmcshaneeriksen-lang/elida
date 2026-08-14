@@ -12,7 +12,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { sanitizeFilterTerm } from "@/lib/supabase/filter";
 import { fetchAll } from "@/lib/supabase/paginate";
-import { getBudget, proposeBudgetChange } from "./budget-tools";
+import { getBudget, proposeBudgetChange, createBudget } from "./budget-tools";
+import { createReport } from "./report-tools";
+import { findSavings } from "./savings-tools";
 import {
   upcomingVatTerms,
   formatDeadline,
@@ -32,7 +34,12 @@ import {
 
 type ToolParams = Record<string, unknown>;
 type ToolResult = Record<string, unknown>;
-type ToolHandler = (companyId: string, params: ToolParams) => Promise<ToolResult>;
+type ToolHandler = (
+  companyId: string,
+  params: ToolParams,
+  /** Who is asking. Passed to the handlers that record authorship. */
+  userId?: string
+) => Promise<ToolResult>;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1811,6 +1818,9 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_overdue_invoices: getOverdueInvoices,
   get_supplier_payables: getSupplierPayables,
   get_vat_deadline: getVatDeadline,
+  create_budget: createBudget,
+  create_report: createReport,
+  find_savings: findSavings,
   get_upcoming_obligations: getUpcomingObligations,
   get_cash_forecast: getCashForecast,
   get_vat_estimate: getVatEstimate,
@@ -1832,11 +1842,12 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
 export async function executeTool(
   toolName: string,
   companyId: string,
-  params: ToolParams
+  params: ToolParams,
+  userId?: string
 ): Promise<ToolResult> {
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) {
     throw new Error(`Ukjent verktøy: ${toolName}`);
   }
-  return handler(companyId, params);
+  return handler(companyId, params, userId);
 }

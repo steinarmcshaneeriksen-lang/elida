@@ -228,6 +228,14 @@ function getSuggestedTools(intent: Intent): string[] {
   switch (intent) {
     case "FINANCIAL_QUERY":
       return [
+        // The actions. A question about the figures is often followed by
+        // "then make me a budget for it", and the tools have to be present
+        // for that to be possible rather than described.
+        "create_report",
+        "create_budget",
+        "propose_budget_change",
+        "get_budget",
+        "find_savings",
         "get_financial_summary",
         "get_revenue_analysis",
         "get_profit_analysis",
@@ -252,6 +260,10 @@ function getSuggestedTools(intent: Intent): string[] {
         "get_cash_forecast",
         "get_upcoming_obligations",
         "get_vat_deadline",
+        "get_budget",
+        "create_budget",
+        "propose_budget_change",
+        "get_cost_analysis",
       ];
     case "DOCUMENT_ACCOUNTING_ADVICE":
       return [

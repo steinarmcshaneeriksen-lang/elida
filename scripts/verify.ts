@@ -10,6 +10,8 @@ import { resolveDataWindow, partialMonthNote, type MonthActivity } from "@/lib/d
 import { deriveInsights, type InsightInput } from "@/lib/insights/derive";
 import { nextVatTerm, upcomingVatTerms, daysUntil } from "@/lib/tax/vat-terms";
 import { classifyIntent } from "@/lib/assistant/intent-classifier";
+import { TOOLS, TOOL_LABELS } from "@/lib/assistant/tools";
+import { TOOL_HANDLERS } from "@/lib/assistant/tool-handlers";
 import { readFileSync } from "node:fs";
 import {
   CONTRAST,
@@ -437,6 +439,31 @@ check("Spørsmål om både frist og beløp får begge verktøyene",
 // short enough to be a real restriction, not just that it exists.
 check("Fristspørsmål tilbyr ett verktøy, ikke hele kassen",
   classifyIntent("Når er neste mva innlevering?").suggestedTools.length, 1);
+
+// --- 7e. Verktøyene ---------------------------------------------------------
+// Every tool needs a handler and a Norwegian label. The label list used to sit
+// in the chat component, drifted, and nine tools fell back to printing their
+// own function name at the reader — "get_data_coverage" between two Norwegian
+// phrases. It is derived from the definitions now, and checked here.
+const toolNames = TOOLS.map((t) => t.function.name);
+
+check("Hvert verktøy har en handler",
+  toolNames.filter((n) => !(n in TOOL_HANDLERS)), []);
+check("Hver handler har en definisjon",
+  Object.keys(TOOL_HANDLERS).filter((n) => !toolNames.includes(n)), []);
+check("Hvert verktøy har en norsk etikett",
+  toolNames.filter((n) => !TOOL_LABELS[n]), []);
+check("Ingen etikett er verktøynavnet",
+  toolNames.filter((n) => TOOL_LABELS[n] === n), []);
+check("Ingen etikett inneholder understrek",
+  toolNames.filter((n) => TOOL_LABELS[n].includes("_")), []);
+
+// The tools the classifier hands out have to exist.
+check("Foreslåtte verktøy finnes",
+  ["Når er neste mva innlevering?", "Hvor mye tjente vi i fjor?",
+   "Lag et budsjett for 2027", "Hvor kan vi kutte kostnader?"]
+    .flatMap((q) => classifyIntent(q).suggestedTools)
+    .filter((n) => !toolNames.includes(n)), []);
 
 // --- 8. Kontrast --------------------------------------------------------
 // Read from the stylesheet, so the palette cannot drift past the threshold
