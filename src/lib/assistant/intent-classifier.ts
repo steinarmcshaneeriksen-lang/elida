@@ -190,8 +190,32 @@ export function classifyIntent(
   return {
     intent: topIntent,
     confidence,
-    suggestedTools: getSuggestedTools(topIntent),
+    suggestedTools: isDeadlineQuestion(message)
+      ? // One tool, because the answer is one calendar lookup. Offered the
+        // full financial toolset, the model reached for a VAT estimate, a
+        // coverage check, an obligations list and a search of the accounting
+        // rules — a minute of paged reads over the ledger to answer a
+        // question whose answer is in the statute.
+        ["get_vat_deadline"]
+      : getSuggestedTools(topIntent),
   };
+}
+
+/** Names VAT. */
+const NAMES_VAT = /\b(mva|merverdiavgift|moms)/i;
+
+/** Asks when, rather than how much. */
+const ASKS_WHEN =
+  /(frist|forfall|termin|innlever|leverer|leveres|rapporter|n(å|a)r\s)/i;
+
+/**
+ * "Når er neste mva-innlevering?" and its variants.
+ *
+ * Deliberately narrow: the message has to name VAT *and* ask about timing, so
+ * "hvor mye mva skylder vi" still goes to the estimate.
+ */
+function isDeadlineQuestion(message: string): boolean {
+  return NAMES_VAT.test(message) && ASKS_WHEN.test(message);
 }
 
 function getSuggestedTools(intent: Intent): string[] {
@@ -205,6 +229,7 @@ function getSuggestedTools(intent: Intent): string[] {
         "get_customer_receivables",
         "get_overdue_invoices",
         "get_vat_estimate",
+        "get_vat_deadline",
       ];
     case "ACCOUNTING_ADVICE":
       return [
@@ -220,6 +245,7 @@ function getSuggestedTools(intent: Intent): string[] {
         "get_financial_summary",
         "get_cash_forecast",
         "get_upcoming_obligations",
+        "get_vat_deadline",
       ];
     case "DOCUMENT_ACCOUNTING_ADVICE":
       return [

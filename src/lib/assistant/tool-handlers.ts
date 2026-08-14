@@ -14,6 +14,12 @@ import { sanitizeFilterTerm } from "@/lib/supabase/filter";
 import { fetchAll } from "@/lib/supabase/paginate";
 import { getBudget, proposeBudgetChange } from "./budget-tools";
 import {
+  upcomingVatTerms,
+  formatDeadline,
+  daysUntil,
+  type VatScheme,
+} from "@/lib/tax/vat-terms";
+import {
   clampToCoverage,
   coverageNote,
   getCoverage,
@@ -929,6 +935,103 @@ const getSupplierPayables: ToolHandler = async (companyId) => {
   };
 };
 
+/**
+ * When the next VAT return is due.
+ *
+ * Reads no ledger. The deadlines are set by skatteforvaltningsforskriften and
+ * are the same for every business on the same scheme, so the answer is a
+ * calendar lookup that returns in microseconds. Asked this before, the
+ * assistant reached for the VAT estimate, the data coverage, the obligations
+ * list and a search of the accounting rules — four paged reads over the whole
+ * ledger — and then said it did not know, because the deadline was never in
+ * the ledger to find.
+ *
+ * The only thing worth reading from the database is which scheme the company
+ * is on, and even that has a safe default: two-month terms, which is what a
+ * VAT-registered business gets unless it has applied for something else.
+ */
+const getVatDeadline: ToolHandler = async (companyId, params) => {
+  const count = Math.min(Math.max((params.count as number) || 3, 1), 6);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const supabase = await createClient();
+  const { data: settings } = (await supabase
+    .from("vat_settings")
+    .select("vat_registered, vat_period")
+    .eq("company_id", companyId)
+    .maybeSingle()) as {
+    data: { vat_registered: boolean | null; vat_period: string | null } | null;
+  };
+
+  if (settings?.vat_registered === false) {
+    return {
+      vat_registered: false,
+      note:
+        "Selskapet er ikke registrert i Merverdiavgiftsregisteret, så det " +
+        "skal ikke leveres mva-melding.",
+      data_source: "vat_settings",
+    };
+  }
+
+  const scheme = parseScheme(settings?.vat_period);
+  const terms = upcomingVatTerms(today, scheme.value, count);
+  const next = terms[0];
+
+  return {
+    today,
+    scheme: scheme.value,
+    scheme_label: scheme.label,
+    scheme_is_assumed: scheme.assumed,
+    next_deadline: next
+      ? {
+          term: next.label,
+          period: { start: next.periodStart, end: next.periodEnd },
+          deadline: next.deadline,
+          deadline_formatted: formatDeadline(next.deadline),
+          days_until: daysUntil(today, next.deadline),
+          moved_from: next.movedFrom,
+        }
+      : null,
+    following: terms.slice(1).map((t) => ({
+      term: t.label,
+      period: { start: t.periodStart, end: t.periodEnd },
+      deadline: t.deadline,
+      deadline_formatted: formatDeadline(t.deadline),
+    })),
+    note:
+      "Fristene følger skatteforvaltningsforskriften § 8-3. Frist som faller " +
+      "på lørdag, søndag eller helligdag flyttes til første virkedag etter. " +
+      "Samme frist gjelder for både innlevering og betaling." +
+      (scheme.assumed
+        ? " Terminlengden er ikke registrert på selskapet, så alminnelige " +
+          "terminer er lagt til grunn — si dette hvis selskapet kan ha " +
+          "årstermin eller månedlige terminer."
+        : ""),
+    data_source: "statute",
+  };
+};
+
+/** What the stored `vat_period` means, with the ordinary terms as default. */
+function parseScheme(period: string | null | undefined): {
+  value: VatScheme;
+  label: string;
+  assumed: boolean;
+} {
+  const raw = (period ?? "").toLowerCase();
+
+  if (raw.includes("year") || raw.includes("år") || raw.includes("annual")) {
+    return { value: "annual", label: "Årstermin", assumed: false };
+  }
+  if (raw.includes("month") || raw.includes("mnd") || raw.includes("måned")) {
+    return { value: "monthly", label: "Månedlige terminer", assumed: false };
+  }
+  return {
+    value: "bimonthly",
+    label: "Alminnelige terminer (to måneder)",
+    assumed: raw.length === 0,
+  };
+}
+
 const getUpcomingObligations: ToolHandler = async (companyId, params) => {
   const days = (params.days as number) || 30;
   const coverage = await getCoverage(companyId);
@@ -1707,6 +1810,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_data_coverage: getDataCoverage,
   get_overdue_invoices: getOverdueInvoices,
   get_supplier_payables: getSupplierPayables,
+  get_vat_deadline: getVatDeadline,
   get_upcoming_obligations: getUpcomingObligations,
   get_cash_forecast: getCashForecast,
   get_vat_estimate: getVatEstimate,

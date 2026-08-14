@@ -111,6 +111,10 @@ export const TOOLS: ToolDefinition[] = [
     "Oversikt over leverandørgjeld: total, aldersfordelt, kommende forfall, største kreditorer.",
     { properties: {} }),
 
+  tool("get_vat_deadline",
+    "Neste frist for mva-melding, og de påfølgende terminene. Svaret er lovbestemt og hentes fra en kalender, ikke fra regnskapet — bruk dette framfor get_upcoming_obligations når spørsmålet gjelder når mva skal leveres eller betales.",
+    { properties: { count: { type: "number", description: "Antall kommende terminer å liste (standard 3)." } } }),
+
   tool("get_upcoming_obligations",
     "Kommende betalingsforpliktelser innen angitt antall dager: leverandørfakturaer, lønn, MVA-termin, skatt, faste kostnader.",
     { properties: { days: { type: "number", description: "Antall dager fremover å se på (standard 30)." } } }),

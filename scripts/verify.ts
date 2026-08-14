@@ -8,6 +8,8 @@ import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } f
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
 import { resolveDataWindow, partialMonthNote, type MonthActivity } from "@/lib/data-window";
 import { deriveInsights, type InsightInput } from "@/lib/insights/derive";
+import { nextVatTerm, upcomingVatTerms, daysUntil } from "@/lib/tax/vat-terms";
+import { classifyIntent } from "@/lib/assistant/intent-classifier";
 import { readFileSync } from "node:fs";
 import {
   CONTRAST,
@@ -359,6 +361,73 @@ check("Uten hull gjøres ingenting",
   fillGaps({ a: twelve(new Array(12).fill(1)) }, months, new Array(12).fill(5)), []);
 check("Et tomt grunnlag fylles ikke fra seg selv",
   fillGaps({ a: twelve(new Array(12).fill(0)) }, months, new Array(12).fill(0)), []);
+
+// --- 7d. Mva-frister ------------------------------------------------------
+// Set by skatteforvaltningsforskriften § 8-3, the same for every business on
+// the ordinary two-month terms. This is a calendar, so it is checked against
+// the calendar rather than against the ledger.
+const nextFrom = (d: string) => nextVatTerm(d)!;
+
+check("Etter nyttår er 6. termin neste frist",
+  nextFrom("2026-01-15").deadline, "2026-02-10");
+check("6. termin dekker november–desember året før",
+  [nextFrom("2026-01-15").periodStart, nextFrom("2026-01-15").periodEnd],
+  ["2025-11-01", "2025-12-31"]);
+
+check("1. termin forfaller 10. april",
+  nextFrom("2026-03-01").deadline, "2026-04-10");
+check("2. termin forfaller 10. juni",
+  nextFrom("2026-05-01").deadline, "2026-06-10");
+
+// The third term runs to 31 August, not 10 July — the summer exception. It is
+// also why the answer on 14 August is 31 August and not October: the term
+// covering May and June is still open.
+check("3. termin forfaller 31. august, ikke 10. juli",
+  nextFrom("2026-07-01").deadline, "2026-08-31");
+check("3. termin dekker mai–juni",
+  [nextFrom("2026-07-01").periodStart, nextFrom("2026-07-01").periodEnd],
+  ["2026-05-01", "2026-06-30"]);
+
+// The real question, asked on the day the screenshot was taken.
+const asked = nextFrom("2026-08-14");
+check("14. august: neste frist er 31. august", asked.deadline, "2026-08-31");
+check("14. august: terminen er mai–juni",
+  [asked.periodStart, asked.periodEnd], ["2026-05-01", "2026-06-30"]);
+check("14. august: 17 dager igjen", daysUntil("2026-08-14", asked.deadline), 17);
+
+// Terms come back in order, and never a date that has passed. 10 October 2026
+// is a Saturday, so the fourth term files on the Monday.
+const three = upcomingVatTerms("2026-08-14", "bimonthly", 3);
+check("Tre terminer i rekkefølge", three.map((t) => t.deadline),
+  ["2026-08-31", "2026-10-12", "2026-12-10"]);
+check("Lørdagsfrist flyttes til mandag", three[1].movedFrom, "2026-10-10");
+
+// 10 February 2029 is a Saturday; 10 June 2029 a Sunday.
+check("Lørdagsfrist flyttes", nextFrom("2029-01-02").deadline, "2029-02-12");
+check("Søndagsfrist flyttes", nextFrom("2029-05-01").deadline, "2029-06-11");
+
+// Public holidays move a deadline too, and Easter can move it several days:
+// 10 April 2031 is Maundy Thursday, so the deadline clears Good Friday, the
+// weekend and Easter Monday before landing on the Tuesday.
+check("Frist på skjærtorsdag flyttes gjennom hele påsken",
+  nextFrom("2031-03-01").deadline, "2031-04-15");
+// 10 June 2030 is Whit Monday.
+check("Frist på andre pinsedag flyttes",
+  nextFrom("2030-05-01").deadline, "2030-06-11");
+
+// Other schemes.
+check("Årstermin forfaller 10. mars året etter",
+  nextVatTerm("2026-08-14", "annual")!.deadline, "2027-03-10");
+check("Månedstermin forfaller en måned og ti dager etter",
+  nextVatTerm("2026-08-14", "monthly")!.deadline, "2026-09-10");
+
+// The question routes to the calendar alone, not to a sweep of the ledger.
+check("«Når er neste mva innlevering?» spør bare kalenderen",
+  classifyIntent("Når er neste mva innlevering?").suggestedTools,
+  ["get_vat_deadline"]);
+check("«Hvor mye mva skylder vi?» går fortsatt til estimatet",
+  classifyIntent("Hvor mye mva skylder vi?").suggestedTools
+    .includes("get_vat_estimate"), true);
 
 // --- 8. Kontrast --------------------------------------------------------
 // Read from the stylesheet, so the palette cannot drift past the threshold

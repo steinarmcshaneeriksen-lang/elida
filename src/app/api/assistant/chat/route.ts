@@ -255,6 +255,13 @@ export async function POST(request: NextRequest) {
     }));
 
     const encoder = new TextEncoder();
+    const send = (
+      controller: ReadableStreamDefaultController<Uint8Array>,
+      payload: unknown
+    ) => {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+    };
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
@@ -262,121 +269,177 @@ export async function POST(request: NextRequest) {
           let continueLoop = true;
 
           while (continueLoop) {
-            const response = await openai.chat.completions.create({
+            /*
+             * Streamed.
+             *
+             * This call used to be made without `stream`, which meant the
+             * whole answer was generated before a single byte left the server.
+             * The route set up an SSE stream, announced each tool as it ran,
+             * and then sat on "Tenker …" until the model had finished writing
+             * — the entire response arriving as one lump. It was not slow so
+             * much as silent, which reads as slower still.
+             */
+            const completion = await openai.chat.completions.create({
               model: routing.model,
               max_completion_tokens: 4096,
               messages: currentMessages,
               tools: openaiTools,
               tool_choice: "auto",
+              stream: true,
             });
 
             continueLoop = false;
 
-            const choice = response.choices[0];
-            if (!choice) break;
+            let textContent = "";
+            let finishReason: string | null = null;
+            // Tool calls arrive in fragments, keyed by their position in the
+            // list; the name comes in one chunk and the arguments across many.
+            const pending = new Map<
+              number,
+              { id: string; name: string; args: string }
+            >();
 
-            const assistantMessage = choice.message;
-            const textContent = assistantMessage.content;
-            const toolCalls = assistantMessage.tool_calls;
+            for await (const chunk of completion) {
+              const choice = chunk.choices[0];
+              if (!choice) continue;
 
-            if (textContent) {
-              const event = JSON.stringify({
-                type: "content_delta",
-                text: textContent,
-              });
-              controller.enqueue(encoder.encode(`data: ${event}\n\n`));
+              if (choice.delta?.content) {
+                textContent += choice.delta.content;
+                send(controller, {
+                  type: "content_delta",
+                  text: choice.delta.content,
+                });
+              }
+
+              for (const part of choice.delta?.tool_calls ?? []) {
+                const entry = pending.get(part.index) ?? {
+                  id: "",
+                  name: "",
+                  args: "",
+                };
+                if (part.id) entry.id = part.id;
+                if (part.function?.name) entry.name = part.function.name;
+                if (part.function?.arguments) {
+                  entry.args += part.function.arguments;
+                }
+                pending.set(part.index, entry);
+              }
+
+              if (choice.finish_reason) finishReason = choice.finish_reason;
             }
 
-            const fnToolCalls = toolCalls?.filter(
-              (tc): tc is OpenAI.ChatCompletionMessageToolCall & { type: "function" } =>
-                tc.type === "function"
-            );
+            const calls = [...pending.entries()]
+              .sort((a, b) => a[0] - b[0])
+              .map(([, v]) => v)
+              .filter((v) => v.id && v.name);
 
-            if (fnToolCalls && fnToolCalls.length > 0 && choice.finish_reason === "tool_calls") {
-              const toolResults: OpenAI.ChatCompletionToolMessageParam[] = [];
+            const assistantMessage: OpenAI.ChatCompletionAssistantMessageParam = {
+              role: "assistant",
+              content: textContent || null,
+              ...(calls.length > 0
+                ? {
+                    tool_calls: calls.map((c) => ({
+                      id: c.id,
+                      type: "function" as const,
+                      function: { name: c.name, arguments: c.args || "{}" },
+                    })),
+                  }
+                : {}),
+            };
 
-              for (const toolCall of fnToolCalls) {
-                const toolName = toolCall.function.name;
-
-                const toolStartEvent = JSON.stringify({
+            if (calls.length > 0 && finishReason === "tool_calls") {
+              for (const call of calls) {
+                send(controller, {
                   type: "tool_use",
-                  tool: toolName,
+                  tool: call.name,
                   status: "running",
                 });
-                controller.enqueue(encoder.encode(`data: ${toolStartEvent}\n\n`));
+              }
 
-                try {
-                  const args = JSON.parse(toolCall.function.arguments);
-                  const result = await executeTool(toolName, company_id, args);
+              /*
+               * In parallel.
+               *
+               * These ran one after another, each awaited before the next was
+               * started. The tools are independent reads — a coverage check
+               * does not depend on a VAT estimate — and several of them page
+               * through the whole ledger, so the wait was the sum of four
+               * round trips rather than the longest one.
+               */
+              const toolResults = await Promise.all(
+                calls.map(async (call) => {
+                  try {
+                    const args = JSON.parse(call.args || "{}");
+                    const result = await executeTool(call.name, company_id, args);
+                    return {
+                      message: {
+                        role: "tool" as const,
+                        tool_call_id: call.id,
+                        content: JSON.stringify(result),
+                      },
+                      status: "complete" as const,
+                      tool: call.name,
+                    };
+                  } catch (toolError) {
+                    return {
+                      message: {
+                        role: "tool" as const,
+                        tool_call_id: call.id,
+                        content: JSON.stringify({
+                          error: `Feil ved kjøring av ${call.name}: ${
+                            toolError instanceof Error
+                              ? toolError.message
+                              : "Ukjent feil"
+                          }`,
+                        }),
+                      },
+                      status: "error" as const,
+                      tool: call.name,
+                    };
+                  }
+                })
+              );
 
-                  toolResults.push({
-                    role: "tool",
-                    tool_call_id: toolCall.id,
-                    content: JSON.stringify(result),
-                  });
-
-                  const toolDoneEvent = JSON.stringify({
-                    type: "tool_use",
-                    tool: toolName,
-                    status: "complete",
-                  });
-                  controller.enqueue(encoder.encode(`data: ${toolDoneEvent}\n\n`));
-                } catch (toolError) {
-                  toolResults.push({
-                    role: "tool",
-                    tool_call_id: toolCall.id,
-                    content: JSON.stringify({
-                      error: `Feil ved kjøring av ${toolName}: ${toolError instanceof Error ? toolError.message : "Ukjent feil"}`,
-                    }),
-                  });
-
-                  const toolErrorEvent = JSON.stringify({
-                    type: "tool_use",
-                    tool: toolName,
-                    status: "error",
-                  });
-                  controller.enqueue(encoder.encode(`data: ${toolErrorEvent}\n\n`));
-                }
+              for (const r of toolResults) {
+                send(controller, {
+                  type: "tool_use",
+                  tool: r.tool,
+                  status: r.status,
+                });
               }
 
               currentMessages = [
                 ...currentMessages,
                 assistantMessage,
-                ...toolResults,
+                ...toolResults.map((r) => r.message),
               ];
               continueLoop = true;
             } else {
-              const fullText = textContent ?? "";
               await storeMessage(
                 convId,
                 "assistant",
-                fullText,
-                fnToolCalls && fnToolCalls.length > 0
-                  ? fnToolCalls.map((tc) => ({
-                      id: tc.id,
-                      name: tc.function.name,
-                      arguments: tc.function.arguments,
+                textContent,
+                calls.length > 0
+                  ? calls.map((c) => ({
+                      id: c.id,
+                      name: c.name,
+                      arguments: c.args,
                     }))
                   : undefined
               );
             }
           }
 
-          const completeEvent = JSON.stringify({
+          send(controller, {
             type: "message_complete",
             conversation_id: convId,
           });
-          controller.enqueue(encoder.encode(`data: ${completeEvent}\n\n`));
           controller.close();
         } catch (err) {
-          const errorEvent = JSON.stringify({
+          send(controller, {
             type: "error",
             message:
-              err instanceof Error
-                ? err.message
-                : "En uventet feil oppstod",
+              err instanceof Error ? err.message : "En uventet feil oppstod",
           });
-          controller.enqueue(encoder.encode(`data: ${errorEvent}\n\n`));
           controller.close();
         }
       },
