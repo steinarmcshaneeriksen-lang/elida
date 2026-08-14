@@ -55,18 +55,18 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       code: "1",
       deductible: true,
       notes_nb:
-        "Norsk leverandoer: 25 % MVA med fradrag. " +
-        "Utenlandsk leverandoer: snudd avregning (reverse charge), " +
-        "beregn 25 % utgaaende MVA og krev tilsvarende fradrag.",
+        "Norsk leverandør: 25 % MVA med fradrag. " +
+        "Utenlandsk leverandør: snudd avregning (reverse charge), " +
+        "beregn 25 % utgående MVA og krev tilsvarende fradrag.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Loepende SaaS-abonnementer kostnadsfoeres. " +
-      "Aarsabonnementer over vesentlighetsgrensen bor periodiseres. " +
-      "Engangs-programvarelisenser over kr 15 000 kan maatte aktiveres.",
+      "Løpende SaaS-abonnementer kostnadsføres. " +
+      "Årsabonnementer over vesentlighetsgrensen bør periodiseres. " +
+      "Engangs-programvarelisenser over kr 15 000 kan måtte aktiveres.",
     conditions_nb:
-      "Sjekk om leverandoer er norsk eller utenlandsk for korrekt MVA-behandling.",
+      "Sjekk om leverandør er norsk eller utenlandsk for korrekt MVA-behandling.",
   },
   {
     id: "scenario-computer-under-threshold",
@@ -91,7 +91,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     ],
     typical_accounts: [
       { number: "6550", name: "Datautstyr" },
-      { number: "6500", name: "Verktoy, inventar og driftsmaterialer" },
+      { number: "6500", name: "Verktøy, inventar og driftsmaterialer" },
     ],
     vat_treatment: {
       rate: 25,
@@ -102,7 +102,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Datautstyr under kr 15 000 ekskl. MVA kostnadsfoeres direkte. " +
+      "Datautstyr under kr 15 000 ekskl. MVA kostnadsføres direkte. " +
       "Husk at like gjenstander kjøpt samtidig kan vurderes samlet.",
   },
   {
@@ -124,13 +124,13 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       rate: 25,
       code: "1",
       deductible: true,
-      notes_nb: "Full MVA-fradrag. MVA beregnes paa nettopris.",
+      notes_nb: "Full MVA-fradrag. MVA beregnes på nettopris.",
     },
     treatment: "capitalize",
     risk_level: "low",
     notes_nb:
-      "Datautstyr over kr 15 000 ekskl. MVA med levetid over 3 aar " +
-      "aktiveres paa balansen og avskrives med inntil 30 % (saldogruppe a).",
+      "Datautstyr over kr 15 000 ekskl. MVA med levetid over 3 år " +
+      "aktiveres på balansen og avskrives med inntil 30 % (saldogruppe a).",
   },
 
   // ── Office & supplies ────────────────────────────────────────────────
@@ -161,18 +161,18 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     },
     treatment: "expense",
     risk_level: "low",
-    notes_nb: "Kostnadsfoeres direkte.",
+    notes_nb: "Kostnadsføres direkte.",
   },
 
   // ── Telecom ──────────────────────────────────────────────────────────
   {
     id: "scenario-telecom",
-    name_nb: "Telefon og bredbaand",
+    name_nb: "Telefon og bredbånd",
     keywords: [
       "telefon",
       "mobil",
       "mobilabonnement",
-      "bredbaand",
+      "bredbånd",
       "internett",
       "fiber",
       "telenor",
@@ -194,13 +194,13 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       code: "1",
       deductible: true,
       notes_nb:
-        "Full MVA-fradrag for abonnement brukt i naeringsvirksomhet. " +
-        "Ved privat bruk av firmamobil: arbeidsgiver maa beskatte fordelen, " +
+        "Full MVA-fradrag for abonnement brukt i næringsvirksomhet. " +
+        "Ved privat bruk av firmamobil: arbeidsgiver må beskatte fordelen, " +
         "men MVA-fradrag er normalt fullt.",
     },
     treatment: "expense",
     risk_level: "low",
-    notes_nb: "Kostnadsfoeres loepende.",
+    notes_nb: "Kostnadsføres løpende.",
   },
 
   // ── Travel ───────────────────────────────────────────────────────────
@@ -243,9 +243,9 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Reisekostnader kostnadsfoeres direkte. " +
-      "Husk formaalsdokumentasjon: formaal, reisemaal, tidsrom. " +
-      "Diett og nattillegg kan vaere oppgavepliktig (konto 7150).",
+      "Reisekostnader kostnadsføres direkte. " +
+      "Husk formålsdokumentasjon: formål, reisemål, tidsrom. " +
+      "Diett og nattillegg kan være oppgavepliktig (konto 7150).",
   },
 
   // ── Representation ──────────────────────────────────────────────────
@@ -276,14 +276,14 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       notes_nb:
         "INGEN MVA-fradrag for representasjon. " +
         "Skattemessig fradrag begrenset til kr 551 per person per tilstelning. " +
-        "Dokumentasjonskrav: deltakerliste, formaal, sted og dato.",
+        "Dokumentasjonskrav: deltakerliste, formål, sted og dato.",
     },
     treatment: "expense",
     risk_level: "medium",
     notes_nb:
-      "Krev alltid dokumentasjon med deltakerliste og forretningsformaal. " +
-      "Overskytende beloep er ikke fradragsberettiget skattemessig. " +
-      "Enkel bevertning (kaffe, kaker) i forbindelse med moeter " +
+      "Krev alltid dokumentasjon med deltakerliste og forretningsformål. " +
+      "Overskytende beløp er ikke fradragsberettiget skattemessig. " +
+      "Enkel bevertning (kaffe, kaker) i forbindelse med møter " +
       "regnes IKKE som representasjon og gir fullt MVA-fradrag.",
     conditions_nb:
       "Skillet mellom enkel bevertning og representasjon er viktig. " +
@@ -316,22 +316,22 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       deductible: true,
       notes_nb:
         "MVA-fradrag for rimelige velferdstiltak for alle ansatte. " +
-        "Gjelder ogsaa alkohol servert ved slike arrangementer.",
+        "Gjelder også alkohol servert ved slike arrangementer.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
       "Velferdsarrangementer for alle ansatte er fradragsberettiget. " +
-      "Maa vaere rimelig omfang og inkludere alle/en gruppe ansatte. " +
+      "Må være rimelig omfang og inkludere alle/en gruppe ansatte. " +
       "Private arrangementer for enkeltpersoner gir ikke fradrag.",
   },
 
   // ── Marketing ────────────────────────────────────────────────────────
   {
     id: "scenario-marketing",
-    name_nb: "Markedsfoering og reklame",
+    name_nb: "Markedsføring og reklame",
     keywords: [
-      "markedsfoering",
+      "markedsføring",
       "reklame",
       "annonse",
       "annonsering",
@@ -350,21 +350,21 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       "utstilling",
     ],
     typical_accounts: [
-      { number: "7300", name: "Markedsfoering og reklame" },
+      { number: "7300", name: "Markedsføring og reklame" },
     ],
     vat_treatment: {
       rate: 25,
       code: "1",
       deductible: true,
       notes_nb:
-        "Norsk leverandoer: standard MVA-fradrag. " +
-        "Utenlandsk leverandoer (Google, Meta): snudd avregning.",
+        "Norsk leverandør: standard MVA-fradrag. " +
+        "Utenlandsk leverandør (Google, Meta): snudd avregning.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Annonse- og markedsfoeringskostnader kostnadsfoeres loepende. " +
-      "Storre kampanjer som gaar over flere perioder kan periodiseres.",
+      "Annonse- og markedsføringskostnader kostnadsføres løpende. " +
+      "Større kampanjer som går over flere perioder kan periodiseres.",
   },
 
   // ── Insurance ────────────────────────────────────────────────────────
@@ -396,12 +396,12 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       deductible: false,
       notes_nb:
         "Forsikringstjenester er unntatt MVA. " +
-        "Ingen MVA paa premien, ingen fradrag.",
+        "Ingen MVA på premien, ingen fradrag.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Aarlige forsikringspremier bor periodiseres om belop er vesentlig. " +
+      "Årlige forsikringspremier bør periodiseres om beløp er vesentlig. " +
       "Bruk konto 7500 for bedriftsforsikring, " +
       "7040 for bilforsikring, 5800 for personalforsikring.",
   },
@@ -428,14 +428,14 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       code: null,
       deductible: true,
       notes_nb:
-        "Husleie kan vaere med eller uten MVA avhengig av om utleier " +
+        "Husleie kan være med eller uten MVA avhengig av om utleier " +
         "er frivillig MVA-registrert. Sjekk faktura. " +
         "Frivillig registrert utleier fakturerer med 25 % MVA.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Kostnadsfoeres loepende per maaned. " +
+      "Kostnadsføres løpende per måned. " +
       "Forskuddsbetalt leie periodiseres.",
   },
 
@@ -445,12 +445,12 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     name_nb: "Konsulenthonorar og fremmedtjenester",
     keywords: [
       "konsulent",
-      "raadgiver",
+      "rådgiver",
       "advokat",
       "revisor",
-      "regnskapsforer",
+      "regnskapsfører",
       "juridisk",
-      "raadgivning",
+      "rådgivning",
       "honorar",
       "fremmedtjeneste",
       "ekstern bistand",
@@ -463,14 +463,14 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       code: "1",
       deductible: true,
       notes_nb:
-        "Norsk leverandoer: 25 % MVA. " +
-        "Utenlandsk leverandoer: snudd avregning. " +
+        "Norsk leverandør: 25 % MVA. " +
+        "Utenlandsk leverandør: snudd avregning. " +
         "Juridisk bistand i forbindelse med unntatt virksomhet " +
         "(f.eks. eiendomstransaksjon) kan ha begrenset fradragsrett.",
     },
     treatment: "expense",
     risk_level: "low",
-    notes_nb: "Kostnadsfoeres normalt loepende.",
+    notes_nb: "Kostnadsføres normalt løpende.",
   },
 
   // ── Foreign SaaS (reverse charge) ────────────────────────────────────
@@ -504,19 +504,19 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       code: null,
       deductible: true,
       notes_nb:
-        "Snudd avregning: kjoeper beregner og rapporterer 25 % MVA. " +
-        "Faktura fra utenlandsk leverandoer er uten norsk MVA. " +
-        "Beregnet MVA foeres som utgaaende MVA og trekkes fra som " +
-        "inngaaende MVA (netto null for fullt fradragsberettigede).",
+        "Snudd avregning: kjøper beregner og rapporterer 25 % MVA. " +
+        "Faktura fra utenlandsk leverandør er uten norsk MVA. " +
+        "Beregnet MVA føres som utgående MVA og trekkes fra som " +
+        "inngående MVA (netto null for fullt fradragsberettigede).",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Husk aa rapportere snudd avregning i MVA-meldingen. " +
-      "Foeres paa korrekt konto for tjenestetype. " +
+      "Husk å rapportere snudd avregning i MVA-meldingen. " +
+      "Føres på korrekt konto for tjenestetype. " +
       "I PowerOffice: bruk MVA-kode for snudd avregning.",
     conditions_nb:
-      "Gjelder fjernleverbare tjenester fra leverandoer uten norsk MVA-registrering.",
+      "Gjelder fjernleverbare tjenester fra leverandør uten norsk MVA-registrering.",
   },
 
   // ── Private expense through company ──────────────────────────────────
@@ -526,14 +526,14 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     keywords: [
       "privat",
       "personlig",
-      "aksjonaerlaan",
-      "mellomvaerende",
+      "aksjonærlån",
+      "mellomværende",
       "privat utlegg",
       "privatbruk",
-      "privat kjoep",
+      "privat kjøp",
     ],
     typical_accounts: [
-      { number: "1590", name: "Mellomvaerende med aksjonaer" },
+      { number: "1590", name: "Mellomværende med aksjonær" },
     ],
     vat_treatment: {
       rate: null,
@@ -541,17 +541,17 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       deductible: false,
       notes_nb:
         "Private kostnader gir IKKE MVA-fradrag. " +
-        "Kan ikke kostnadsfoeres i selskapet.",
+        "Kan ikke kostnadsføres i selskapet.",
     },
     treatment: "depends",
     risk_level: "high",
     notes_nb:
-      "Private kostnader betalt av selskapet maa behandles som " +
-      "aksjonaerlaan eller loenn/utbytte. Aksjonaerlaan har strenge regler " +
-      "(rentekrav, nedbetalingsplan). Maa avklares med revisor/regnskapsforer.",
+      "Private kostnader betalt av selskapet må behandles som " +
+      "aksjonærlån eller lønn/utbytte. Aksjonærlån har strenge regler " +
+      "(rentekrav, nedbetalingsplan). Må avklares med revisor/regnskapsfører.",
     conditions_nb:
-      "ADVARSEL: Feil behandling kan foere til skattemessige konsekvenser " +
-      "og tilleggsskatt. Anbefaler aa konsultere regnskapsforer.",
+      "ADVARSEL: Feil behandling kan føre til skattemessige konsekvenser " +
+      "og tilleggsskatt. Anbefaler å konsultere regnskapsfører.",
   },
 
   // ── Vehicle costs ────────────────────────────────────────────────────
@@ -579,7 +579,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       { number: "7000", name: "Drivstoff, bil" },
       { number: "7020", name: "Vedlikehold bil" },
       { number: "7040", name: "Forsikring bil" },
-      { number: "7080", name: "Bilgodtgjoerelse" },
+      { number: "7080", name: "Bilgodtgjørelse" },
     ],
     vat_treatment: {
       rate: 25,
@@ -587,27 +587,27 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       deductible: false,
       notes_nb:
         "Personbil (inkl. varebil klasse 1): INGEN MVA-fradrag " +
-        "paa anskaffelse eller drift. " +
+        "på anskaffelse eller drift. " +
         "Varebil klasse 2 og lastebil: full MVA-fradrag. " +
-        "Elbil: samme regler som oevrige personbiler mht. MVA.",
+        "Elbil: samme regler som øvrige personbiler mht. MVA.",
     },
     treatment: "expense",
     risk_level: "medium",
     notes_nb:
       "Avklar om det er personbil eller yrkesbil for korrekt MVA-behandling. " +
       "Privat bruk av firmabil gir skattepliktig fordel for bruker. " +
-      "Kjoerbok anbefales ved blandet bruk.",
+      "Kjørebok anbefales ved blandet bruk.",
     conditions_nb:
-      "Type kjoeretoey (personbil vs. varebil klasse 2) " +
-      "er avgoerende for MVA-fradragsretten.",
+      "Type kjøretøy (personbil vs. varebil klasse 2) " +
+      "er avgjørende for MVA-fradragsretten.",
   },
 
   // ── Work clothing ────────────────────────────────────────────────────
   {
     id: "scenario-work-clothing",
-    name_nb: "Arbeidsklaer og verneutstyr",
+    name_nb: "Arbeidsklær og verneutstyr",
     keywords: [
-      "arbeidsklaer",
+      "arbeidsklær",
       "verneutstyr",
       "uniform",
       "vernesko",
@@ -616,28 +616,28 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       "arbeidsjakke",
       "logo",
       "profilert",
-      "verneklaer",
+      "verneklær",
     ],
     typical_accounts: [
       { number: "5900", name: "Andre personalkostnader" },
-      { number: "6500", name: "Verktoy, inventar og driftsmaterialer" },
+      { number: "6500", name: "Verktøy, inventar og driftsmaterialer" },
     ],
     vat_treatment: {
       rate: 25,
       code: "1",
       deductible: true,
       notes_nb:
-        "MVA-fradrag for arbeidsklaer som er paakrevd i yrket " +
+        "MVA-fradrag for arbeidsklær som er påkrevd i yrket " +
         "eller tydelig merket med firmalogo. " +
-        "Vanlige klaer (dress, skjorte) gir normalt ikke fradrag.",
+        "Vanlige klær (dress, skjorte) gir normalt ikke fradrag.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Klaer maa vaere yrkespaakrevd eller tydelig firmamerket. " +
-      "Vanlige klaer som ogsaa brukes privat er ikke fradragsberettiget.",
+      "Klær må være yrkespåkrevd eller tydelig firmamerket. " +
+      "Vanlige klær som også brukes privat er ikke fradragsberettiget.",
     conditions_nb:
-      "Skillet mellom arbeidsklaer og privat bekledning er viktig.",
+      "Skillet mellom arbeidsklær og privat bekledning er viktig.",
   },
 
   // ── Subscriptions / memberships ──────────────────────────────────────
@@ -651,7 +651,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       "virke",
       "fagforening",
       "bransjeforening",
-      "naeringsforening",
+      "næringsforening",
       "handelskammer",
     ],
     typical_accounts: [
@@ -667,7 +667,7 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     },
     treatment: "expense",
     risk_level: "low",
-    notes_nb: "Kostnadsfoeres loepende. Ingen MVA paa kontingenter.",
+    notes_nb: "Kostnadsføres løpende. Ingen MVA på kontingenter.",
   },
 
   // ── Bank fees ────────────────────────────────────────────────────────
@@ -694,17 +694,17 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       deductible: false,
       notes_nb:
         "Finansielle tjenester er unntatt MVA. " +
-        "Ingen MVA paa bankgebyrer og kortavgifter.",
+        "Ingen MVA på bankgebyrer og kortavgifter.",
     },
     treatment: "expense",
     risk_level: "low",
-    notes_nb: "Kostnadsfoeres loepende. Ingen MVA.",
+    notes_nb: "Kostnadsføres løpende. Ingen MVA.",
   },
 
   // ── Books & publications ─────────────────────────────────────────────
   {
     id: "scenario-books",
-    name_nb: "Fagboeker og tidsskrifter",
+    name_nb: "Fagbøker og tidsskrifter",
     keywords: [
       "bok",
       "fagbok",
@@ -717,20 +717,20 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
       "akademisk",
     ],
     typical_accounts: [
-      { number: "7320", name: "Aviser, tidsskrifter, boeker" },
+      { number: "7320", name: "Aviser, tidsskrifter, bøker" },
     ],
     vat_treatment: {
       rate: 0,
       code: null,
       deductible: false,
       notes_nb:
-        "Boeker og aviser er fritatt for MVA (nullsats). " +
-        "E-boeker og elektroniske aviser: nullsats fra 2019.",
+        "Bøker og aviser er fritatt for MVA (nullsats). " +
+        "E-bøker og elektroniske aviser: nullsats fra 2019.",
     },
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Kostnadsfoeres direkte. Maa vaere yrkesrelevant for " +
+      "Kostnadsføres direkte. Må være yrkesrelevant for " +
       "skattemessig fradrag.",
   },
 
@@ -765,8 +765,8 @@ export const COMMON_SCENARIOS: CommonScenario[] = [
     treatment: "expense",
     risk_level: "low",
     notes_nb:
-      "Porto/brevpost paa konto 6800 eller egen underkonto. " +
-      "Varetransport paa konto 6100.",
+      "Porto/brevpost på konto 6800 eller egen underkonto. " +
+      "Varetransport på konto 6100.",
   },
 ];
 

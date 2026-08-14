@@ -29,9 +29,9 @@ export const capitalizationRules: AccountingRuleDefinition[] = [
     category: "capitalization",
     title_nb: "Aktiveringsgrense for driftsmidler",
     description_nb:
-      "Driftsmidler med kostpris under kr 15 000 (ekskl. MVA) kan kostnadsfoeres " +
+      "Driftsmidler med kostpris under kr 15 000 (ekskl. MVA) kan kostnadsføres " +
       "direkte. Driftsmidler med kostpris lik eller over kr 15 000 og forventet " +
-      "levetid over 3 aar skal normalt aktiveres og avskrives. " +
+      "levetid over 3 år skal normalt aktiveres og avskrives. " +
       "Ref. sktl. § 14-40 (1) bokstav a.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
@@ -46,9 +46,9 @@ export const capitalizationRules: AccountingRuleDefinition[] = [
     category: "capitalization",
     title_nb: "Samlet anskaffelse",
     description_nb:
-      "Dersom det kjoepes flere like eiendeler samtidig (f.eks. 10 stoler " +
+      "Dersom det kjøpes flere like eiendeler samtidig (f.eks. 10 stoler " +
       "à kr 5 000), vurderes det om samlet kostpris overstiger " +
-      "aktiveringsgrensen. Hvert enkelt driftsmiddel maa vurderes, men " +
+      "aktiveringsgrensen. Hvert enkelt driftsmiddel må vurderes, men " +
       "funksjonelt sammensatte enheter sees under ett.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
@@ -57,12 +57,12 @@ export const capitalizationRules: AccountingRuleDefinition[] = [
   {
     id: "cap-003",
     category: "capitalization",
-    title_nb: "Paakosting vs. vedlikehold",
+    title_nb: "Påkosting vs. vedlikehold",
     description_nb:
-      "Kostnader som oeker eiendelens kapasitet, levetid eller standard " +
-      "utover opprinnelig stand er paakosting og skal aktiveres. " +
+      "Kostnader som øker eiendelens kapasitet, levetid eller standard " +
+      "utover opprinnelig stand er påkosting og skal aktiveres. " +
       "Kostnader som opprettholder opprinnelig stand er vedlikehold " +
-      "og kostnadsfoeres loepende.",
+      "og kostnadsføres løpende.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "NRS 8 / Skatteloven § 6-11",
@@ -121,17 +121,17 @@ export const DEPRECIATION_GROUPS: DepreciationGroup[] = [
     max_rate_percent: 20,
     examples_nb: [
       "Personbiler",
-      "Kontormoebler",
+      "Kontormøbler",
       "Produksjonsmaskiner",
-      "Verktoy over aktiveringsgrensen",
+      "Verktøy over aktiveringsgrensen",
       "Inventar",
     ],
   },
   {
     group: "e",
-    name_nb: "Skip, fartoy, rigger mv.",
+    name_nb: "Skip, fartøy, rigger mv.",
     max_rate_percent: 14,
-    examples_nb: ["Skip", "Rigger", "Floetere"],
+    examples_nb: ["Skip", "Rigger", "Fløtere"],
   },
   {
     group: "f",
@@ -200,9 +200,9 @@ export const periodizationRules: AccountingRuleDefinition[] = [
     title_nb: "Periodisering av forskuddsbetalte kostnader",
     description_nb:
       "Kostnader som dekker mer enn en regnskapsperiode (typisk 1 mnd) " +
-      "skal periodiseres. Eksempler: forsikring betalt aarlig, " +
-      "leie betalt forskudd, aarsabonnementer. " +
-      "Forholdsmessig del foeres som kostnad per maned, " +
+      "skal periodiseres. Eksempler: forsikring betalt årlig, " +
+      "leie betalt forskudd, årsabonnementer. " +
+      "Forholdsmessig del føres som kostnad per måned, " +
       "resten som forskuddsbetalt kostnad (balansekonto 17xx).",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
@@ -213,13 +213,13 @@ export const periodizationRules: AccountingRuleDefinition[] = [
     category: "periodization",
     title_nb: "Vesentlighetsgrense for periodisering",
     description_nb:
-      "Poster under et vesentlighetsbeloep (typisk kr 50 000 for smaa " +
-      "selskaper) kan vurderes kostnadsfoert direkte uten periodisering, " +
+      "Poster under et vesentlighetsbeløp (typisk kr 50 000 for små " +
+      "selskaper) kan vurderes kostnadsført direkte uten periodisering, " +
       "forutsatt at det er konsistent praksis og ikke vesentlig " +
-      "paavirker regnskapet.",
+      "påvirker regnskapet.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
-    source: "NRS 8 God regnskapsskikk for smaa foretak",
+    source: "NRS 8 God regnskapsskikk for små foretak",
     thresholds: {
       materiality_small_company_nok: 50_000,
     },
@@ -227,11 +227,11 @@ export const periodizationRules: AccountingRuleDefinition[] = [
   {
     id: "per-003",
     category: "periodization",
-    title_nb: "Paaloepte, ikke-fakturerte kostnader",
+    title_nb: "Påløpte, ikke-fakturerte kostnader",
     description_nb:
-      "Kostnader som er paaloept i perioden men ennaa ikke fakturert " +
+      "Kostnader som er påløpt i perioden men ennå ikke fakturert " +
       "skal avsettes som gjeld (konto 29xx). Eksempler: revisjonshonorar, " +
-      "stroemforbruk, telefonkostnader.",
+      "strømforbruk, telefonkostnader.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Regnskapsloven § 4-1",
@@ -248,9 +248,9 @@ export const revenueRecognitionRules: AccountingRuleDefinition[] = [
     category: "revenue_recognition",
     title_nb: "Opptjeningsprinsippet",
     description_nb:
-      "Inntekt skal resultatfoeres naar den er opptjent, uavhengig av " +
+      "Inntekt skal resultatføres når den er opptjent, uavhengig av " +
       "betalingstidspunkt. For salg av varer: ved levering. " +
-      "For tjenester: etter hvert som tjenesten utfoeres.",
+      "For tjenester: etter hvert som tjenesten utføres.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Regnskapsloven § 4-1 (1) nr. 2",
@@ -258,11 +258,11 @@ export const revenueRecognitionRules: AccountingRuleDefinition[] = [
   {
     id: "rev-002",
     category: "revenue_recognition",
-    title_nb: "Loepende tjenesteyting",
+    title_nb: "Løpende tjenesteyting",
     description_nb:
-      "Inntekter fra loepende tjenester (abonnementer, support-avtaler, " +
+      "Inntekter fra løpende tjenester (abonnementer, support-avtaler, " +
       "vedlikeholdskontrakter) periodiseres over avtaleperioden. " +
-      "Forskuddsbetaling foeres som uopptjent inntekt (konto 29xx).",
+      "Forskuddsbetaling føres som uopptjent inntekt (konto 29xx).",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "NRS 2 Anleggskontrakter / NRS(V) Inntekt",
@@ -272,9 +272,9 @@ export const revenueRecognitionRules: AccountingRuleDefinition[] = [
     category: "revenue_recognition",
     title_nb: "Anleggskontrakter",
     description_nb:
-      "Langsiktige tilvirkningskontrakter kan inntektsfoeres etter " +
-      "loepende avregnings metode (forekommen) eller fullfoert " +
-      "kontrakts metode. Smaa foretak kan velge fritt.",
+      "Langsiktige tilvirkningskontrakter kan inntektsføres etter " +
+      "løpende avregnings metode (forekommen) eller fullført " +
+      "kontrakts metode. Små foretak kan velge fritt.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "NRS 2 Anleggskontrakter",

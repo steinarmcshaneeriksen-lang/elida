@@ -6,6 +6,8 @@ import type {
   FinancialInsight,
   IntegrationSyncState,
 } from "@/lib/types/database";
+import { partialMonthNote } from "@/lib/data-window";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/summary
@@ -14,14 +16,18 @@ import type {
  * - Revenue YTD vs comparison
  * - Profit YTD vs comparison
  * - Cash position + 60-day forecast minimum
- * - Receivables total + overdue
- * - Upcoming obligations (30 days)
+ * - Receivables total
  * - Active insights
+ *
+ * Overdue receivables and upcoming obligations were carried as fields that were
+ * always null: SAF-T states a balance per customer, never the invoices behind
+ * it, so neither can be derived. Removed rather than left as permanent nulls
+ * for something to be wired up to.
  * - Data quality indicators
  */
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: companyId } = await params;
@@ -30,82 +36,94 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Attempt to load real data from financial_metric_snapshots
-    const now = new Date();
-    const yearStart = `${now.getFullYear()}-01-01`;
-    const yearEnd = `${now.getFullYear()}-12-31`;
-
-    const { data: metrics } = await supabase
+    // Show the most recent period the company actually holds data for.
+    // Filtering to the current calendar year would show nothing at all to
+    // someone who has only uploaded last year's file.
+    const { data: allMetrics } = (await supabase
       .from("financial_metric_snapshots")
       .select("*")
       .eq("company_id", companyId)
-      .gte("period_start", yearStart)
-      .lte("period_end", yearEnd)
-      .order("calculated_at", { ascending: false }) as {
+      .eq("period_type", "ytd")
+      .order("period_end", { ascending: false })
+      .limit(2000)) as {
       data: FinancialMetricSnapshot[] | null;
     };
 
+    const latestPeriodEnd = allMetrics?.[0]?.period_end ?? null;
+    const metrics = (allMetrics ?? []).filter(
+      (m) => m.period_end === latestPeriodEnd,
+    );
+
     // Load active insights
-    const { data: insights } = await supabase
+    const { data: insights } = (await supabase
       .from("financial_insights")
       .select("*")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .order("created_at", { ascending: false })
-      .limit(10) as { data: FinancialInsight[] | null };
+      .limit(10)) as { data: FinancialInsight[] | null };
 
     // Load sync state for data quality
-    const { data: syncStates } = await supabase
+    const { data: syncStates } = (await supabase
       .from("integration_sync_state")
       .select("*")
       .eq("company_id", companyId)
-      .order("last_sync_completed_at", { ascending: false }) as {
+      .order("last_sync_completed_at", { ascending: false })) as {
       data: IntegrationSyncState[] | null;
     };
 
-    // If we have real metric snapshots, use them
-    const revenueMetric = metrics?.find((m) => m.metric === "revenue_ytd");
-    const profitMetric = metrics?.find(
-      (m) => m.metric === "operating_profit_ytd"
+    const revenueMetric = metrics.find((m) => m.metric === "revenue_ytd");
+    const profitMetric = metrics.find(
+      (m) => m.metric === "operating_profit_ytd",
     );
 
     if (revenueMetric && profitMetric) {
-      const cashMetric = metrics?.find((m) => m.metric === "cash_balance");
-      const forecastMetric = metrics?.find(
-        (m) => m.metric === "cash_forecast_60d_min"
-      );
-      const receivablesMetric = metrics?.find(
-        (m) => m.metric === "receivables_total"
-      );
-      const overdueMetric = metrics?.find(
-        (m) => m.metric === "receivables_overdue"
-      );
-      const obligationsMetric = metrics?.find(
-        (m) => m.metric === "obligations_30d"
+      const cashMetric = metrics.find((m) => m.metric === "cash_balance");
+      const receivablesMetric = metrics.find(
+        (m) => m.metric === "receivables_total",
       );
 
       const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
 
+      // The shape of the period behind each headline figure. The cards state
+      // the amount and the movement; this is the path between them.
+      const monthly = await loadMonthly(
+        supabase,
+        companyId,
+        revenueMetric.period_start,
+        revenueMetric.period_end,
+        revenueMetric.comparison_period_start,
+        revenueMetric.comparison_period_end
+      );
+
+      // A metric with no comparison means the previous year has not been
+      // imported. Report that as absent rather than as zero, which would
+      // render as a 100% collapse.
+      const withComparison = (m: FinancialMetricSnapshot) => ({
+        ytd: m.value,
+        comparison_ytd: m.comparison_value,
+        change_percent: m.change_percent,
+        has_comparison: m.comparison_value != null,
+      });
+
       return NextResponse.json({
-        revenue: {
-          ytd: revenueMetric.value,
-          comparison_ytd: revenueMetric.comparison_value ?? 0,
-          change_percent: revenueMetric.change_percent ?? 0,
+        has_data: true,
+        period: {
+          start: revenueMetric.period_start,
+          end: revenueMetric.period_end,
+          comparison_start: revenueMetric.comparison_period_start,
+          comparison_end: revenueMetric.comparison_period_end,
+          // One clause, only when a month exists in the books that the
+          // figures do not cover.
+          note: periodNote(revenueMetric),
         },
-        profit: {
-          ytd: profitMetric.value,
-          comparison_ytd: profitMetric.comparison_value ?? 0,
-          change_percent: profitMetric.change_percent ?? 0,
-        },
-        cash: {
-          current: cashMetric?.value ?? 0,
-          forecast_60_day_min: forecastMetric?.value ?? 0,
-        },
-        receivables: {
-          total: receivablesMetric?.value ?? 0,
-          overdue: overdueMetric?.value ?? 0,
-        },
-        upcoming_obligations_30d: obligationsMetric?.value ?? 0,
+        monthly,
+        revenue: withComparison(revenueMetric),
+        profit: withComparison(profitMetric),
+        cash: cashMetric ? { current: cashMetric.value } : null,
+        receivables: receivablesMetric
+          ? { total: receivablesMetric.value }
+          : null,
         insights: mapInsights(insights),
         data_quality: {
           last_sync: lastSync,
@@ -115,10 +133,23 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock data for MVP
-    return NextResponse.json(
-      getMockSummary(insights, syncStates)
-    );
+    // No financial data synced yet — return an honest empty state.
+    // The UI shows a "connect your accounting system" prompt for this.
+    const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
+
+    return NextResponse.json({
+      has_data: false,
+      revenue: null,
+      profit: null,
+      cash: null,
+      receivables: null,
+      insights: mapInsights(insights),
+      data_quality: {
+        last_sync: lastSync,
+        freshness: computeFreshness(lastSync),
+        completeness: computeCompleteness(syncStates ?? []),
+      },
+    });
   } catch (error) {
     console.error("Summary API error:", error);
     return errorResponse("Failed to load summary");
@@ -129,18 +160,172 @@ export async function GET(
 // Helpers
 // ---------------------------------------------------------------------------
 
+interface MonthFigures {
+  revenue: number;
+  profit: number;
+  margin: number;
+}
+
+interface MonthRow extends MonthFigures {
+  month: string;
+  /** The same calendar month a year earlier, when that year is held. */
+  previous: MonthFigures | null;
+}
+
+/**
+ * Each month of the period, and the same month a year earlier.
+ *
+ * The comparison months are not decoration. Drawn alone, a rising line beside
+ * a chip reading "down 18 %" looks like the two disagree — they measure
+ * different things, and nothing on the card said so. With last year behind it,
+ * the gap between the lines is the change the chip states, and the two agree
+ * by construction.
+ *
+ * Amounts are stored debit-positive, so revenue accounts — which are
+ * credit-normal — are flipped to read as income.
+ */
+async function loadMonthly(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  companyId: string,
+  start: string,
+  end: string,
+  comparisonStart: string | null,
+  comparisonEnd: string | null
+): Promise<MonthRow[]> {
+  const [current, previous] = await Promise.all([
+    monthTotals(supabase, companyId, start, end),
+    comparisonStart && comparisonEnd
+      ? monthTotals(supabase, companyId, comparisonStart, comparisonEnd)
+      : Promise.resolve(new Map<string, MonthFigures>()),
+  ]);
+
+  return [...current.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, figures]) => ({
+      month,
+      ...figures,
+      // Matched by calendar month: the comparison is the same months a year
+      // earlier, so July lines up with July.
+      previous: previous.get(shiftYear(month)) ?? null,
+    }));
+}
+
+/** "2026-07" → "2025-07". */
+function shiftYear(month: string): string {
+  return `${Number(month.slice(0, 4)) - 1}${month.slice(4)}`;
+}
+
+async function monthTotals(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  companyId: string,
+  start: string,
+  end: string
+): Promise<Map<string, MonthFigures>> {
+  type Row = { account_number: string; amount: number; transaction_date: string };
+
+  const rows = await fetchAll<Row>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount, transaction_date")
+        .eq("company_id", companyId)
+        .gte("transaction_date", start)
+        .lte("transaction_date", end)
+        .order("transaction_date", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Row[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "posteringer" }
+  );
+
+  const raw = new Map<string, { revenue: number; costs: number }>();
+
+  for (const row of rows) {
+    const account = parseInt(row.account_number, 10);
+    if (!Number.isFinite(account)) continue;
+
+    const month = row.transaction_date.slice(0, 7);
+    const entry = raw.get(month) ?? { revenue: 0, costs: 0 };
+
+    if (account >= 3000 && account <= 3999) entry.revenue -= Number(row.amount);
+    else if (account >= 4000 && account <= 7999) entry.costs += Number(row.amount);
+
+    raw.set(month, entry);
+  }
+
+  const out = new Map<string, MonthFigures>();
+  for (const [month, v] of raw) {
+    out.set(month, {
+      revenue: Math.round(v.revenue),
+      profit: Math.round(v.revenue - v.costs),
+      margin:
+        v.revenue > 0
+          ? Math.round(((v.revenue - v.costs) / v.revenue) * 1000) / 10
+          : 0,
+    });
+  }
+  return out;
+}
+
+/**
+ * The month left outside the period, when there is one. Read back off the
+ * metrics, which recorded it when they were computed.
+ */
+function periodNote(metric: FinancialMetricSnapshot): string | null {
+  const meta = metric.metadata as {
+    trailing_months?: string[];
+    trailing_postings?: number;
+    partial_month?: {
+      month: string;
+      lastDate: string;
+      postingCount: number;
+    } | null;
+  } | null;
+
+  if (!meta) return null;
+
+  return partialMonthNote({
+    end: metric.period_end,
+    completeEnd: metric.period_end,
+    partial: meta.partial_month ?? null,
+    trailingMonths: meta.trailing_months ?? [],
+    trailingPostings: meta.trailing_postings ?? 0,
+  });
+}
+
+/** Most serious first — created_at is the same second for the whole set. */
+const SEVERITY_RANK: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  info: 4,
+};
+
 function mapInsights(insights: FinancialInsight[] | null) {
-  return (insights ?? []).map((i) => ({
-    id: i.id,
-    type: i.insight_type,
-    severity: i.severity,
-    title: i.title_nb,
-    description: i.description_nb,
-    metric_current: i.metric_current,
-    metric_reference: i.metric_reference,
-    period: i.period,
-    created_at: i.created_at,
-  }));
+  return (insights ?? [])
+    .slice()
+    .sort(
+      (a, b) =>
+        (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9),
+    )
+    .map((i) => ({
+      id: i.id,
+      type: i.insight_type,
+      severity: i.severity,
+      title: i.title_nb,
+      description: i.description_nb,
+      metric_current: i.metric_current,
+      metric_reference: i.metric_reference,
+      period: i.period,
+      // The figures the rule fired on, so the reader can check it rather than
+      // take the sentence on trust.
+      evidence: Array.isArray(i.evidence) ? (i.evidence as string[]) : [],
+      created_at: i.created_at,
+    }));
 }
 
 function computeFreshness(lastSync: string | null): string {
@@ -153,94 +338,13 @@ function computeFreshness(lastSync: string | null): string {
   return "outdated";
 }
 
-function computeCompleteness(
-  syncStates: IntegrationSyncState[]
-): string {
+function computeCompleteness(syncStates: IntegrationSyncState[]): string {
   if (syncStates.length === 0) return "no_data";
   const completed = syncStates.filter(
-    (s) => s.sync_status === "completed"
+    (s) => s.sync_status === "completed",
   ).length;
   const ratio = completed / syncStates.length;
   if (ratio >= 0.9) return "complete";
   if (ratio >= 0.5) return "partial";
   return "incomplete";
-}
-
-function getMockSummary(
-  insights: FinancialInsight[] | null,
-  syncStates: IntegrationSyncState[] | null
-) {
-  const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
-
-  const insightsList =
-    insights && insights.length > 0
-      ? mapInsights(insights)
-      : [
-          {
-            id: "mock-ins-1",
-            type: "overdue_receivable",
-            severity: "high",
-            title: "Stor kundefordring 45 dager forbi forfall",
-            description:
-              "Nordfjord Consulting AS har en faktura pa 185 000 kr som er 45 dager forbi forfall.",
-            metric_current: 185_000,
-            metric_reference: null,
-            period: null,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "mock-ins-2",
-            type: "cost_increase",
-            severity: "medium",
-            title: "Kontorkostnader har okt 23 % siste kvartal",
-            description:
-              "Kontorkostnader var 148 000 kr i Q2 mot 120 000 kr i Q1.",
-            metric_current: 148_000,
-            metric_reference: 120_000,
-            period: "Q2 2026",
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: "mock-ins-3",
-            type: "vat_reminder",
-            severity: "medium",
-            title: "MVA-termin neste maned",
-            description:
-              "Estimert MVA-betaling for 4. termin er ca. 310 000 kr.",
-            metric_current: 310_000,
-            metric_reference: 285_000,
-            period: "4. termin (jul-aug)",
-            created_at: new Date().toISOString(),
-          },
-        ];
-
-  return {
-    revenue: {
-      ytd: 9_050_000,
-      comparison_ytd: 8_230_000,
-      change_percent: 10.0,
-    },
-    profit: {
-      ytd: 1_284_000,
-      comparison_ytd: 1_074_000,
-      change_percent: 19.6,
-    },
-    cash: {
-      current: 2_340_000,
-      forecast_60_day_min: 1_650_000,
-    },
-    receivables: {
-      total: 1_870_000,
-      overdue: 420_000,
-    },
-    upcoming_obligations_30d: 1_920_000,
-    insights: insightsList,
-    data_quality: {
-      last_sync: lastSync,
-      freshness: lastSync ? computeFreshness(lastSync) : "mock_data",
-      completeness: lastSync
-        ? computeCompleteness(syncStates ?? [])
-        : "mock_data",
-    },
-  };
 }

@@ -128,130 +128,19 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock
-    return NextResponse.json(getMockPayables());
+    // Nothing imported yet — return an honest empty state.
+    return NextResponse.json({
+      has_data: false,
+      total_outstanding: 0,
+      total_overdue: 0,
+      count_outstanding: 0,
+      count_overdue: 0,
+      supplier_breakdown: [],
+      upcoming_payments: [],
+      recurring_costs: [],
+    });
   } catch (error) {
     console.error("Payables API error:", error);
     return errorResponse("Failed to load payables data");
   }
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockPayables() {
-  return {
-    total_outstanding: 259_000,
-    total_overdue: 0,
-    count_outstanding: 4,
-    count_overdue: 0,
-    supplier_breakdown: [
-      {
-        supplier_id: "sup-1",
-        supplier_name: "Tekna Systems AS",
-        outstanding: 89_000,
-        invoice_count: 1,
-      },
-      {
-        supplier_id: "sup-3",
-        supplier_name: "Kontorpartner AS",
-        outstanding: 65_000,
-        invoice_count: 1,
-      },
-      {
-        supplier_id: "sup-2",
-        supplier_name: "CloudHost Norge",
-        outstanding: 42_000,
-        invoice_count: 1,
-      },
-      {
-        supplier_id: "sup-7",
-        supplier_name: "Digital Marketing Oslo",
-        outstanding: 35_000,
-        invoice_count: 1,
-      },
-      {
-        supplier_id: "sup-5",
-        supplier_name: "Trygg Forsikring",
-        outstanding: 28_000,
-        invoice_count: 1,
-      },
-    ],
-    upcoming_payments: [
-      {
-        id: "pay-1",
-        invoice_number: "TK-2026-0891",
-        supplier_name: "Tekna Systems AS",
-        amount: 89_000,
-        due_date: "2026-08-18",
-      },
-      {
-        id: "pay-2",
-        invoice_number: "CH-2026-08",
-        supplier_name: "CloudHost Norge",
-        amount: 42_000,
-        due_date: "2026-08-20",
-      },
-      {
-        id: "pay-3",
-        invoice_number: "DM-2026-044",
-        supplier_name: "Digital Marketing Oslo",
-        amount: 35_000,
-        due_date: "2026-08-28",
-      },
-      {
-        id: "pay-4",
-        invoice_number: "KP-2026-09",
-        supplier_name: "Kontorpartner AS",
-        amount: 65_000,
-        due_date: "2026-09-01",
-      },
-      {
-        id: "pay-5",
-        invoice_number: "TF-2026-Q3",
-        supplier_name: "Trygg Forsikring",
-        amount: 28_000,
-        due_date: "2026-09-01",
-      },
-    ],
-    recurring_costs: [
-      {
-        id: "rec-1",
-        supplier_name: "Kontorpartner AS",
-        description: "Kontorleie",
-        avg_amount: 65_000,
-        frequency: "monthly",
-        next_expected_date: "2026-09-01",
-        confidence: "high_confidence",
-      },
-      {
-        id: "rec-2",
-        supplier_name: "CloudHost Norge",
-        description: "Hosting og skyinfrastruktur",
-        avg_amount: 42_000,
-        frequency: "monthly",
-        next_expected_date: "2026-09-20",
-        confidence: "high_confidence",
-      },
-      {
-        id: "rec-3",
-        supplier_name: "Trygg Forsikring",
-        description: "Forsikringspremie",
-        avg_amount: 28_000,
-        frequency: "quarterly",
-        next_expected_date: "2026-12-01",
-        confidence: "high_confidence",
-      },
-      {
-        id: "rec-4",
-        supplier_name: "Tekna Systems AS",
-        description: "Systemvedlikehold",
-        avg_amount: 89_000,
-        frequency: "monthly",
-        next_expected_date: "2026-09-15",
-        confidence: "estimated",
-      },
-    ],
-  };
 }

@@ -1,18 +1,46 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/format";
-import { customers, type Customer } from "@/lib/mock-data";
-import { ArrowUpDown, AlertTriangle, ChevronRight } from "lucide-react";
+import { useCompanyData } from "@/lib/hooks/use-company-data";
+import {
+  NoDataState,
+  LoadingState,
+  ErrorState,
+} from "@/components/dashboard/empty-state";
+import {
+  ArrowUpDown,
+  AlertTriangle,
+  ChevronRight,
+  Info,
+  Receipt,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 
-type SortKey = keyof Pick<
-  Customer,
-  "name" | "outstanding" | "overdue" | "oldestOverdueDays" | "avgDelayDays"
->;
+interface CustomerRow {
+  id: string;
+  name: string;
+  org_number: string | null;
+  outstanding: number | null;
+  period_movement: number;
+  revenue: number;
+  posting_count: number;
+  last_activity: string | null;
+  outstanding_is_stated: boolean;
+}
+
+type SortKey = "name" | "outstanding" | "revenue" | "last_activity";
 
 export default function KunderPage() {
+  const router = useRouter();
+  const { data, isLoading, error } =
+    useCompanyData<{ customers: CustomerRow[] }>("customers");
   const [sortKey, setSortKey] = useState<SortKey>("outstanding");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  const customers = data?.customers ?? [];
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -36,30 +64,92 @@ export default function KunderPage() {
       : (bVal as number) - (aVal as number);
   });
 
-  const totalOutstanding = customers.reduce((s, c) => s + c.outstanding, 0);
-  const totalOverdue = customers.reduce((s, c) => s + c.overdue, 0);
+  const outstandingIsStated = customers.some((c) => c.outstanding_is_stated);
+  const totalOutstanding = customers.reduce(
+    (s, c) => s + Math.max(0, c.outstanding ?? 0),
+    0
+  );
+  const totalRevenue = customers.reduce((s, c) => s + c.revenue, 0);
+  const owingCount = customers.filter((c) => (c.outstanding ?? 0) > 0).length;
+
+  if (isLoading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+  if (customers.length === 0) {
+    return (
+      <NoDataState
+        title="Ingen kunder ennå"
+        description="Importer en SAF-T-fil fra regnskapssystemet ditt, så viser Elida kundene dine med utestående beløp og betalingsatferd."
+      />
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      {/* Summary */}
+      {!outstandingIsStated && (
+        <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
+          <Info size={18} className="mt-0.5 shrink-0 text-warning" />
+          <p className="text-sm text-foreground-secondary">
+            SAF-T-filen oppgir ikke saldo per kunde, så Elida kan ikke si hva
+            den enkelte kunden skylder. Posteringene i perioden viser bare
+            bevegelsen — en faktura fra i fjor som betales i år framstår som en
+            reduksjon. Omsetning og aktivitet under er derimot korrekt.
+            Totalt utestående for selskapet finner du under Likviditet.
+          </p>
+        </div>
+      )}
+
+      {/* Summary — same card language as the dashboard: receivables copper,
+          revenue ocean, so a figure keeps its colour from page to page. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Totalt utestaende</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
-            {formatCurrency(totalOutstanding)}
+        <div data-tone="copper" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Totalt utestående
+            </p>
+            <span className="tone-badge shrink-0">
+              <Receipt size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            {outstandingIsStated ? formatCurrency(totalOutstanding) : "—"}
+          </p>
+          <p className="mt-1 text-xs text-foreground-muted">
+            {outstandingIsStated
+              ? "Inkl. mva — fakturert beløp"
+              : "Ikke oppgitt per kunde i filen"}
           </p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Forfalt</p>
-          <p className="mt-1 text-2xl font-bold text-danger">
-            {formatCurrency(totalOverdue)}
+        <div data-tone="ocean" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Omsetning i perioden
+            </p>
+            <span className="tone-badge shrink-0">
+              <TrendingUp size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
+            {formatCurrency(totalRevenue)}
           </p>
+          <p className="mt-1 text-xs text-foreground-muted">Eks. mva</p>
         </div>
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <p className="text-sm text-foreground-muted">Antall kunder</p>
-          <p className="mt-1 text-2xl font-bold text-foreground">
+        <div data-tone="slate" className="tone-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-medium text-foreground-secondary">
+              Kunder
+            </p>
+            <span className="tone-badge shrink-0">
+              <Users size={16} strokeWidth={2.2} />
+            </span>
+          </div>
+          <p className="mt-2 text-2xl font-bold tracking-tight tabular-nums text-foreground">
             {customers.length}
           </p>
+          {outstandingIsStated && (
+            <p className="mt-1 text-xs text-foreground-muted">
+              {owingCount} med utestående
+            </p>
+          )}
         </div>
       </div>
 
@@ -76,7 +166,7 @@ export default function KunderPage() {
                 onSort={toggleSort}
               />
               <SortableHeader
-                label="Utestaende"
+                label="Utestående"
                 sortKey="outstanding"
                 currentKey={sortKey}
                 direction={sortDir}
@@ -84,32 +174,21 @@ export default function KunderPage() {
                 align="right"
               />
               <SortableHeader
-                label="Forfalt"
-                sortKey="overdue"
+                label="Omsetning"
+                sortKey="revenue"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
                 align="right"
               />
               <SortableHeader
-                label="Eldste forfalt"
-                sortKey="oldestOverdueDays"
+                label="Siste aktivitet"
+                sortKey="last_activity"
                 currentKey={sortKey}
                 direction={sortDir}
                 onSort={toggleSort}
                 align="right"
               />
-              <SortableHeader
-                label="Snitt forsinkelse"
-                sortKey="avgDelayDays"
-                currentKey={sortKey}
-                direction={sortDir}
-                onSort={toggleSort}
-                align="right"
-              />
-              <th className="px-4 py-3 text-left font-medium text-foreground-secondary">
-                Risiko
-              </th>
               <th className="w-10" />
             </tr>
           </thead>
@@ -117,34 +196,38 @@ export default function KunderPage() {
             {sorted.map((customer) => (
               <tr
                 key={customer.id}
+                onClick={() => router.push(`/kunder/${customer.id}`)}
                 className="group cursor-pointer border-b border-border-light last:border-b-0 hover:bg-surface-hover"
               >
                 <td className="px-4 py-3 font-medium text-foreground">
                   {customer.name}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-foreground">
-                  {formatCurrency(customer.outstanding)}
-                </td>
                 <td className="px-4 py-3 text-right tabular-nums">
-                  {customer.overdue > 0 ? (
-                    <span className="flex items-center justify-end gap-1 text-danger">
-                      <AlertTriangle size={12} />
-                      {formatCurrency(customer.overdue)}
-                    </span>
+                  {customer.outstanding_is_stated ? (
+                    (customer.outstanding ?? 0) > 0 ? (
+                      <span className="flex items-center justify-end gap-1 font-medium text-foreground">
+                        <AlertTriangle size={12} className="text-warning" />
+                        {formatCurrency(customer.outstanding ?? 0)}
+                      </span>
+                    ) : (
+                      <span className="text-foreground-muted">—</span>
+                    )
                   ) : (
-                    <span className="text-foreground-muted">&mdash;</span>
+                    <span
+                      className="text-foreground-muted"
+                      title="SAF-T-filen oppgir ikke saldo per kunde"
+                    >
+                      —
+                    </span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-foreground-secondary">
-                  {customer.oldestOverdueDays !== null
-                    ? `${customer.oldestOverdueDays} dager`
+                  {customer.revenue !== 0
+                    ? formatCurrency(customer.revenue)
                     : "—"}
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-foreground-secondary">
-                  {customer.avgDelayDays} dager
-                </td>
-                <td className="px-4 py-3">
-                  <RiskBadge risk={customer.riskScore} />
+                <td className="px-4 py-3 text-right tabular-nums text-foreground-muted">
+                  {customer.last_activity ?? "—"}
                 </td>
                 <td className="px-4 py-3">
                   <ChevronRight
@@ -179,7 +262,7 @@ function SortableHeader({
   const isActive = currentKey === sortKey;
   return (
     <th
-      className={`cursor-pointer px-4 py-3 font-medium text-foreground-secondary hover:text-foreground ${
+      className={`th-label cursor-pointer px-4 py-3 hover:text-foreground ${
         align === "right" ? "text-right" : "text-left"
       }`}
       onClick={() => onSort(sortKey)}
@@ -200,18 +283,3 @@ function SortableHeader({
   );
 }
 
-function RiskBadge({ risk }: { risk: "low" | "medium" | "high" }) {
-  const config = {
-    low: { label: "Lav", className: "bg-success-light text-success" },
-    medium: { label: "Medium", className: "bg-warning-light text-warning" },
-    high: { label: "Hoy", className: "bg-danger-light text-danger" },
-  };
-  const c = config[risk];
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${c.className}`}
-    >
-      {c.label}
-    </span>
-  );
-}

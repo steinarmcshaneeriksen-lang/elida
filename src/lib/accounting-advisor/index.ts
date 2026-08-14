@@ -262,6 +262,7 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
+      .limit(2000)
           .in("account_number", accountNumbers)
           .returns<GLAccount[]>();
 
@@ -327,6 +328,7 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
+      .limit(2000)
           .in("account_number", txAccountNumbers)
           .returns<GLAccount[]>();
 
@@ -409,6 +411,7 @@ export class AccountingAdvisor {
         .from("gl_accounts")
         .select()
         .eq("company_id", companyId)
+      .limit(2000)
         .eq("account_number", primary.typical_account_number)
         .returns<GLAccount[]>()
         .single();
@@ -430,6 +433,7 @@ export class AccountingAdvisor {
       .from("gl_accounts")
       .select()
       .eq("company_id", companyId)
+      .limit(2000)
       .in("account_number", allAccountNumbers)
       .returns<GLAccount[]>();
 
@@ -510,6 +514,7 @@ export class AccountingAdvisor {
           .from("gl_accounts")
           .select()
           .eq("company_id", companyId)
+      .limit(2000)
           .eq("is_active", true)
           .order("account_number")
           .returns<GLAccount[]>(),
@@ -631,10 +636,10 @@ export class AccountingAdvisor {
           "inventar",
           "server",
           "bil",
-          "kjoeretoey",
+          "kjøretøy",
           "bygning",
           "anlegg",
-          "moebel",
+          "møbel",
           "pc",
           "laptop",
           "mac",
@@ -664,14 +669,14 @@ export class AccountingAdvisor {
 
     // Check for subscription/annual period indicators
     const annualKeywords = [
-      "aarsabonnement",
-      "aarlig",
+      "årsabonnement",
+      "årlig",
       "12 mnd",
-      "12 maaneder",
+      "12 måneder",
       "annual",
       "yearly",
-      "per aar",
-      "pr. aar",
+      "per år",
+      "pr. år",
     ];
     const isAnnual = annualKeywords.some((kw) => lower.includes(kw));
 
@@ -679,8 +684,8 @@ export class AccountingAdvisor {
       return {
         periodization: true,
         periodization_note:
-          "Aarlig kostnad over vesentlighetsgrensen bor periodiseres " +
-          "over 12 maaneder. Foer forholdsmessig del som maanedskostnad, " +
+          "Årlig kostnad over vesentlighetsgrensen bør periodiseres " +
+          "over 12 måneder. Før forholdsmessig del som månedskostnad, " +
           "resten som forskuddsbetalt kostnad (konto 1700).",
       };
     }
@@ -705,8 +710,8 @@ export class AccountingAdvisor {
       return {
         periodization: true,
         periodization_note:
-          "Kostnaden dekker mer enn en periode og belop er vesentlig. " +
-          "Bor periodiseres over avtaleperioden.",
+          "Kostnaden dekker mer enn en periode og beløp er vesentlig. " +
+          "Bør periodiseres over avtaleperioden.",
       };
     }
 
@@ -745,7 +750,7 @@ export class AccountingAdvisor {
             alternatives.push({
               number: alt.account_number,
               name: alt.name,
-              reason: `Brukt ${used.count} ganger tidligere for denne leverandoeren.`,
+              reason: `Brukt ${used.count} ganger tidligere for denne leverandøren.`,
             });
           }
         }
@@ -811,7 +816,7 @@ export class AccountingAdvisor {
           alternatives.push({
             number: range.account_number,
             name: range.name,
-            reason: `Naermeste konto i kontoplanen for ${typicalAccount.name}.`,
+            reason: `Nærmeste konto i kontoplanen for ${typicalAccount.name}.`,
           });
         }
       }
@@ -899,10 +904,10 @@ export class AccountingAdvisor {
     if (!context.vat_registered) {
       return {
         recommendation:
-          "Selskapet er ikke MVA-registrert. Ingen inngaaende MVA aa trekke fra.",
+          "Selskapet er ikke MVA-registrert. Ingen inngående MVA å trekke fra.",
         vat_code: null,
         rate: null,
-        notes: "Kostnaden bokfoeres inkl. MVA.",
+        notes: "Kostnaden bokføres inkl. MVA.",
       };
     }
 
@@ -911,13 +916,13 @@ export class AccountingAdvisor {
     if (requiresReverseCharge(country, isService)) {
       return {
         recommendation:
-          "Snudd avregning (reverse charge). Beregn 25 % utgaaende MVA " +
-          "og trekk fra tilsvarende inngaaende MVA.",
+          "Snudd avregning (reverse charge). Beregn 25 % utgående MVA " +
+          "og trekk fra tilsvarende inngående MVA.",
         vat_code: null,
         rate: VAT_RATE_STANDARD,
         notes:
-          "Utenlandsk leverandoer fakturerer uten norsk MVA. " +
-          "Kjoeper beregner og rapporterer MVA i MVA-meldingen. " +
+          "Utenlandsk leverandør fakturerer uten norsk MVA. " +
+          "Kjøper beregner og rapporterer MVA i MVA-meldingen. " +
           "Netto MVA-effekt er normalt null for fullt fradragsberettigede.",
       };
     }
@@ -929,10 +934,10 @@ export class AccountingAdvisor {
       );
       if (vatCode) {
         return {
-          recommendation: `Basert paa historikk: MVA-kode ${vatCode.code} (${vatCode.rate ?? "?"}%).`,
+          recommendation: `Basert på historikk: MVA-kode ${vatCode.code} (${vatCode.rate ?? "?"}%).`,
           vat_code: vatCode.code,
           rate: vatCode.rate,
-          notes: `Denne leverandoeren har tidligere vaert bokfoert med MVA-kode ${vatCode.code}.`,
+          notes: `Denne leverandøren har tidligere vært bokført med MVA-kode ${vatCode.code}.`,
         };
       }
     }
@@ -971,7 +976,7 @@ export class AccountingAdvisor {
       "cloud",
       "hosting",
       "konsulent",
-      "raadgivning",
+      "rådgivning",
       "tjeneste",
       "service",
       "lisens",
@@ -1041,9 +1046,9 @@ export class AccountingAdvisor {
 
     if (vendorHistory && vendorHistory.transaction_count > 0) {
       steps.push(
-        `Leverandoeren er bokfoert ${vendorHistory.transaction_count} gang(er) tidligere` +
+        `Leverandøren er bokført ${vendorHistory.transaction_count} gang(er) tidligere` +
           (vendorHistory.typical_account
-            ? `, typisk paa konto ${vendorHistory.typical_account.number} ${vendorHistory.typical_account.name}.`
+            ? `, typisk på konto ${vendorHistory.typical_account.number} ${vendorHistory.typical_account.name}.`
             : ".")
       );
     }
@@ -1061,13 +1066,13 @@ export class AccountingAdvisor {
 
     if (treatment === "capitalize") {
       steps.push(
-        "Belop over aktiveringsgrensen (kr 15 000). " +
+        "Beløp over aktiveringsgrensen (kr 15 000). " +
           "Anbefaler aktivering og avskrivning."
       );
     } else if (treatment === "expense") {
-      steps.push("Kostnadsfoeres direkte.");
+      steps.push("Kostnadsføres direkte.");
     } else {
-      steps.push("Krever manuell vurdering av regnskapsforer.");
+      steps.push("Krever manuell vurdering av regnskapsfører.");
     }
 
     steps.push(`MVA: ${vat.recommendation}`);
@@ -1078,13 +1083,13 @@ export class AccountingAdvisor {
 
     if (country && country.toUpperCase() !== "NO") {
       steps.push(
-        `Utenlandsk leverandoer (${country}). Sjekk regler for snudd avregning.`
+        `Utenlandsk leverandør (${country}). Sjekk regler for snudd avregning.`
       );
     }
 
     if (currency !== "NOK") {
       steps.push(
-        `Valuta: ${currency}. Bokfoeres i NOK til dagskurs paa transaksjonstidspunktet.`
+        `Valuta: ${currency}. Bokføres i NOK til dagskurs på transaksjonstidspunktet.`
       );
     }
 
@@ -1105,7 +1110,7 @@ export class AccountingAdvisor {
     // No account found
     if (!account) {
       questions.push(
-        "Hvilken konto onsker du aa bokfoere dette paa? " +
+        "Hvilken konto ønsker du å bokføre dette på? " +
           "Vi fant ikke en eksakt match i kontoplanen."
       );
     }
@@ -1113,10 +1118,10 @@ export class AccountingAdvisor {
     // Low confidence
     if (confidence < 0.5) {
       if (!input.vendorName && !input.documentExtraction?.supplier?.name) {
-        questions.push("Hvem er leverandoeren?");
+        questions.push("Hvem er leverandøren?");
       }
       if (!input.amount && !input.documentExtraction?.total_amount) {
-        questions.push("Hva er belop inkl. MVA?");
+        questions.push("Hva er beløp inkl. MVA?");
       }
     }
 
@@ -1127,8 +1132,8 @@ export class AccountingAdvisor {
       this.looksLikeService(input.description)
     ) {
       questions.push(
-        "Er leverandoeren norsk eller utenlandsk? " +
-          "Dette paavirker MVA-behandlingen."
+        "Er leverandøren norsk eller utenlandsk? " +
+          "Dette påvirker MVA-behandlingen."
       );
     }
 

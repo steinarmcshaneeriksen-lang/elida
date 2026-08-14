@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { CORPORATE_TAX_RATE, ACCOUNT_CLASSES } from "@/lib/constants";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/tax-estimate
@@ -24,16 +25,23 @@ export async function GET(
     const today = now.toISOString().split("T")[0];
 
     // Load YTD transactions to compute profit
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount")
-      .eq("company_id", companyId)
-      .gte("transaction_date", yearStart)
-      .lte("transaction_date", today) as {
-      data: Array<{ account_number: string; amount: number }> | null;
-    };
+    const transactions = await fetchAll<{ account_number: string; amount: number }>(
+      (from, to) =>
+        supabase
+          .from("account_transactions")
+          .select("account_number, amount")
+          .eq("company_id", companyId)
+          .gte("transaction_date", yearStart)
+          .lte("transaction_date", today)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{ account_number: string; amount: number }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "posteringer" }
+    );
 
-    if (transactions && transactions.length > 0) {
+    if (transactions.length > 0) {
       const sumByRange = (from: number, to: number) =>
         transactions
           .filter((t) => {
@@ -94,34 +102,20 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock
-    return NextResponse.json(getMockTaxEstimate());
+    // Nothing imported yet — return an honest empty state.
+    return NextResponse.json({
+      has_data: false,
+      profit_before_tax: null,
+      annualized_profit: null,
+      estimated_tax: null,
+      tax_year: new Date().getFullYear(),
+      ytd_revenue: null,
+      ytd_costs: null,
+      ytd_financial_net: null,
+      confidence: "no_data",
+    });
   } catch (error) {
     console.error("Tax estimate API error:", error);
     return errorResponse("Failed to compute tax estimate");
   }
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockTaxEstimate() {
-  const profitBeforeTax = 1_240_000;
-  // Annualized from ~7.3 months of data
-  const annualizationFactor = 365 / 224;
-  const annualizedProfit = profitBeforeTax * annualizationFactor;
-  const estimatedTax = annualizedProfit * CORPORATE_TAX_RATE;
-
-  return {
-    profit_before_tax: profitBeforeTax,
-    annualized_profit: Math.round(annualizedProfit),
-    estimated_tax: Math.round(estimatedTax),
-    rate: CORPORATE_TAX_RATE,
-    tax_year: 2026,
-    ytd_revenue: 9_050_000,
-    ytd_costs: 7_766_000,
-    ytd_financial_net: -44_000,
-    confidence: "estimated",
-  };
 }

@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
 import { createClient } from "@/lib/supabase/client";
 import { LogIn, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,6 +20,8 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
+
+    const supabase = createClient();
 
     try {
       const { data, error: authError } = await supabase.auth.signInWithPassword({
@@ -70,10 +72,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-               style={{ background: "var(--primary)", color: "#fff" }}>
-            <span className="text-2xl font-bold tracking-tight">E</span>
-          </div>
+          <Logo size={40} className="mb-5 inline-block" />
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
             Logg inn på Elida
           </h1>

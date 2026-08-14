@@ -1,108 +1,101 @@
 "use client";
 
-import { AlertTriangle, AlertCircle, Info, Bell, AlertOctagon } from "lucide-react";
-import type { InsightSeverity } from "@/lib/mock-data";
-import { formatRelativeTime } from "@/lib/format";
+import { useState } from "react";
+import { AlertTriangle, AlertCircle, Info, Bell, AlertOctagon, ChevronRight } from "lucide-react";
+
+export type InsightSeverity =
+  | "info"
+  | "low"
+  | "medium"
+  | "high"
+  | "critical";
 
 interface InsightCardProps {
   severity: InsightSeverity;
   title: string;
   description: string;
-  evidence?: string;
-  category: string;
-  createdAt: string;
+  /** The figures the observation was derived from. */
+  evidence?: string[];
+  period?: string;
 }
 
 const severityConfig: Record<
   InsightSeverity,
-  { icon: typeof Info; border: string; bg: string; text: string; dot: string; label: string }
+  { icon: typeof Info; tone: string; label: string }
 > = {
-  info: {
-    icon: Info,
-    border: "border-l-info",
-    bg: "bg-info-light",
-    text: "text-info",
-    dot: "bg-info",
-    label: "Info",
-  },
-  low: {
-    icon: Bell,
-    border: "border-l-foreground-muted",
-    bg: "bg-surface-hover",
-    text: "text-foreground-secondary",
-    dot: "bg-foreground-muted",
-    label: "Lav",
-  },
-  medium: {
-    icon: AlertCircle,
-    border: "border-l-warning",
-    bg: "bg-warning-light",
-    text: "text-warning",
-    dot: "bg-warning",
-    label: "Medium",
-  },
-  high: {
-    icon: AlertTriangle,
-    border: "border-l-[#f97316]",
-    bg: "bg-[#fff7ed]",
-    text: "text-[#ea580c]",
-    dot: "bg-[#f97316]",
-    label: "Hoy",
-  },
-  critical: {
-    icon: AlertOctagon,
-    border: "border-l-danger",
-    bg: "bg-danger-light",
-    text: "text-danger",
-    dot: "bg-danger",
-    label: "Kritisk",
-  },
+  info: { icon: Info, tone: "ocean", label: "Info" },
+  low: { icon: Bell, tone: "slate", label: "Lav" },
+  medium: { icon: AlertCircle, tone: "copper", label: "Medium" },
+  high: { icon: AlertTriangle, tone: "copper", label: "Høy" },
+  critical: { icon: AlertOctagon, tone: "rose", label: "Kritisk" },
 };
 
+/**
+ * One observation, one line until asked.
+ *
+ * Every card used to state everything at once: a heading, a paragraph
+ * explaining it, the two or three figures behind it, the period, and how long
+ * ago the import ran. Six lines each, three of them stacked, with the chat open
+ * over half the screen — a page nobody reads is a page that reports nothing.
+ *
+ * The heading already is the finding. "Bankbeholdningen dekker 1,2 måneder med
+ * drift" needs no summary underneath it; what it needs is somewhere to put the
+ * working for whoever doubts it. So the finding stands alone and the rest opens
+ * on a click. The chevron pointed at nothing before — it looked like a control
+ * and behaved like an ornament. Now it is the control.
+ */
 export function InsightCard({
   severity,
   title,
   description,
   evidence,
-  category,
-  createdAt,
+  period,
 }: InsightCardProps) {
-  const config = severityConfig[severity];
+  const [open, setOpen] = useState(false);
+  const config = severityConfig[severity] ?? severityConfig.info;
   const Icon = config.icon;
 
   return (
-    <div
-      className={`rounded-lg border border-border ${config.border} border-l-4 bg-surface p-4 shadow-[var(--shadow-sm)]`}
-    >
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div
-            className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${config.bg}`}
-          >
-            <Icon size={14} className={config.text} />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-            <p className="mt-1 text-sm leading-relaxed text-foreground-secondary">
-              {description}
-            </p>
-          </div>
-        </div>
-      </div>
+    <div data-tone={config.tone} className="tone-card">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="tone-badge shrink-0 rounded-full">
+          <Icon size={15} strokeWidth={2.2} />
+        </span>
+        <h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+          {title}
+        </h3>
+        <ChevronRight
+          size={16}
+          className={`shrink-0 text-[var(--tone-ink)] transition-transform ${
+            open ? "rotate-90" : ""
+          }`}
+        />
+      </button>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 pl-10">
-        {evidence && (
-          <span className="text-xs text-foreground-muted">
-            Kilde: {evidence}
-          </span>
-        )}
-        <span className="inline-flex items-center gap-1 rounded-full bg-surface-hover px-2 py-0.5 text-xs font-medium text-foreground-secondary">
-          {category}
-        </span>
-        <span className="text-xs text-foreground-muted">
-          {formatRelativeTime(createdAt)}
-        </span>
-      </div>
+      {open && (
+        <div className="border-t border-border px-4 pb-3.5 pt-3 pl-[3.25rem]">
+          <p className="text-sm leading-relaxed text-foreground-secondary">
+            {description}
+          </p>
+          {evidence && evidence.length > 0 && (
+            <ul className="mt-2.5 space-y-0.5">
+              {evidence.map((line) => (
+                <li key={line} className="text-xs tabular-nums text-foreground-muted">
+                  {line}
+                </li>
+              ))}
+            </ul>
+          )}
+          {period && (
+            <p className="mt-2.5 text-xs text-foreground-muted">{period}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

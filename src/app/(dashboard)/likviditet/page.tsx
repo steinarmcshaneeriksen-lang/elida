@@ -1,246 +1,290 @@
 "use client";
 
-import { formatCurrency, formatDateShort } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
+import { useCompanyData } from "@/lib/hooks/use-company-data";
 import {
-  cashPosition,
-  expectedInflows,
-  expectedOutflows,
-  taxEstimates,
-} from "@/lib/mock-data";
+  NoDataState,
+  LoadingState,
+  ErrorState,
+} from "@/components/dashboard/empty-state";
 import {
   Droplets,
   ArrowDownRight,
   ArrowUpRight,
   AlertTriangle,
   ShieldCheck,
-  Receipt,
+  Info,
+  type LucideIcon,
 } from "lucide-react";
+import { Panel } from "@/components/ui/panel";
+import type { Tone } from "@/components/dashboard/metric-card";
+
+interface Party {
+  id: string;
+  name: string;
+  amount: number;
+}
+
+interface CashflowResponse {
+  has_data?: boolean;
+  balances_are_stated: boolean;
+  current_balance: number | null;
+  period: { start: string; end: string } | null;
+  lowest_point: { month: string; balance: number } | null;
+  monthly: Array<{ month: string; movement: number; balance: number }>;
+  receivables: { total: number; top: Party[] };
+  payables: { total: number; top: Party[] };
+}
+
+const MONTHS = [
+  "jan", "feb", "mar", "apr", "mai", "jun",
+  "jul", "aug", "sep", "okt", "nov", "des",
+];
+
+function monthLabel(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${String(y).slice(2)}`;
+}
 
 export default function LikviditetPage() {
-  const totalInflows = expectedInflows.reduce((s, i) => s + i.amount, 0);
-  const totalOutflows = expectedOutflows.reduce((s, o) => s + o.amount, 0);
-  const bufferOk =
-    cashPosition.forecastMin >= cashPosition.bufferRequirement;
+  const { data, isLoading, error, isEmpty } =
+    useCompanyData<CashflowResponse>("cashflow");
+
+  if (isLoading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+  if (isEmpty || !data?.has_data) {
+    return (
+      <NoDataState
+        title="Ingen likviditetsdata ennå"
+        description="Importer en SAF-T-fil, så viser Elida hvordan bankbeholdningen har utviklet seg, hvem som skylder deg penger og hva du skylder ut."
+      />
+    );
+  }
+
+  const positive = (data.current_balance ?? 0) > 0;
+
+  const stated = data.balances_are_stated;
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
-      {/* Cash position cards */}
+      {!stated && (
+        <div className="flex gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
+          <Info size={18} className="mt-0.5 shrink-0 text-warning" />
+          <p className="text-sm text-foreground-secondary">
+            SAF-T-filen oppgir ikke inngående saldo på kontoene, bare
+            posteringene i perioden. Tallene under viser derfor{" "}
+            <em>bevegelsen</em> i perioden, ikke faktisk saldo. Last opp en fil
+            som dekker hele regnskapsåret for korrekte balansetall.
+          </p>
+        </div>
+      )}
+
+      {/* Money in is teal, money out is rose, the balance itself violet —
+          the same directions the chart below uses. */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <div className="flex items-center gap-2 text-foreground-muted">
-            <Droplets size={16} />
-            <span className="text-sm">Banksaldo na</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-            {formatCurrency(cashPosition.currentBalance)}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <div className="flex items-center gap-2 text-foreground-muted">
-            <ArrowUpRight size={16} className="text-success" />
-            <span className="text-sm">Forventet innbetalinger</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-success">
-            {formatCurrency(totalInflows)}
-          </p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-surface p-5 shadow-[var(--shadow)]">
-          <div className="flex items-center gap-2 text-foreground-muted">
-            <ArrowDownRight size={16} className="text-danger" />
-            <span className="text-sm">Forventet utbetalinger</span>
-          </div>
-          <p className="mt-2 text-2xl font-bold tracking-tight text-danger">
-            {formatCurrency(Math.abs(totalOutflows))}
-          </p>
-        </div>
-
-        <div
-          className={`rounded-xl border p-5 shadow-[var(--shadow)] ${
-            bufferOk
-              ? "border-success/30 bg-success-light"
-              : "border-danger/30 bg-danger-light"
-          }`}
-        >
-          <div className="flex items-center gap-2 text-foreground-muted">
-            {bufferOk ? (
-              <ShieldCheck size={16} className="text-success" />
-            ) : (
-              <AlertTriangle size={16} className="text-danger" />
-            )}
-            <span className="text-sm">Laveste punkt (60 dager)</span>
-          </div>
-          <p
-            className={`mt-2 text-2xl font-bold tracking-tight ${
-              bufferOk ? "text-success" : "text-danger"
-            }`}
-          >
-            {formatCurrency(cashPosition.forecastMin)}
-          </p>
-          <p className="mt-1 text-xs text-foreground-secondary">
-            {formatDateShort(cashPosition.forecastMinDate)} — Buffer:{" "}
-            {formatCurrency(cashPosition.bufferRequirement)}
-          </p>
-        </div>
+        <StatCard
+          tone="violet"
+          icon={<Droplets size={16} strokeWidth={2.2} />}
+          label={stated ? "Bokført likviditet" : "Endring i bankbeholdning"}
+          value={formatCurrency(data.current_balance ?? 0)}
+          valueClass={positive ? "text-foreground" : "text-danger"}
+          detail={
+            stated
+              ? "Bokført saldo, ikke live banksaldo"
+              : "Bevegelse i perioden — ikke saldo"
+          }
+        />
+        <StatCard
+          tone="teal"
+          icon={<ArrowUpRight size={16} strokeWidth={2.2} />}
+          label={stated ? "Kunder skylder oss" : "Endring kundefordringer"}
+          value={formatCurrency(data.receivables.total)}
+          valueClass="text-[var(--tone-ink)]"
+          detail={`${data.receivables.top.length} kunder · inkl. mva`}
+        />
+        <StatCard
+          tone="rose"
+          icon={<ArrowDownRight size={16} strokeWidth={2.2} />}
+          label={stated ? "Vi skylder leverandører" : "Endring leverandørgjeld"}
+          value={formatCurrency(data.payables.total)}
+          valueClass="text-[var(--tone-ink)]"
+          detail={`${data.payables.top.length} leverandører · inkl. mva`}
+        />
+        {data.lowest_point && (
+          <StatCard
+            tone="copper"
+            icon={
+              data.lowest_point.balance > 0 ? (
+                <ShieldCheck size={16} strokeWidth={2.2} />
+              ) : (
+                <AlertTriangle size={16} strokeWidth={2.2} />
+              )
+            }
+            label="Laveste punkt i perioden"
+            value={formatCurrency(data.lowest_point.balance)}
+            valueClass={
+              data.lowest_point.balance > 0 ? "text-foreground" : "text-danger"
+            }
+            detail={monthLabel(data.lowest_point.month)}
+          />
+        )}
       </div>
 
-      {/* Cash forecast placeholder */}
-      <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-        <h3 className="mb-4 text-lg font-semibold text-foreground">
-          Likviditetsprognose
-        </h3>
-        <div className="flex h-48 items-center justify-center rounded-lg border-2 border-dashed border-border bg-surface-hover">
-          <p className="text-sm text-foreground-muted">
-            Likviditetsgraf vises her nar API-et er tilkoblet
-          </p>
-        </div>
-      </section>
+      <Panel
+        tone="violet"
+        icon={Droplets}
+        title="Bankbeholdning over tid"
+        description={
+          stated
+            ? "Bokført saldo på bankkontoer ved utgangen av hver måned."
+            : "Akkumulert bevegelse på bankkontoer. Uten inngående saldo starter kurven på null."
+        }
+      >
+        <BalanceChart points={data.monthly} />
+      </Panel>
 
-      {/* Inflows and Outflows */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Inflows */}
-        <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
-            <ArrowUpRight size={18} className="text-success" />
-            Forventede innbetalinger
-          </h3>
-          <div className="space-y-3">
-            {expectedInflows.map((item, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg border border-border-light p-3 hover:bg-surface-hover"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {item.label}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    {item.date && (
-                      <span className="text-xs text-foreground-muted">
-                        {formatDateShort(item.date)}
-                      </span>
-                    )}
-                    <ConfidenceDot confidence={item.confidence} />
-                  </div>
-                </div>
-                <span className="ml-4 text-sm font-semibold tabular-nums text-success">
-                  {formatCurrency(item.amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-            <span className="text-sm font-semibold text-foreground">Totalt</span>
-            <span className="text-sm font-bold tabular-nums text-success">
-              {formatCurrency(totalInflows)}
-            </span>
-          </div>
-        </section>
-
-        {/* Outflows */}
-        <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
-            <ArrowDownRight size={18} className="text-danger" />
-            Forventede utbetalinger
-          </h3>
-          <div className="space-y-3">
-            {expectedOutflows.map((item, i) => (
-              <div
-                key={i}
-                className="flex items-center justify-between rounded-lg border border-border-light p-3 hover:bg-surface-hover"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-foreground">
-                    {item.label}
-                  </p>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    {item.date && (
-                      <span className="text-xs text-foreground-muted">
-                        {formatDateShort(item.date)}
-                      </span>
-                    )}
-                    <ConfidenceDot confidence={item.confidence} />
-                  </div>
-                </div>
-                <span className="ml-4 text-sm font-semibold tabular-nums text-danger">
-                  {formatCurrency(Math.abs(item.amount))}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 flex items-center justify-between border-t border-border pt-3">
-            <span className="text-sm font-semibold text-foreground">Totalt</span>
-            <span className="text-sm font-bold tabular-nums text-danger">
-              {formatCurrency(Math.abs(totalOutflows))}
-            </span>
-          </div>
-        </section>
+        <PartyList
+          title="Største utestående kundefordringer"
+          icon={ArrowUpRight}
+          parties={data.receivables.top}
+          tone="teal"
+          empty="Ingen kunder har utestående saldo."
+        />
+        <PartyList
+          title="Største leverandørgjeld"
+          icon={ArrowDownRight}
+          parties={data.payables.top}
+          tone="rose"
+          empty="Ingen leverandørgjeld registrert."
+        />
       </div>
-
-      {/* Tax & VAT section */}
-      <section className="rounded-xl border border-border bg-surface p-6 shadow-[var(--shadow)]">
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-foreground">
-          <Receipt size={18} className="text-foreground-muted" />
-          Skatt og avgift
-        </h3>
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg bg-surface-hover p-4">
-            <p className="text-xs font-medium text-foreground-muted">
-              MVA {taxEstimates.vatTermPeriod}
-            </p>
-            <p className="mt-1 text-xl font-bold text-foreground">
-              {formatCurrency(taxEstimates.vatNextTerm)}
-            </p>
-            <p className="mt-0.5 text-xs text-foreground-muted">
-              Forfaller {formatDateShort(taxEstimates.vatDueDate)}
-            </p>
-          </div>
-          <div className="rounded-lg bg-surface-hover p-4">
-            <p className="text-xs font-medium text-foreground-muted">
-              Arbeidsgiveravgift
-            </p>
-            <p className="mt-1 text-xl font-bold text-foreground">
-              {formatCurrency(taxEstimates.employerTax)}
-            </p>
-            <p className="mt-0.5 text-xs text-foreground-muted">
-              Forfaller {formatDateShort(taxEstimates.taxDueDate)}
-            </p>
-          </div>
-          <div className="rounded-lg bg-surface-hover p-4">
-            <p className="text-xs font-medium text-foreground-muted">Skattetrekk</p>
-            <p className="mt-1 text-xl font-bold text-foreground">
-              {formatCurrency(taxEstimates.taxWithholding)}
-            </p>
-            <p className="mt-0.5 text-xs text-foreground-muted">
-              Forfaller {formatDateShort(taxEstimates.taxDueDate)}
-            </p>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }
 
-function ConfidenceDot({
-  confidence,
+function BalanceChart({
+  points,
 }: {
-  confidence: "high" | "medium" | "low";
+  points: Array<{ month: string; movement: number; balance: number }>;
 }) {
-  const colors = {
-    high: "bg-success",
-    medium: "bg-warning",
-    low: "bg-danger",
-  };
-  const labels = {
-    high: "Hoy",
-    medium: "Middels",
-    low: "Lav",
-  };
+  if (points.length === 0) {
+    return (
+      <p className="py-8 text-center text-sm text-foreground-muted">
+        Ingen bankposteringer i perioden.
+      </p>
+    );
+  }
+
+  const max = Math.max(...points.map((p) => p.balance), 0);
+  const min = Math.min(...points.map((p) => p.balance), 0);
+  const range = max - min || 1;
+
   return (
-    <span className="flex items-center gap-1">
-      <span className={`inline-block h-1.5 w-1.5 rounded-full ${colors[confidence]}`} />
-      <span className="text-xs text-foreground-muted">{labels[confidence]}</span>
-    </span>
+    <div className="space-y-1.5">
+      {points.map((p) => {
+        // Bars are drawn from the zero line so a negative balance reads as one.
+        const zeroOffset = ((0 - min) / range) * 100;
+        const barSize = (Math.abs(p.balance) / range) * 100;
+        const negative = p.balance < 0;
+
+        return (
+          <div key={p.month} className="flex items-center gap-3">
+            <span className="w-14 shrink-0 text-xs text-foreground-muted">
+              {monthLabel(p.month)}
+            </span>
+            <div className="relative h-5 flex-1 rounded bg-surface-hover">
+              <div
+                data-tone={negative ? "rose" : "teal"}
+                className="tone-bar absolute top-0 h-full"
+                style={{
+                  left: negative
+                    ? `${zeroOffset - barSize}%`
+                    : `${zeroOffset}%`,
+                  width: `${barSize}%`,
+                }}
+              />
+            </div>
+            <span
+              className={`w-32 shrink-0 text-right text-sm tabular-nums ${
+                negative ? "text-danger" : "text-foreground"
+              }`}
+            >
+              {formatCurrency(p.balance)}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function PartyList({
+  title,
+  icon,
+  parties,
+  tone,
+  empty,
+}: {
+  title: string;
+  icon: LucideIcon;
+  parties: Party[];
+  tone: Tone;
+  empty: string;
+}) {
+  return (
+    <Panel tone={tone} icon={icon} title={title}>
+      {parties.length === 0 ? (
+        <p className="py-6 text-center text-sm text-foreground-muted">{empty}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {parties.map((p) => (
+            <div
+              key={p.id}
+              className="flex items-center justify-between rounded-lg px-3 py-2.5 transition-colors hover:bg-surface-hover"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                {p.name}
+              </span>
+              <span className="ml-4 shrink-0 text-sm font-semibold tabular-nums text-[var(--tone-ink)]">
+                {formatCurrency(p.amount)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+/** One liquidity figure with its icon and the colour it keeps on this page. */
+function StatCard({
+  tone,
+  icon,
+  label,
+  value,
+  valueClass,
+  detail,
+}: {
+  tone: Tone;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  valueClass: string;
+  detail: string;
+}) {
+  return (
+    <div data-tone={tone} className="tone-card p-5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-foreground-secondary">{label}</p>
+        <span className="tone-badge shrink-0">{icon}</span>
+      </div>
+      <p
+        className={`mt-2 text-2xl font-bold tracking-tight tabular-nums ${valueClass}`}
+      >
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-foreground-muted">{detail}</p>
+    </div>
   );
 }

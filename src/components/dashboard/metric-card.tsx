@@ -1,113 +1,118 @@
 "use client";
 
-import { TrendingUp, TrendingDown, Minus, ShieldCheck, ShieldAlert, Shield } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, TrendingUp, TrendingDown, Minus, type LucideIcon } from "lucide-react";
+
+export type Tone = "ocean" | "teal" | "violet" | "copper" | "rose" | "slate";
 
 interface MetricCardProps {
   question: string;
   label: string;
   value: string;
   comparison: {
-    value: number;
     percent: number;
     direction: "up" | "down" | "flat";
     label: string;
   };
-  confidence: "high" | "medium" | "low";
   detail?: string;
-  onClick?: () => void;
+  href?: string;
+  tone?: Tone;
+  icon?: LucideIcon;
 }
 
-const confidenceConfig = {
-  high: {
-    icon: ShieldCheck,
-    label: "Høy sikkerhet",
-    className: "bg-success-light text-success",
-  },
-  medium: {
-    icon: ShieldAlert,
-    label: "Middels sikkerhet",
-    className: "bg-warning-light text-warning",
-  },
-  low: {
-    icon: Shield,
-    label: "Lav sikkerhet",
-    className: "bg-danger-light text-danger",
-  },
+const directionIcon = {
+  up: TrendingUp,
+  down: TrendingDown,
+  flat: Minus,
 };
 
-const directionConfig = {
-  up: {
-    icon: TrendingUp,
-    className: "text-success",
-  },
-  down: {
-    icon: TrendingDown,
-    className: "text-danger",
-  },
-  flat: {
-    icon: Minus,
-    className: "text-foreground-muted",
-  },
-};
-
+/**
+ * One figure with the question it answers.
+ *
+ * Every row is a fixed slot — question, value, trend, note — so cards next to
+ * each other line up whether or not they have a note or a comparison. Cards
+ * used to carry a "Lav sikkerhet" badge derived from how long ago the last
+ * sync ran; on file-imported data that was red on every card regardless of
+ * what the figures were worth, which said nothing. Where the numbers come from
+ * is stated once above the grid instead.
+ *
+ * Each card takes a tone. Four identical white boxes with navy text made a
+ * dashboard that was uniform to the point of being hard to read; the hue is
+ * what lets someone find the card they want without reading all four.
+ */
 export function MetricCard({
   question,
   label,
   value,
   comparison,
-  confidence,
   detail,
-  onClick,
+  href,
+  tone = "slate",
+  icon: Icon,
 }: MetricCardProps) {
-  const conf = confidenceConfig[confidence];
-  const dir = directionConfig[comparison.direction];
-  const ConfIcon = conf.icon;
-  const DirIcon = dir.icon;
+  const DirIcon = directionIcon[comparison.direction];
 
-  return (
-    <button
-      onClick={onClick}
-      className="group flex w-full flex-col rounded-xl border border-border bg-surface p-5 text-left shadow-[var(--shadow)] hover:border-primary-200 hover:shadow-[var(--shadow-md)]"
-    >
-      {/* Question */}
-      <p className="mb-1 text-sm font-medium text-primary">{question}</p>
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-foreground">{question}</p>
+          <p className="mt-0.5 text-xs text-foreground-muted">{label}</p>
+        </div>
+        {Icon && (
+          <span className="tone-badge shrink-0">
+            <Icon size={16} strokeWidth={2.2} />
+          </span>
+        )}
+      </div>
 
-      {/* Label */}
-      <p className="mb-3 text-xs text-foreground-muted">{label}</p>
-
-      {/* Value */}
-      <p className="mb-3 text-2xl font-bold tracking-tight text-foreground">
+      <p className="mt-4 text-2xl font-bold tracking-tight text-foreground tabular-nums">
         {value}
       </p>
 
-      {/* Comparison row */}
-      <div className="mb-3 flex items-center gap-2">
-        <DirIcon size={16} className={dir.className} />
-        <span className={`text-sm font-medium ${dir.className}`}>
-          {comparison.percent !== 0 && (
-            <span>
-              {comparison.direction === "up" ? "+" : comparison.direction === "down" ? "-" : ""}
-              {comparison.percent.toFixed(1).replace(".", ",")} %
-            </span>
-          )}
-        </span>
-        <span className="text-xs text-foreground-muted">{comparison.label}</span>
-      </div>
-
-      {/* Detail */}
-      {detail && (
-        <p className="mb-3 text-xs leading-relaxed text-foreground-secondary">{detail}</p>
-      )}
-
-      {/* Confidence badge */}
-      <div className="mt-auto flex items-center gap-1.5">
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${conf.className}`}
-        >
-          <ConfIcon size={12} />
-          {conf.label}
+      <div className="mt-2.5 flex h-6 items-center gap-2">
+        {comparison.percent !== 0 && (
+          <span className={`chip chip--${comparison.direction}`}>
+            <DirIcon size={13} strokeWidth={2.5} />
+            {comparison.direction === "up" ? "+" : ""}
+            {comparison.percent.toLocaleString("nb-NO", {
+              maximumFractionDigits: 1,
+            })}
+            &nbsp;%
+          </span>
+        )}
+        <span className="truncate text-xs text-foreground-muted">
+          {comparison.label}
         </span>
       </div>
-    </button>
+
+      <div className="mt-auto flex items-end justify-between gap-2 pt-4">
+        <p className="text-xs leading-relaxed text-foreground-secondary">
+          {detail ?? ""}
+        </p>
+        {href && (
+          <ArrowRight
+            size={15}
+            className="mb-0.5 shrink-0 text-[var(--tone-ink)] opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100"
+          />
+        )}
+      </div>
+    </>
+  );
+
+  const className = "tone-card group flex h-full flex-col p-5 text-left";
+
+  if (!href) {
+    return (
+      <div data-tone={tone} className={className}>
+        {body}
+      </div>
+    );
+  }
+
+  return (
+    <Link data-tone={tone} href={href} className={className}>
+      {body}
+    </Link>
   );
 }

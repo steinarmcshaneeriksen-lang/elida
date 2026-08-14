@@ -8,7 +8,7 @@
  * Based on:
  * - Merverdiavgiftsloven (mval.) of 19 June 2009 no. 58
  * - Merverdiavgiftsforskriften
- * - Skattedirektoratets MVA-haandbok
+ * - Skattedirektoratets MVA-håndbok
  *
  * All rates and thresholds are current as of 2026.
  */
@@ -53,8 +53,8 @@ export const vatRules: VatRuleDefinition[] = [
     category: "standard",
     title_nb: "Alminnelig sats",
     description_nb:
-      "Standardsats paa 25 % gjelder for de fleste varer og tjenester " +
-      "som omsettes i Norge, med mindre det finnes en saerskilt fritatt " +
+      "Standardsats på 25 % gjelder for de fleste varer og tjenester " +
+      "som omsettes i Norge, med mindre det finnes en særskilt fritatt " +
       "eller redusert sats.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
@@ -67,10 +67,10 @@ export const vatRules: VatRuleDefinition[] = [
     id: "vat-002",
     rate: 15,
     category: "food",
-    title_nb: "Redusert sats for naeringsmidler",
+    title_nb: "Redusert sats for næringsmidler",
     description_nb:
-      "15 % MVA gjelder for naeringsmidler (mat og alkoholfrie drikkevarer). " +
-      "Unntatt er serveringstjenester (servering paa restaurant/kafé) " +
+      "15 % MVA gjelder for næringsmidler (mat og alkoholfrie drikkevarer). " +
+      "Unntatt er serveringstjenester (servering på restaurant/kafé) " +
       "som har 25 %. Tobakk har 25 %.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
@@ -87,7 +87,7 @@ export const vatRules: VatRuleDefinition[] = [
     description_nb:
       "12 % MVA gjelder for persontransport (buss, tog, ferge, fly innenlands), " +
       "utleie av rom i hotell/camping, formidling av overnatting, " +
-      "og adgang til kino. NRK-lisens er ogsaa 12 %.",
+      "og adgang til kino. NRK-lisens er også 12 %.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 5-3, § 5-4, § 5-5",
@@ -103,7 +103,7 @@ export const vatRules: VatRuleDefinition[] = [
     description_nb:
       "Eksport av varer og visse tjenester er fritatt med nullsats (0 %). " +
       "Selger fakturerer uten MVA, men har full fradragsrett for " +
-      "inngaaende MVA paa anskaffelser knyttet til eksporten.",
+      "inngående MVA på anskaffelser knyttet til eksporten.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 6-21, § 6-22",
@@ -118,14 +118,14 @@ export const vatRules: VatRuleDefinition[] = [
     title_nb: "Unntatt: finansielle tjenester",
     description_nb:
       "Finansielle tjenester (bank, forsikring, verdipapirhandel) " +
-      "er unntatt fra MVA. Det beregnes ikke utgaaende MVA, og " +
-      "kjoepe har ikke fradragsrett. Merk: dette er ulike fra nullsats.",
+      "er unntatt fra MVA. Det beregnes ikke utgående MVA, og " +
+      "kjøper har ikke fradragsrett. Merk: dette er ulikt fra nullsats.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 3-6",
     deductible: false,
     special_conditions:
-      "Unntatt omsetning gir ikke rett til MVA-fradrag paa inngaaende MVA.",
+      "Unntatt omsetning gir ikke rett til MVA-fradrag på inngående MVA.",
   },
 
   // ── Exempt: health services ──────────────────────────────────────────
@@ -136,8 +136,8 @@ export const vatRules: VatRuleDefinition[] = [
     title_nb: "Unntatt: helse- og sosialtjenester",
     description_nb:
       "Helsetjenester, sosiale tjenester, og tannlegetjenester er " +
-      "unntatt MVA. Gjelder ogsaa alternativ behandling dersom " +
-      "utoevert av autorisert personell.",
+      "unntatt MVA. Gjelder også alternativ behandling dersom " +
+      "utøvet av autorisert personell.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 3-2, § 3-4",
@@ -153,7 +153,7 @@ export const vatRules: VatRuleDefinition[] = [
     description_nb:
       "Undervisningstjenester er unntatt MVA. Gjelder formell " +
       "undervisning (skole, universitet) og kompetansehevende kurs " +
-      "som foelger en plan og har en viss varighet. " +
+      "som følger en plan og har en viss varighet. " +
       "Konsulentbistand og enkeltforedrag er normalt avgiftspliktige.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
@@ -176,8 +176,8 @@ export const vatRules: VatRuleDefinition[] = [
     source: "Merverdiavgiftsloven § 3-11, § 2-3",
     deductible: false,
     special_conditions:
-      "Frivillig registrert utleier kan kreve fradrag for inngaaende MVA " +
-      "paa kostnader knyttet til den avgiftspliktige utleievirksomheten.",
+      "Frivillig registrert utleier kan kreve fradrag for inngående MVA " +
+      "på kostnader knyttet til den avgiftspliktige utleievirksomheten.",
   },
 
   // ── Reverse charge: services from abroad ─────────────────────────────
@@ -185,21 +185,21 @@ export const vatRules: VatRuleDefinition[] = [
     id: "vat-009",
     rate: 25,
     category: "reverse_charge_services",
-    title_nb: "Snudd avregning: tjenester kjopt fra utlandet",
+    title_nb: "Snudd avregning: tjenester kjøpt fra utlandet",
     description_nb:
-      "Naar en norsk naeringsdrivende kjoper fjernleverbare tjenester " +
+      "Når en norsk næringsdrivende kjøper fjernleverbare tjenester " +
       "fra utlandet (f.eks. SaaS, konsulentbistand, reklametjenester), " +
-      "skal kjoeperen selv beregne og rapportere MVA " +
-      "(snudd avregning / reverse charge). Faktura fra leverandor " +
-      "er uten MVA. Kjoeper beregner 25 % utgaaende MVA og har " +
-      "normalt tilsvarende fradrag for inngaaende MVA (netto null).",
+      "skal kjøperen selv beregne og rapportere MVA " +
+      "(snudd avregning / reverse charge). Faktura fra leverandør " +
+      "er uten MVA. Kjøper beregner 25 % utgående MVA og har " +
+      "normalt tilsvarende fradrag for inngående MVA (netto null).",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 3-30, § 11-3",
     deductible: true,
     special_conditions:
       "Gjelder fjernleverbare tjenester. For import av varer, " +
-      "se egne regler for innfoersels-MVA.",
+      "se egne regler for innførsels-MVA.",
   },
 
   // ── Import VAT on goods ──────────────────────────────────────────────
@@ -207,18 +207,18 @@ export const vatRules: VatRuleDefinition[] = [
     id: "vat-010",
     rate: 25,
     category: "import_goods",
-    title_nb: "Innfoersels-MVA paa varer",
+    title_nb: "Innførsels-MVA på varer",
     description_nb:
-      "Ved import av varer til Norge beregnes innfoersels-MVA. " +
+      "Ved import av varer til Norge beregnes innførsels-MVA. " +
       "For MVA-registrerte virksomheter rapporteres dette via " +
       "MVA-meldingen (ikke betales ved grensen). " +
-      "Satsen er 25 % (eller redusert sats for naeringsmidler).",
+      "Satsen er 25 % (eller redusert sats for næringsmidler).",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 3-29, skatteforvaltningsloven",
     deductible: true,
     special_conditions:
-      "MVA-registrerte foretak rapporterer innfoersels-MVA i MVA-meldingen " +
+      "MVA-registrerte foretak rapporterer innførsels-MVA i MVA-meldingen " +
       "og har normalt full fradragsrett.",
   },
 
@@ -231,17 +231,17 @@ export const vatRules: VatRuleDefinition[] = [
     description_nb:
       "Kostnader til representasjon (kundemiddager, gaver til " +
       "forretningsforbindelser) gir IKKE rett til MVA-fradrag, " +
-      "uavhengig av beloep. Kostnadsfradrag i skatteregnskapet " +
+      "uavhengig av beløp. Kostnadsfradrag i skatteregnskapet " +
       "er begrenset til kr 551 per person per tilstelning (2026). " +
-      "Enkel servering (kaffe, kaker) ved forretningsmoeter " +
+      "Enkel servering (kaffe, kaker) ved forretningsmøter " +
       "er fradragsberettiget og regnes ikke som representasjon.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Skatteloven § 6-21, FSFIN § 6-21, mval. § 8-3 (1) bokstav d",
     deductible: false,
     special_conditions:
-      "Grensen paa kr 551 per person gjelder skattemessig fradrag. " +
-      "MVA-fradrag er fullstendig avskaaretfor representasjon.",
+      "Grensen på kr 551 per person gjelder skattemessig fradrag. " +
+      "MVA-fradrag er fullstendig avskåret for representasjon.",
   },
 
   // ── Private use ──────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ export const vatRules: VatRuleDefinition[] = [
     title_nb: "Privat bruk: ingen MVA-fradrag",
     description_nb:
       "Anskaffelser til privat bruk gir ikke rett til MVA-fradrag. " +
-      "Ved blandet bruk (naering og privat) maa det foretas en " +
+      "Ved blandet bruk (næring og privat) må det foretas en " +
       "forholdsmessig fordeling. Uttak til privat bruk er avgiftspliktig.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
@@ -265,12 +265,12 @@ export const vatRules: VatRuleDefinition[] = [
     id: "vat-013",
     rate: 25,
     category: "vehicle",
-    title_nb: "Personbil: avskaaretMVA-fradrag",
+    title_nb: "Personbil: avskåret MVA-fradrag",
     description_nb:
-      "Det er ikke fradragsrett for inngaaende MVA paa anskaffelse " +
-      "og drift av personkjoeretoey. Unntak gjelder for " +
-      "yrkeskjoeretoey (drosje, varebil klasse 2, lastebil). " +
-      "Drivstoff, bompenger og parkering foelger kjoeretoeyets status.",
+      "Det er ikke fradragsrett for inngående MVA på anskaffelse " +
+      "og drift av personkjøretøy. Unntak gjelder for " +
+      "yrkeskjøretøy (drosje, varebil klasse 2, lastebil). " +
+      "Drivstoff, bompenger og parkering følger kjøretøyets status.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 8-4",
@@ -289,14 +289,14 @@ export const vatRules: VatRuleDefinition[] = [
     description_nb:
       "Rimelige velferdstiltak for alle ansatte (sommerfest, julebord, " +
       "firmatur) gir rett til MVA-fradrag. Bevertning av ansatte " +
-      "i forbindelse med overtid gir ogsaa fradrag. " +
+      "i forbindelse med overtid gir også fradrag. " +
       "Private arrangementer for enkeltansatte gir ikke fradrag.",
     effective_from: "2024-01-01",
     jurisdiction: "NO",
     source: "Merverdiavgiftsloven § 8-3 (1) bokstav e, Skattedirektoratets uttalelser",
     deductible: true,
     special_conditions:
-      "Maa vaere rimelig velferdstiltak for alle eller en gruppe ansatte. " +
+      "Må være rimelig velferdstiltak for alle eller en gruppe ansatte. " +
       "Personlige gaver og tilstelninger faller utenfor.",
   },
 ];

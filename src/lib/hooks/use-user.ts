@@ -1,134 +1,134 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { invalidate, load, peek, subscribe } from "@/lib/data-cache";
 import type { User as AuthUser } from "@supabase/supabase-js";
 import type {
   User,
   Company,
-  UserCompanyAccess,
   AccountingKnowledgeLevel,
 } from "@/lib/types/database";
 
-interface UseUserReturn {
-  /** Supabase auth user */
+interface Session {
   user: AuthUser | null;
-  /** Profile from the users table */
   profile: User | null;
-  /** Current company from user_company_access */
   company: Company | null;
-  /** User's accounting knowledge level */
   knowledgeLevel: AccountingKnowledgeLevel | null;
-  /** Whether data is still loading */
+}
+
+interface UseUserReturn extends Session {
   isLoading: boolean;
-  /** Sign out and redirect to login */
   signOut: () => Promise<void>;
 }
 
-export function useUser(): UseUserReturn {
-  const router = useRouter();
+const KEY = "session";
+
+const EMPTY: Session = {
+  user: null,
+  profile: null,
+  company: null,
+  knowledgeLevel: null,
+};
+
+/**
+ * Resolves who is signed in and which company they belong to.
+ *
+ * This runs four round trips — auth, profile, access, company — so it must
+ * happen once per tab, not once per page. The layout, the header and the page
+ * body all call useUser(); they now share one result through the cache, and a
+ * navigation reuses it instead of blocking the page on a fresh lookup.
+ */
+async function loadSession(): Promise<Session> {
   const supabase = createClient();
 
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [profile, setProfile] = useState<User | null>(null);
-  const [company, setCompany] = useState<Company | null>(null);
-  const [knowledgeLevel, setKnowledgeLevel] = useState<AccountingKnowledgeLevel | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const {
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    let cancelled = false;
+  if (!authUser) return EMPTY;
 
-    async function loadUser() {
-      try {
-        // Get auth user
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+  const { data: profile } = await supabase
+    .from("users")
+    .select("*")
+    .eq("auth_user_id", authUser.id)
+    .maybeSingle();
 
-        if (!authUser || cancelled) {
-          setIsLoading(false);
-          return;
-        }
+  if (!profile) return { ...EMPTY, user: authUser };
 
-        setUser(authUser);
+  const { data: access } = await supabase
+    .from("user_company_access")
+    .select("*")
+    .eq("user_id", profile.id)
+    .limit(1)
+    .maybeSingle();
 
-        // Load profile from users table
-        const { data: userProfile } = await supabase
-          .from("users")
-          .select("*")
-          .eq("auth_user_id", authUser.id)
-          .maybeSingle();
+  if (!access) return { ...EMPTY, user: authUser, profile };
 
-        if (cancelled) return;
-        setProfile(userProfile);
-
-        // Load company access (get the first/primary company)
-        const { data: access } = await supabase
-          .from("user_company_access")
-          .select("*")
-          .eq("user_id", authUser.id)
-          .limit(1)
-          .maybeSingle();
-
-        if (cancelled) return;
-
-        if (access) {
-          setKnowledgeLevel(access.accounting_knowledge_level);
-
-          // Load company details
-          const { data: companyData } = await supabase
-            .from("companies")
-            .select("*")
-            .eq("id", access.company_id)
-            .single();
-
-          if (!cancelled) {
-            setCompany(companyData);
-          }
-        }
-      } catch (err) {
-        console.error("Error loading user data:", err);
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    loadUser();
-
-    // Listen for auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (!session) {
-          setUser(null);
-          setProfile(null);
-          setCompany(null);
-          setKnowledgeLevel(null);
-        }
-      }
-    );
-
-    return () => {
-      cancelled = true;
-      subscription.unsubscribe();
-    };
-  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
-
-  const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setCompany(null);
-    setKnowledgeLevel(null);
-    router.push("/login");
-  }, [supabase, router]);
+  const { data: company } = await supabase
+    .from("companies")
+    .select("*")
+    .eq("id", access.company_id)
+    .single();
 
   return {
-    user,
+    user: authUser,
     profile,
     company,
-    knowledgeLevel,
-    isLoading,
+    knowledgeLevel: access.accounting_knowledge_level,
+  };
+}
+
+// Defined once at module scope so useSyncExternalStore is not handed a new
+// function on every render.
+const subscribeSession = (listener: () => void) => subscribe(KEY, listener);
+const readSession = () => peek<Session>(KEY);
+
+export function useUser(): UseUserReturn {
+  const router = useRouter();
+
+  const snapshot = useSyncExternalStore(subscribeSession, readSession, readSession);
+
+  useEffect(() => {
+    load(KEY, loadSession);
+
+    const supabase = createClient();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) invalidate(KEY);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const signOut = useCallback(async () => {
+    await createClient().auth.signOut();
+    invalidate();
+    router.push("/login");
+  }, [router]);
+
+  const session = snapshot.value ?? EMPTY;
+
+  return {
+    user: session.user,
+    profile: session.profile,
+    company: session.company,
+    knowledgeLevel: session.knowledgeLevel,
+    isLoading: !snapshot.hasValue,
     signOut,
   };
+}
+
+/**
+ * Re-reads the signed-in user's company. Used after onboarding writes one, so
+ * the shell picks up the new name without a full page reload.
+ */
+export function useRefreshSession() {
+  const [, force] = useState(0);
+  return useCallback(async () => {
+    await load(KEY, loadSession, { force: true });
+    force((n) => n + 1);
+  }, []);
 }

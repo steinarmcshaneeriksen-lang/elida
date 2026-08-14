@@ -2,14 +2,18 @@
 
 import { AppShell } from "@/components/layout/app-shell";
 import { usePathname } from "next/navigation";
+import { useUser } from "@/lib/hooks/use-user";
 
 const pageTitles: Record<string, string> = {
   "/": "Oversikt",
-  "/okonomi": "Okonomi",
+  "/okonomi": "Økonomi",
   "/likviditet": "Likviditet",
   "/kunder": "Kunder",
-  "/leverandorer": "Leverandorer",
+  "/leverandorer": "Leverandører",
   "/transaksjoner": "Transaksjoner",
+  "/rapporter": "Rapporter",
+  "/budsjett": "Budsjett",
+  "/import": "Importer data",
   "/innstillinger": "Innstillinger",
 };
 
@@ -20,6 +24,18 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const title = pageTitles[pathname] || "Elida";
+  const { company, knowledgeLevel } = useUser();
 
-  return <AppShell title={title}>{children}</AppShell>;
+  return (
+    <AppShell
+      title={title}
+      showTitle={pathname !== "/"}
+      companyId={company?.id}
+      companyName={company?.name}
+      orgNumber={company?.org_number}
+      knowledgeLevel={knowledgeLevel ?? "intermediate"}
+    >
+      {children}
+    </AppShell>
+  );
 }

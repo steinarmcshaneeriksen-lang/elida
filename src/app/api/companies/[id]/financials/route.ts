@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { ACCOUNT_CLASSES } from "@/lib/constants";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/financials?period_start=&period_end=&comparison_start=&comparison_end=
@@ -34,32 +35,41 @@ export async function GET(
 
     const supabase = await createClient();
 
-    // Load transactions for the current period
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount, description, transaction_date")
-      .eq("company_id", companyId)
-      .gte("transaction_date", periodStart)
-      .lte("transaction_date", periodEnd) as {
-      data: TxRow[] | null;
-    };
+    // Paged. Reading without a range stops at 1000 rows, which on this ledger
+    // meant a year-to-date figure that only covered part of January.
+    const [transactions, compTransactions] = await Promise.all([
+      fetchAll<TxRow>(
+        (from, to) =>
+          supabase
+            .from("account_transactions")
+            .select("account_number, amount, description, transaction_date")
+            .eq("company_id", companyId)
+            .gte("transaction_date", periodStart)
+            .lte("transaction_date", periodEnd)
+            .order("transaction_date", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to) as PromiseLike<{ data: TxRow[] | null; error: { message: string } | null }>,
+        { label: "posteringer" }
+      ),
+      fetchAll<TxRow>(
+        (from, to) =>
+          supabase
+            .from("account_transactions")
+            .select("account_number, amount")
+            .eq("company_id", companyId)
+            .gte("transaction_date", comparisonStart)
+            .lte("transaction_date", comparisonEnd)
+            .order("transaction_date", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, to) as PromiseLike<{ data: TxRow[] | null; error: { message: string } | null }>,
+        { label: "sammenligningsposteringer" }
+      ),
+    ]);
 
-    // Load transactions for the comparison period
-    const { data: compTransactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount")
-      .eq("company_id", companyId)
-      .gte("transaction_date", comparisonStart)
-      .lte("transaction_date", comparisonEnd) as {
-      data: TxRow[] | null;
-    };
-
-    if (transactions && transactions.length > 0) {
-      const result = buildFinancialsFromTransactions(
-        transactions,
-        compTransactions ?? []
-      );
+    if (transactions.length > 0) {
+      const result = buildFinancialsFromTransactions(transactions, compTransactions);
       return NextResponse.json({
+        has_data: true,
         period_start: periodStart,
         period_end: periodEnd,
         comparison_start: comparisonStart,
@@ -68,10 +78,18 @@ export async function GET(
       });
     }
 
-    // No real data -- return mock financials
-    return NextResponse.json(
-      getMockFinancials(periodStart, periodEnd, comparisonStart, comparisonEnd)
-    );
+    // No transactions synced yet — return an honest empty state.
+    return NextResponse.json({
+      has_data: false,
+      period_start: periodStart,
+      period_end: periodEnd,
+      comparison_start: comparisonStart,
+      comparison_end: comparisonEnd,
+      revenue: null,
+      costs: null,
+      profit: null,
+      monthly: [],
+    });
   } catch (error) {
     console.error("Financials API error:", error);
     return errorResponse("Failed to load financial data");
@@ -82,14 +100,14 @@ export async function GET(
 // Real data processing
 // ---------------------------------------------------------------------------
 
-interface TxRow {
+export interface TxRow {
   account_number: string;
   amount: number;
   description?: string | null;
   transaction_date?: string;
 }
 
-function buildFinancialsFromTransactions(
+export function buildFinancialsFromTransactions(
   transactions: TxRow[],
   compTransactions: TxRow[]
 ) {
@@ -143,6 +161,12 @@ function buildFinancialsFromTransactions(
 
   const grossProfit = revenue - cogs;
   const operatingProfit = revenue - totalCosts;
+  const compOperatingProfit = compRevenue - compTotalCosts;
+
+  // Margin is compared in percentage points, not as a percentage of a
+  // percentage: a margin going from 16,7 % to 13,2 % has fallen 3,5 points.
+  const margin = revenue ? (operatingProfit / revenue) * 100 : null;
+  const compMargin = compRevenue ? (compOperatingProfit / compRevenue) * 100 : null;
 
   // Financial items: 8000-8999
   const financialNet = sumByRange(
@@ -164,7 +188,36 @@ function buildFinancialsFromTransactions(
     }
   }
 
+  // Monthly series for the revenue chart, ordered oldest to newest.
+  const monthlyMap = new Map<
+    string,
+    { revenue: number; costs: number }
+  >();
+  for (const t of transactions) {
+    if (!t.transaction_date) continue;
+    const month = t.transaction_date.slice(0, 7);
+    const acct = parseInt(t.account_number, 10);
+    const entry = monthlyMap.get(month) ?? { revenue: 0, costs: 0 };
+
+    if (acct >= ACCOUNT_CLASSES.REVENUE.from && acct <= ACCOUNT_CLASSES.REVENUE.to) {
+      entry.revenue += Math.abs(t.amount);
+    } else if (acct >= 4000 && acct < 8000) {
+      entry.costs += Math.abs(t.amount);
+    }
+    monthlyMap.set(month, entry);
+  }
+
+  const monthly = [...monthlyMap.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, v]) => ({
+      month,
+      revenue: v.revenue,
+      costs: v.costs,
+      profit: v.revenue - v.costs,
+    }));
+
   return {
+    monthly,
     revenue: {
       total: revenue,
       previous_period_total: compRevenue,
@@ -187,9 +240,19 @@ function buildFinancialsFromTransactions(
       gross_profit: grossProfit,
       gross_margin_percent: revenue ? (grossProfit / revenue) * 100 : 0,
       operating_profit: operatingProfit,
-      operating_margin_percent: revenue
-        ? (operatingProfit / revenue) * 100
-        : 0,
+      operating_margin_percent: margin ?? 0,
+      previous_operating_profit: compOperatingProfit,
+      // Null rather than zero when the comparison period holds nothing, so the
+      // card can say there is no comparison instead of showing a fall to zero.
+      previous_operating_margin_percent: compMargin,
+      operating_margin_change_points:
+        margin != null && compMargin != null
+          ? Math.round((margin - compMargin) * 10) / 10
+          : null,
+      operating_profit_change_percent:
+        compOperatingProfit > 0
+          ? ((operatingProfit - compOperatingProfit) / compOperatingProfit) * 100
+          : null,
       net_profit: netProfit,
       net_margin_percent: revenue ? (netProfit / revenue) * 100 : 0,
       previous_period_net_profit: compNetProfit,
@@ -202,78 +265,18 @@ function buildFinancialsFromTransactions(
 
 function getCostCategory(accountNumber: number): string {
   if (accountNumber >= 4000 && accountNumber < 5000) return "Varekostnad";
-  if (accountNumber >= 5000 && accountNumber < 5200) return "Lonnskostnad";
+  if (accountNumber >= 5000 && accountNumber < 5200) return "Lønnskostnad";
   if (accountNumber >= 5200 && accountNumber < 6000) return "Andre personalkostnader";
   if (accountNumber >= 6000 && accountNumber < 6100) return "Avskrivning";
   if (accountNumber >= 6100 && accountNumber < 6200) return "Leiekostnader";
-  if (accountNumber >= 6200 && accountNumber < 6300) return "Strom og oppvarming";
+  if (accountNumber >= 6200 && accountNumber < 6300) return "Strøm og oppvarming";
   if (accountNumber >= 6300 && accountNumber < 6500) return "Kontorkostnader";
-  if (accountNumber >= 6500 && accountNumber < 6700) return "Utstyr og verktoy";
+  if (accountNumber >= 6500 && accountNumber < 6700) return "Utstyr og verktøy";
   if (accountNumber >= 6700 && accountNumber < 6900) return "IT og programvare";
   if (accountNumber >= 6900 && accountNumber < 7100) return "Telefon og porto";
   if (accountNumber >= 7100 && accountNumber < 7200) return "Reisekostnader";
-  if (accountNumber >= 7200 && accountNumber < 7400) return "Markedsforing";
+  if (accountNumber >= 7200 && accountNumber < 7400) return "Markedsføring";
   if (accountNumber >= 7400 && accountNumber < 7500) return "Forsikring";
   if (accountNumber >= 7500 && accountNumber < 8000) return "Andre driftskostnader";
   return "Uspesifisert";
-}
-
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
-
-function getMockFinancials(
-  periodStart: string,
-  periodEnd: string,
-  comparisonStart: string,
-  comparisonEnd: string
-) {
-  return {
-    period_start: periodStart,
-    period_end: periodEnd,
-    comparison_start: comparisonStart,
-    comparison_end: comparisonEnd,
-    revenue: {
-      total: 9_050_000,
-      previous_period_total: 8_230_000,
-      change_percent: 10.0,
-    },
-    costs: {
-      total: 7_660_000,
-      cost_of_goods: 0,
-      payroll: 4_760_000,
-      other_operating: 2_900_000,
-      by_category: {
-        Lonnskostnader: 4_760_000,
-        Kontorleie: 455_000,
-        "IT og programvare": 905_000,
-        Markedsforing: 210_000,
-        "Reise og transport": 185_000,
-        Forsikring: 112_000,
-        "Regnskap og revisjon": 180_000,
-        "Andre driftskostnader": 853_000,
-      },
-      previous_period_total: 7_156_000,
-      change_percent: 7.0,
-    },
-    profit: {
-      gross_profit: 9_050_000,
-      gross_margin_percent: 100.0,
-      operating_profit: 1_284_000,
-      operating_margin_percent: 14.2,
-      net_profit: 1_240_000,
-      net_margin_percent: 13.7,
-      previous_period_net_profit: 1_074_000,
-      change_percent: 15.5,
-    },
-    monthly: [
-      { month: "2026-01", revenue: 1_120_000, costs: 920_000, profit: 200_000 },
-      { month: "2026-02", revenue: 1_080_000, costs: 880_000, profit: 200_000 },
-      { month: "2026-03", revenue: 1_250_000, costs: 960_000, profit: 290_000 },
-      { month: "2026-04", revenue: 1_180_000, costs: 950_000, profit: 230_000 },
-      { month: "2026-05", revenue: 1_620_000, costs: 1_050_000, profit: 570_000 },
-      { month: "2026-06", revenue: 1_380_000, costs: 1_020_000, profit: 360_000 },
-      { month: "2026-07", revenue: 1_420_000, costs: 1_080_000, profit: 340_000 },
-    ],
-  };
 }

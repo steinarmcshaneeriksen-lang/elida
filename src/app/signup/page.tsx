@@ -3,12 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
 import { createClient } from "@/lib/supabase/client";
 import { UserPlus, Eye, EyeOff, Loader2 } from "lucide-react";
 
 export default function SignupPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -28,8 +28,9 @@ export default function SignupPage() {
 
     setIsLoading(true);
 
+    const supabase = createClient();
+
     try {
-      // Create auth user
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -57,26 +58,6 @@ export default function SignupPage() {
         return;
       }
 
-      // Create user record in users table
-      const { error: userError } = await supabase.from("users").insert({
-        auth_user_id: data.user.id,
-        email: email,
-        full_name: fullName,
-      });
-
-      if (userError && !userError.message.includes("duplicate")) {
-        console.error("Failed to create user record:", userError);
-        // Don't block signup — the record can be created later
-      }
-
-      // Create default user preferences
-      await supabase.from("user_preferences").insert({
-        user_id: data.user.id,
-        language: "nb",
-        theme: "system",
-        settings: {},
-      });
-
       router.push("/onboarding");
     } catch {
       setError("En uventet feil oppstod. Prøv igjen.");
@@ -90,10 +71,7 @@ export default function SignupPage() {
       <div className="w-full max-w-md">
         {/* Branding */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
-               style={{ background: "var(--primary)", color: "#fff" }}>
-            <span className="text-2xl font-bold tracking-tight">E</span>
-          </div>
+          <Logo size={40} className="mb-5 inline-block" />
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--foreground)" }}>
             Opprett konto
           </h1>

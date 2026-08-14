@@ -5,10 +5,28 @@
  * All queries enforce tenant isolation via company_id filtering.
  *
  * Handlers attempt to query Supabase for real data and fall back to
- * structured mock data when data is unavailable (MVP approach).
+ * an explicit no-data response when nothing has been imported, so the
+ * assistant says so rather than inventing figures.
  */
 
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeFilterTerm } from "@/lib/supabase/filter";
+import { fetchAll } from "@/lib/supabase/paginate";
+import { getBudget, proposeBudgetChange, createBudget } from "./budget-tools";
+import { createReport } from "./report-tools";
+import { findSavings } from "./savings-tools";
+import {
+  upcomingVatTerms,
+  formatDeadline,
+  daysUntil,
+  type VatScheme,
+} from "@/lib/tax/vat-terms";
+import {
+  clampToCoverage,
+  coverageNote,
+  getCoverage,
+  type Coverage,
+} from "./coverage";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,11 +34,75 @@ import { createClient } from "@/lib/supabase/server";
 
 type ToolParams = Record<string, unknown>;
 type ToolResult = Record<string, unknown>;
-type ToolHandler = (companyId: string, params: ToolParams) => Promise<ToolResult>;
+type ToolHandler = (
+  companyId: string,
+  params: ToolParams,
+  /** Who is asking. Passed to the handlers that record authorship. */
+  userId?: string
+) => Promise<ToolResult>;
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * The one no-data response. It always states what the books do contain, so the
+ * assistant never tells someone to import a file they have already imported.
+ */
+function noData(coverage: Coverage): ToolResult {
+  if (coverage.has_data) {
+    return {
+      data_source: "saft_import",
+      note:
+        `Regnskapet dekker ${coverage.first_date}–${coverage.last_date}, men dette ` +
+        "verktøyet fant ingen tall å returnere. Si hva regnskapet dekker framfor " +
+        "å be brukeren importere på nytt.",
+    };
+  }
+
+  return {
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
+  };
+}
+
+function inRange(accountNumber: string, from: number, to: number): boolean {
+  const account = parseInt(accountNumber, 10);
+  return account >= from && account <= to;
+}
+
+async function customerSummary(companyId: string) {
+  const supabase = await createClient();
+  return supabase.rpc("company_customer_summary" as never, {
+    p_company_id: companyId,
+  } as never) as unknown as Promise<{
+    data: Array<{
+      customer_id: string;
+      revenue: number;
+      outstanding: number;
+      posting_count: number;
+      last_activity: string | null;
+    }> | null;
+  }>;
+}
+
+async function supplierSummary(companyId: string) {
+  const supabase = await createClient();
+  return supabase.rpc("company_supplier_summary" as never, {
+    p_company_id: companyId,
+  } as never) as unknown as Promise<{
+    data: Array<{
+      supplier_id: string;
+      cost: number;
+      outstanding: number;
+      posting_count: number;
+      last_activity: string | null;
+    }> | null;
+  }>;
+}
 
 function parsePeriodDates(period: string): { start: string; end: string } {
   const now = new Date();
@@ -93,508 +175,1201 @@ function fmt(d: Date): string {
 // Handlers
 // ---------------------------------------------------------------------------
 
+/**
+ * Computed from the ledger for whatever period is asked for, rather than
+ * looked up among precomputed snapshots. The snapshot lookup only matched
+ * whole accounting years, so "hvordan går det denne måneden" fell through to
+ * a no-data answer even with six months of postings loaded.
+ */
 const getFinancialSummary: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
+  const supabase = await createClient();
 
-    // Try to get metric snapshots for the period
-    const { data: metrics } = await supabase
-      .from("financial_metric_snapshots")
-      .select("*")
-      .eq("company_id", companyId)
-      .gte("period_start", start)
-      .lte("period_end", end);
+  // Paged: an unranged read stops at 1000 rows, which would silently report a
+  // fraction of the period as if it were the whole of it.
+  const rows = await fetchAll<{ account_number: string; amount: number }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount")
+        .eq("company_id", companyId)
+        .gte("transaction_date", resolved.start)
+        .lte("transaction_date", resolved.end)
+        .gte("account_number", "3000")
+        .lt("account_number", "9000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ account_number: string; amount: number }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "posteringer" }
+  );
 
-    if (metrics && metrics.length > 0) {
-      const metricMap: Record<string, unknown> = {};
-      for (const m of metrics) {
-        metricMap[m.metric] = {
-          value: m.value,
-          comparison_value: m.comparison_value,
-          change_percent: m.change_percent,
-          confidence: m.confidence,
-        };
-      }
-      return {
-        period: { start, end },
-        metrics: metricMap,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through to mock data
+  // Revenue is credited and so carries a negative sign in a debit-positive
+  // ledger; costs are debited. Both are reported as the positive figures a
+  // person expects to read.
+  let revenue = 0;
+  let costs = 0;
+  for (const r of rows) {
+    const amount = Number(r.amount);
+    if (inRange(r.account_number, 3000, 3999)) revenue -= amount;
+    else if (inRange(r.account_number, 4000, 7999)) costs += amount;
   }
 
+  const cash = (await getCashPosition(companyId, {})) as { booked_cash?: number };
+  const receivables = (await getCustomerReceivables(companyId, {})) as {
+    total_outstanding?: { amount: number };
+  };
+  const payables = (await getSupplierPayables(companyId, {})) as {
+    total_payables?: { amount: number };
+  };
+
   return {
-    period: { start, end },
-    revenue: { amount: 850000, confidence: "estimated", currency: "NOK" },
-    costs: { amount: 620000, confidence: "estimated", currency: "NOK" },
-    profit: { amount: 230000, confidence: "estimated", currency: "NOK" },
-    profit_margin: { percent: 27.1, confidence: "estimated" },
-    cash_balance: { amount: 1250000, confidence: "estimated", currency: "NOK" },
-    receivables: { amount: 340000, confidence: "estimated", currency: "NOK" },
-    payables: { amount: 180000, confidence: "estimated", currency: "NOK" },
-    data_source: "mock_data",
-    note: "Viser eksempeldata. Koble til regnskapssystem for reelle tall.",
+    period: { start: resolved.start, end: resolved.end },
+    requested_period: requested,
+    books_cover: { start: coverage.first_date, end: coverage.last_date },
+    revenue: Math.round(revenue),
+    costs: Math.round(costs),
+    operating_profit: Math.round(revenue - costs),
+    operating_margin:
+      revenue !== 0 ? Math.round(((revenue - costs) / revenue) * 1000) / 10 : null,
+    booked_cash: cash.booked_cash ?? null,
+    receivables: receivables.total_outstanding?.amount ?? null,
+    payables: payables.total_payables?.amount ?? null,
+    transaction_count: rows.length,
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
 const getRevenueAnalysis: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
 
-    // Get revenue accounts (3xxx range in Norwegian chart of accounts)
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("*, gl_accounts!inner(account_number, name)")
-      .eq("company_id", companyId)
-      .gte("transaction_date", start)
-      .lte("transaction_date", end)
-      .gte("account_number", "3000")
-      .lt("account_number", "4000");
+  const supabase = await createClient();
+  const rows = await fetchAll<{
+    account_number: string;
+    amount: number;
+    transaction_date: string;
+    description: string | null;
+  }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount, transaction_date, description")
+        .eq("company_id", companyId)
+        .gte("transaction_date", resolved.start)
+        .lte("transaction_date", resolved.end)
+        .gte("account_number", "3000")
+        .lt("account_number", "4000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{
+          account_number: string;
+          amount: number;
+          transaction_date: string;
+          description: string | null;
+        }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "inntektsposteringer" }
+  );
+  const total = rows.reduce((sum, t) => sum - Number(t.amount), 0);
 
-    if (transactions && transactions.length > 0) {
-      const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const byAccount: Record<string, number> = {};
-      for (const t of transactions) {
-        const key = t.account_number;
-        byAccount[key] = (byAccount[key] || 0) + Math.abs(t.amount);
-      }
-      return {
-        period: { start, end },
-        total_revenue: { amount: total, currency: "NOK" },
-        by_account: byAccount,
-        transaction_count: transactions.length,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
+  const byAccount = new Map<string, number>();
+  const byMonth = new Map<string, number>();
+  for (const t of rows) {
+    byAccount.set(
+      t.account_number,
+      (byAccount.get(t.account_number) ?? 0) - Number(t.amount)
+    );
+    const month = t.transaction_date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) - Number(t.amount));
   }
 
+  // Account names, so the answer can say "Salgsinntekt" rather than "3000".
+  const { data: accounts } = await supabase
+    .from("gl_accounts")
+    .select("account_number, name")
+    .eq("company_id", companyId)
+    .in("account_number", [...byAccount.keys()].slice(0, 200))
+    .limit(5000);
+
+  const names = new Map((accounts ?? []).map((a) => [a.account_number, a.name]));
+
   return {
-    period: { start, end },
-    total_revenue: { amount: 850000, currency: "NOK", confidence: "estimated" },
-    by_category: {
-      "Salgsinntekt, avgiftspliktig": 720000,
-      "Salgsinntekt, avgiftsfri": 90000,
-      "Annen driftsinntekt": 40000,
-    },
-    trend: "stabil",
-    data_source: "mock_data",
+    period: { start: resolved.start, end: resolved.end },
+    requested_period: requested,
+    total_revenue: { amount: Math.round(total), currency: "NOK" },
+    by_account: [...byAccount.entries()]
+      .map(([account_number, amount]) => ({
+        account_number,
+        name: names.get(account_number) ?? null,
+        amount: Math.round(amount),
+      }))
+      .sort((a, b) => b.amount - a.amount),
+    by_month: [...byMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month, amount: Math.round(amount) })),
+    transaction_count: rows.length,
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
+/**
+ * Profit for the asked-for period, with the same period a year earlier
+ * alongside it when the books reach that far back — the comparison is what
+ * makes the figure mean something.
+ */
 const getProfitAnalysis: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: metrics } = await supabase
-      .from("financial_metric_snapshots")
-      .select("*")
-      .eq("company_id", companyId)
-      .in("metric", [
-        "gross_profit",
-        "operating_profit",
-        "net_profit",
-        "gross_margin",
-        "operating_margin",
-      ])
-      .gte("period_start", start)
-      .lte("period_end", end);
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
 
-    if (metrics && metrics.length > 0) {
-      const result: Record<string, unknown> = { period: { start, end } };
-      for (const m of metrics) {
-        result[m.metric] = {
-          value: m.value,
-          change_percent: m.change_percent,
-          confidence: m.confidence,
-        };
-      }
-      result.data_source = "regnskapssystem";
-      return result;
-    }
-  } catch {
-    // Fall through
+  const current = await profitFor(companyId, resolved.start, resolved.end);
+
+  const priorRange = {
+    start: shiftYear(resolved.start, -1),
+    end: shiftYear(resolved.end, -1),
+  };
+  const priorInBooks =
+    coverage.first_date != null &&
+    coverage.last_date != null &&
+    priorRange.end >= coverage.first_date &&
+    priorRange.start <= coverage.last_date;
+
+  const prior = priorInBooks
+    ? await profitFor(companyId, priorRange.start, priorRange.end)
+    : null;
+
+  const change =
+    prior && prior.operating_profit !== 0
+      ? Math.round(
+          ((current.operating_profit - prior.operating_profit) /
+            Math.abs(prior.operating_profit)) *
+            1000
+        ) / 10
+      : null;
+
+  return {
+    period: { start: resolved.start, end: resolved.end },
+    revenue: current.revenue,
+    cost_of_goods: current.cogs,
+    gross_profit: current.revenue - current.cogs,
+    payroll_costs: current.payroll,
+    other_operating_costs: current.other,
+    operating_profit: current.operating_profit,
+    operating_margin:
+      current.revenue !== 0
+        ? Math.round((current.operating_profit / current.revenue) * 1000) / 10
+        : null,
+    comparison: prior
+      ? {
+          period: priorRange,
+          revenue: prior.revenue,
+          operating_profit: prior.operating_profit,
+          change_percent: change,
+        }
+      : null,
+    comparison_available: prior != null,
+    note:
+      coverageNote(requested, resolved, coverage) ??
+      (prior
+        ? undefined
+        : "Fjoråret er ikke importert, så det finnes ingen sammenligning. Ikke " +
+          "presenter en endring i prosent."),
+    data_source: "saft_import",
+  };
+};
+
+/** Revenue and cost totals for a date range, split the way a P&L reads. */
+async function profitFor(companyId: string, start: string, end: string) {
+  const supabase = await createClient();
+  const rows = await fetchAll<{ account_number: string; amount: number }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount")
+        .eq("company_id", companyId)
+        .gte("transaction_date", start)
+        .lte("transaction_date", end)
+        .gte("account_number", "3000")
+        .lt("account_number", "8000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ account_number: string; amount: number }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "resultatposteringer" }
+  );
+
+  let revenue = 0;
+  let cogs = 0;
+  let payroll = 0;
+  let other = 0;
+
+  for (const r of rows) {
+    const amount = Number(r.amount);
+    if (inRange(r.account_number, 3000, 3999)) revenue -= amount;
+    else if (inRange(r.account_number, 4000, 4999)) cogs += amount;
+    else if (inRange(r.account_number, 5000, 5999)) payroll += amount;
+    else other += amount;
   }
 
   return {
-    period: { start, end },
-    revenue: 850000,
-    cost_of_goods: 340000,
-    gross_profit: 510000,
-    gross_margin_percent: 60.0,
-    operating_expenses: 280000,
-    operating_profit: 230000,
-    operating_margin_percent: 27.1,
-    currency: "NOK",
-    confidence: "estimated",
-    data_source: "mock_data",
+    revenue: Math.round(revenue),
+    cogs: Math.round(cogs),
+    payroll: Math.round(payroll),
+    other: Math.round(other),
+    operating_profit: Math.round(revenue - cogs - payroll - other),
   };
-};
+}
+
+function shiftYear(date: string, years: number): string {
+  const [y, m, d] = date.split("-");
+  return `${Number(y) + years}-${m}-${d}`;
+}
+
+const COST_CATEGORIES: Array<{ from: number; to: number; label: string }> = [
+  { from: 4000, to: 4999, label: "Varekostnad" },
+  { from: 5000, to: 5999, label: "Lønnskostnader" },
+  { from: 6000, to: 6099, label: "Avskrivninger" },
+  { from: 6100, to: 6399, label: "Lokaler, leie og drift" },
+  { from: 6400, to: 6799, label: "Utstyr, verktøy og tjenester" },
+  { from: 6800, to: 6999, label: "Kontor, telefon og porto" },
+  { from: 7000, to: 7099, label: "Bil og transport" },
+  { from: 7100, to: 7299, label: "Reise, diett og representasjon" },
+  { from: 7300, to: 7499, label: "Salg, reklame og kontingenter" },
+  { from: 7500, to: 7999, label: "Forsikring og andre kostnader" },
+];
 
 const getCostAnalysis: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
 
-    // Cost accounts (4xxx-7xxx in Norwegian chart of accounts)
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("account_number, amount")
-      .eq("company_id", companyId)
-      .gte("transaction_date", start)
-      .lte("transaction_date", end)
-      .gte("account_number", "4000")
-      .lt("account_number", "8000");
+  const supabase = await createClient();
+  const rows = await fetchAll<{ account_number: string; amount: number }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount")
+        .eq("company_id", companyId)
+        .gte("transaction_date", resolved.start)
+        .lte("transaction_date", resolved.end)
+        .gte("account_number", "4000")
+        .lt("account_number", "8000")
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ account_number: string; amount: number }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "kostnadsposteringer" }
+  );
+  const total = rows.reduce((sum, t) => sum + Number(t.amount), 0);
 
-    if (transactions && transactions.length > 0) {
-      const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-      const byRange: Record<string, number> = {};
-      for (const t of transactions) {
-        const num = parseInt(t.account_number);
-        let category: string;
-        if (num < 5000) category = "Varekostnad";
-        else if (num < 6000) category = "Lonnskostnader";
-        else if (num < 7000) category = "Avskrivninger og nedskrivninger";
-        else category = "Andre driftskostnader";
-        byRange[category] = (byRange[category] || 0) + Math.abs(t.amount);
-      }
-      return {
-        period: { start, end },
-        total_costs: { amount: total, currency: "NOK" },
-        by_category: byRange,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
+  const byCategory = new Map<string, number>();
+  const byAccount = new Map<string, number>();
+  for (const t of rows) {
+    const num = parseInt(t.account_number, 10);
+    const category =
+      COST_CATEGORIES.find((c) => num >= c.from && num <= c.to)?.label ??
+      "Andre driftskostnader";
+    byCategory.set(category, (byCategory.get(category) ?? 0) + Number(t.amount));
+    byAccount.set(
+      t.account_number,
+      (byAccount.get(t.account_number) ?? 0) + Number(t.amount)
+    );
   }
 
+  const { data: accounts } = await supabase
+    .from("gl_accounts")
+    .select("account_number, name")
+    .eq("company_id", companyId)
+    .in("account_number", [...byAccount.keys()].slice(0, 200))
+    .limit(5000);
+
+  const names = new Map((accounts ?? []).map((a) => [a.account_number, a.name]));
+
   return {
-    period: { start, end },
-    total_costs: { amount: 620000, currency: "NOK", confidence: "estimated" },
-    by_category: {
-      Varekostnad: 340000,
-      Lonnskostnader: 150000,
-      Husleie: 35000,
-      "Kontorkostnader og rekvisita": 12000,
-      "Reise og transport": 18000,
-      "Markedsforing": 25000,
-      "IT og programvare": 15000,
-      "Andre driftskostnader": 25000,
-    },
-    largest_single_expense: {
-      description: "Varekostnad",
-      amount: 340000,
-      percent_of_total: 54.8,
-    },
-    data_source: "mock_data",
+    period: { start: resolved.start, end: resolved.end },
+    total_costs: { amount: Math.round(total), currency: "NOK" },
+    by_category: [...byCategory.entries()]
+      .map(([category, amount]) => ({ category, amount: Math.round(amount) }))
+      .sort((a, b) => b.amount - a.amount),
+    largest_accounts: [...byAccount.entries()]
+      .map(([account_number, amount]) => ({
+        account_number,
+        name: names.get(account_number) ?? null,
+        amount: Math.round(amount),
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 20),
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
+/**
+ * Accepts a single account, an account range like "6000-6999", or a named
+ * category. The previous version matched on an exact account number only, so
+ * every category name the tool description advertised returned nothing.
+ */
 const getAccountBreakdown: ToolHandler = async (companyId, params) => {
-  const { start, end } = parsePeriodDates(params.period as string);
-  const accountOrCategory = params.account_or_category as string;
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: transactions } = await supabase
-      .from("account_transactions")
-      .select("*")
-      .eq("company_id", companyId)
-      .eq("account_number", accountOrCategory)
-      .gte("transaction_date", start)
-      .lte("transaction_date", end)
-      .order("transaction_date", { ascending: false })
-      .limit(50);
+  const requested = parsePeriodDates(params.period as string);
+  const resolved = clampToCoverage(requested, coverage);
+  const raw = String(params.account_or_category ?? "").trim();
 
-    if (transactions && transactions.length > 0) {
-      const total = transactions.reduce((sum, t) => sum + t.amount, 0);
-      return {
-        account: accountOrCategory,
-        period: { start, end },
-        total: { amount: total, currency: "NOK" },
-        transaction_count: transactions.length,
-        transactions: transactions.map((t) => ({
-          date: t.transaction_date,
-          description: t.description,
-          amount: t.amount,
-          vat_code: t.vat_code,
-        })),
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
-
-  return {
-    account: accountOrCategory,
-    period: { start, end },
-    total: { amount: 35000, currency: "NOK", confidence: "estimated" },
-    transaction_count: 0,
-    note: "Ingen transaksjoner funnet for denne kontoen i perioden.",
-    data_source: "mock_data",
+  const named: Record<string, [number, number]> = {
+    revenue: [3000, 3999],
+    inntekter: [3000, 3999],
+    omsetning: [3000, 3999],
+    varekostnad: [4000, 4999],
+    salary_costs: [5000, 5999],
+    lonn: [5000, 5999],
+    lønn: [5000, 5999],
+    driftskostnader: [6000, 7999],
+    bank: [1900, 1999],
+    kundefordringer: [1500, 1599],
+    leverandorgjeld: [2400, 2499],
+    leverandørgjeld: [2400, 2499],
   };
-};
 
-const getCustomerReceivables: ToolHandler = async (companyId) => {
-  try {
-    const supabase = await createClient();
+  let from: string;
+  let to: string;
 
-    const { data: entries } = await supabase
-      .from("customer_ledger_entries")
-      .select("*, customers!inner(name)")
-      .eq("company_id", companyId)
-      .eq("is_open", true);
+  const rangeMatch = raw.match(/^(\d{4})\s*-\s*(\d{4})$/);
+  const singleMatch = raw.match(/^(\d{4})$/);
+  const key = raw.toLowerCase().replace(/\s+/g, "_");
 
-    if (entries && entries.length > 0) {
-      const total = entries.reduce(
-        (sum, e) => sum + (e.remaining_amount ?? e.amount),
-        0
-      );
-      const now = new Date();
-      const aging = { "0_30": 0, "31_60": 0, "61_90": 0, "90_plus": 0 };
-      for (const e of entries) {
-        const due = e.due_date ? new Date(e.due_date) : new Date(e.entry_date);
-        const daysOver = Math.floor(
-          (now.getTime() - due.getTime()) / (1000 * 60 * 60 * 24)
-        );
-        const amt = e.remaining_amount ?? e.amount;
-        if (daysOver <= 30) aging["0_30"] += amt;
-        else if (daysOver <= 60) aging["31_60"] += amt;
-        else if (daysOver <= 90) aging["61_90"] += amt;
-        else aging["90_plus"] += amt;
-      }
-      return {
-        total_outstanding: { amount: total, currency: "NOK" },
-        aging,
-        customer_count: new Set(entries.map((e) => e.customer_id)).size,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
+  if (singleMatch) {
+    from = to = singleMatch[1];
+  } else if (rangeMatch) {
+    from = rangeMatch[1];
+    to = rangeMatch[2];
+  } else if (named[key]) {
+    from = String(named[key][0]);
+    to = String(named[key][1]);
+  } else {
+    return {
+      error: `Forsto ikke «${raw}». Oppgi et kontonummer (f.eks. 6300), et intervall (6000-6999) eller en kategori: ${Object.keys(named).join(", ")}.`,
+    };
+  }
+
+  const supabase = await createClient();
+  const { data: transactions } = await supabase
+    .from("account_transactions")
+    .select("transaction_date, account_number, description, amount, vat_code")
+    .eq("company_id", companyId)
+    .gte("account_number", from)
+    .lte("account_number", to)
+    .gte("transaction_date", resolved.start)
+    .lte("transaction_date", resolved.end)
+    .order("transaction_date", { ascending: false })
+    .limit(200);
+
+  const rows = transactions ?? [];
+  const byMonth = new Map<string, number>();
+  for (const t of rows) {
+    const month = t.transaction_date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) + Number(t.amount));
   }
 
   return {
-    total_outstanding: {
-      amount: 340000,
+    accounts: from === to ? from : `${from}-${to}`,
+    period: { start: resolved.start, end: resolved.end },
+    total: {
+      amount: Math.round(rows.reduce((sum, t) => sum + Number(t.amount), 0)),
       currency: "NOK",
-      confidence: "estimated",
     },
-    aging: {
-      "0_30_dager": 180000,
-      "31_60_dager": 95000,
-      "61_90_dager": 45000,
-      "over_90_dager": 20000,
-    },
-    top_debtors: [
-      { name: "Eksempel Kunde AS", amount: 120000 },
-      { name: "Demo Handel AS", amount: 85000 },
-      { name: "Test Tjenester AS", amount: 55000 },
-    ],
-    data_source: "mock_data",
+    transaction_count: rows.length,
+    by_month: [...byMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month, amount: Math.round(amount) })),
+    transactions: rows.slice(0, 50).map((t) => ({
+      date: t.transaction_date,
+      account: t.account_number,
+      description: t.description,
+      amount: Number(t.amount),
+      vat_code: t.vat_code,
+    })),
+    note: coverageNote(requested, resolved, coverage),
+    data_source: "saft_import",
   };
 };
 
-const getCustomerPaymentProfile: ToolHandler = async (companyId, params) => {
-  const customerId = params.customer_id as string;
+/**
+ * Receivables come from the balance the accounting system states per customer
+ * in the SAF-T file, which is what they actually owe. The older version read
+ * customer_ledger_entries — a table a SAF-T import never writes — so it always
+ * reported that nothing had been imported.
+ *
+ * SAF-T states a balance, not the invoices behind it, so there is no due date
+ * to age against. Saying so is more useful than an ageing bucket built on a
+ * guess.
+ */
+const getCustomerReceivables: ToolHandler = async (companyId) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: profile } = await supabase
-      .from("customer_payment_profiles")
-      .select("*, customers!inner(name)")
-      .eq("company_id", companyId)
-      .eq("customer_id", customerId)
-      .single();
+  const supabase = await createClient();
 
-    if (profile) {
+  const [customers, { data: summary }] = await Promise.all([
+    fetchAll<{
+      id: string;
+      name: string;
+      customer_number: string | null;
+      org_number: string | null;
+      closing_balance: number | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, customer_number, org_number, closing_balance")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{
+            id: string;
+            name: string;
+            customer_number: string | null;
+            org_number: string | null;
+            closing_balance: number | null;
+          }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "kunder" }
+    ),
+    customerSummary(companyId),
+  ]);
+
+  const byId = new Map((summary ?? []).map((s) => [s.customer_id, s]));
+
+  const rows = (customers ?? [])
+    .map((c) => ({
+      customer_id: c.id,
+      name: c.name,
+      customer_number: c.customer_number,
+      outstanding: c.closing_balance ?? null,
+      outstanding_is_stated: c.closing_balance != null,
+      revenue_in_period: Number(byId.get(c.id)?.revenue ?? 0),
+      last_activity: byId.get(c.id)?.last_activity ?? null,
+    }))
+    .filter((r) => (r.outstanding ?? 0) !== 0)
+    .sort((a, b) => (b.outstanding ?? 0) - (a.outstanding ?? 0));
+
+  return {
+    as_of: coverage.last_date,
+    total_outstanding: {
+      amount: Math.round(rows.reduce((t, r) => t + (r.outstanding ?? 0), 0)),
+      currency: "NOK",
+    },
+    customer_count: rows.length,
+    customers: rows.slice(0, 25),
+    ageing_available: false,
+    note:
+      "Saldoene er kundesaldoene regnskapssystemet oppgir i SAF-T-filen per " +
+      `${coverage.last_date}. Filen inneholder ikke forfallsdato per faktura, ` +
+      "så aldersfordeling (0–30, 31–60 dager) kan ikke beregnes. Ikke oppgi " +
+      "aldersfordeling eller antall dager over forfall.",
+    data_source: "saft_import",
+  };
+};
+
+/**
+ * Looks a customer up by name — the assistant has a name from the user, never
+ * a database id, so the previous id-only tool could not be called at all.
+ */
+const getCustomerDetail: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const name = String(params.name ?? "").trim();
+  if (!name) return { error: "Mangler kundenavn." };
+
+  const supabase = await createClient();
+
+  const { data: matches } = await supabase
+    .from("customers")
+    .select("id, name, customer_number, org_number, email, phone, closing_balance")
+    .eq("company_id", companyId)
+    .ilike("name", `%${sanitizeFilterTerm(name)}%`)
+    .limit(10);
+
+  if (!matches || matches.length === 0) {
+    return {
+      found: false,
+      note: `Ingen kunde med navn som ligner «${name}». Bruk list_customers for å se hvilke kunder som finnes.`,
+    };
+  }
+
+  if (matches.length > 1) {
+    const exact = matches.find(
+      (m) => m.name.toLowerCase() === name.toLowerCase()
+    );
+    if (!exact) {
       return {
-        customer_id: customerId,
-        total_invoices: profile.total_invoices,
-        total_invoiced: profile.total_invoiced_amount,
-        outstanding: profile.current_outstanding,
-        overdue: profile.current_overdue,
-        avg_payment_days: profile.avg_actual_payment_days,
-        avg_days_after_due: profile.avg_days_after_due,
-        late_payment_ratio: profile.late_payment_ratio,
-        risk_score: profile.payment_risk_score,
-        payment_trend: profile.payment_trend,
-        data_source: "regnskapssystem",
+        found: false,
+        ambiguous: true,
+        candidates: matches.map((m) => m.name),
+        note: "Flere kunder matcher. Spør brukeren hvilken de mener.",
       };
     }
-  } catch {
-    // Fall through
+    matches.splice(0, matches.length, exact);
+  }
+
+  const customer = matches[0];
+
+  const { data: postings } = await supabase
+    .from("account_transactions")
+    .select("transaction_date, account_number, amount, description")
+    .eq("company_id", companyId)
+    .eq("customer_id", customer.id)
+    .order("transaction_date", { ascending: false })
+    .limit(400);
+
+  const rows = postings ?? [];
+  const revenueRows = rows.filter((r) => inRange(r.account_number, 3000, 3999));
+
+  const byMonth = new Map<string, number>();
+  for (const r of revenueRows) {
+    const month = r.transaction_date.slice(0, 7);
+    byMonth.set(month, (byMonth.get(month) ?? 0) - r.amount);
+  }
+
+  const byProduct = new Map<string, number>();
+  for (const r of revenueRows) {
+    const key = r.description?.trim() || "(uten beskrivelse)";
+    byProduct.set(key, (byProduct.get(key) ?? 0) - r.amount);
   }
 
   return {
-    customer_id: customerId,
-    note: "Ingen betalingsprofil funnet for denne kunden.",
-    data_source: "mock_data",
+    found: true,
+    customer: {
+      name: customer.name,
+      customer_number: customer.customer_number,
+      org_number: customer.org_number,
+      email: customer.email,
+    },
+    outstanding: customer.closing_balance ?? null,
+    outstanding_is_stated: customer.closing_balance != null,
+    revenue_in_period: Math.round(
+      revenueRows.reduce((t, r) => t - r.amount, 0)
+    ),
+    period: { start: coverage.first_date, end: coverage.last_date },
+    posting_count: rows.length,
+    last_activity: rows[0]?.transaction_date ?? null,
+    revenue_by_month: [...byMonth.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, amount]) => ({ month, amount: Math.round(amount) })),
+    buys: [...byProduct.entries()]
+      .map(([description, amount]) => ({ description, amount: Math.round(amount) }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 15),
+    data_source: "saft_import",
   };
 };
 
+/** The customer list, so the assistant can answer "hvem er våre største kunder". */
+const listCustomers: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const sortBy = params.sort_by === "outstanding" ? "outstanding" : "revenue";
+  const limit = Math.min(Number(params.limit ?? 20) || 20, 100);
+
+  const supabase = await createClient();
+  const [customers, { data: summary }] = await Promise.all([
+    fetchAll<{
+      id: string;
+      name: string;
+      customer_number: string | null;
+      org_number: string | null;
+      closing_balance: number | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("customers")
+          .select("id, name, customer_number, org_number, closing_balance")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{
+            id: string;
+            name: string;
+            customer_number: string | null;
+            org_number: string | null;
+            closing_balance: number | null;
+          }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "kunder" }
+    ),
+    customerSummary(companyId),
+  ]);
+
+  const byId = new Map((summary ?? []).map((s) => [s.customer_id, s]));
+
+  const rows = (customers ?? [])
+    .map((c) => ({
+      name: c.name,
+      customer_number: c.customer_number,
+      revenue: Math.round(Number(byId.get(c.id)?.revenue ?? 0)),
+      outstanding: c.closing_balance ?? null,
+      last_activity: byId.get(c.id)?.last_activity ?? null,
+    }))
+    .sort((a, b) =>
+      sortBy === "outstanding"
+        ? (b.outstanding ?? 0) - (a.outstanding ?? 0)
+        : b.revenue - a.revenue
+    );
+
+  return {
+    period: { start: coverage.first_date, end: coverage.last_date },
+    total_customers: rows.length,
+    total_revenue: rows.reduce((t, r) => t + r.revenue, 0),
+    customers: rows.slice(0, limit),
+    data_source: "saft_import",
+  };
+};
+
+/**
+ * SAF-T does not carry invoice-level due dates, so "forfalt" cannot be
+ * derived. Reporting that plainly stops the assistant inventing an ageing
+ * profile out of posting dates.
+ */
 const getOverdueInvoices: ToolHandler = async (companyId) => {
-  try {
-    const supabase = await createClient();
-    const today = fmt(new Date());
-
-    const { data: invoices } = await supabase
-      .from("outgoing_invoices")
-      .select("*, customers!inner(name)")
-      .eq("company_id", companyId)
-      .lt("due_date", today)
-      .gt("remaining_amount", 0)
-      .order("due_date", { ascending: true });
-
-    if (invoices && invoices.length > 0) {
-      const now = new Date();
-      return {
-        count: invoices.length,
-        total_overdue: invoices.reduce(
-          (sum, inv) => sum + (inv.remaining_amount ?? 0),
-          0
-        ),
-        currency: "NOK",
-        invoices: invoices.map((inv) => ({
-          invoice_number: inv.invoice_number,
-          customer: (inv as Record<string, unknown>).customers,
-          amount: inv.remaining_amount,
-          due_date: inv.due_date,
-          days_overdue: Math.floor(
-            (now.getTime() - new Date(inv.due_date!).getTime()) /
-              (1000 * 60 * 60 * 24)
-          ),
-        })),
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
   return {
-    count: 4,
-    total_overdue: { amount: 65000, currency: "NOK", confidence: "estimated" },
-    invoices: [
-      {
-        invoice_number: "2025-042",
-        customer: "Eksempel Kunde AS",
-        amount: 25000,
-        due_date: "2025-01-15",
-        days_overdue: 30,
-      },
-      {
-        invoice_number: "2025-038",
-        customer: "Demo Handel AS",
-        amount: 18000,
-        due_date: "2025-01-10",
-        days_overdue: 35,
-      },
-    ],
-    data_source: "mock_data",
+    available: false,
+    note:
+      "Regnskapsdataene kommer fra en SAF-T-fil. Den oppgir saldo per kunde, " +
+      "men ikke enkeltfakturaer med forfallsdato, så det går ikke å si hva " +
+      "som er forfalt. Fortell brukeren dette, og bruk get_customer_receivables " +
+      "for å vise hvem som har utestående saldo. Ikke oppgi forfalte beløp " +
+      "eller dager over forfall.",
+    data_source: "saft_import",
   };
 };
 
 const getSupplierPayables: ToolHandler = async (companyId) => {
-  try {
-    const supabase = await createClient();
-    const { data: entries } = await supabase
-      .from("supplier_ledger_entries")
-      .select("*, suppliers!inner(name)")
-      .eq("company_id", companyId)
-      .eq("is_open", true);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-    if (entries && entries.length > 0) {
-      const total = entries.reduce(
-        (sum, e) => sum + Math.abs(e.remaining_amount ?? e.amount),
-        0
-      );
-      return {
-        total_payables: { amount: total, currency: "NOK" },
-        supplier_count: new Set(entries.map((e) => e.supplier_id)).size,
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
+  const supabase = await createClient();
+
+  const [suppliers, { data: summary }] = await Promise.all([
+    fetchAll<{
+      id: string;
+      name: string;
+      supplier_number: string | null;
+      org_number: string | null;
+      closing_balance: number | null;
+    }>(
+      (from, to) =>
+        supabase
+          .from("suppliers")
+          .select("id, name, supplier_number, org_number, closing_balance")
+          .eq("company_id", companyId)
+          .eq("is_active", true)
+          .order("id", { ascending: true })
+          .range(from, to) as PromiseLike<{
+          data: Array<{
+            id: string;
+            name: string;
+            supplier_number: string | null;
+            org_number: string | null;
+            closing_balance: number | null;
+          }> | null;
+          error: { message: string } | null;
+        }>,
+      { label: "leverandører" }
+    ),
+    supplierSummary(companyId),
+  ]);
+
+  const byId = new Map((summary ?? []).map((s) => [s.supplier_id, s]));
+
+  const rows = (suppliers ?? [])
+    .map((s) => ({
+      name: s.name,
+      supplier_number: s.supplier_number,
+      owed: s.closing_balance ?? null,
+      cost_in_period: Math.round(Number(byId.get(s.id)?.cost ?? 0)),
+      last_activity: byId.get(s.id)?.last_activity ?? null,
+    }))
+    .sort((a, b) => (b.owed ?? 0) - (a.owed ?? 0));
+
+  const withBalance = rows.filter((r) => (r.owed ?? 0) !== 0);
 
   return {
+    as_of: coverage.last_date,
     total_payables: {
-      amount: 180000,
+      amount: Math.round(withBalance.reduce((t, r) => t + (r.owed ?? 0), 0)),
       currency: "NOK",
-      confidence: "estimated",
     },
-    upcoming_due: [
-      {
-        supplier: "Leverandor Eksempel AS",
-        amount: 45000,
-        due_date: "2025-02-20",
-      },
-      { supplier: "IT-Partner AS", amount: 12000, due_date: "2025-02-25" },
-    ],
-    data_source: "mock_data",
+    supplier_count: withBalance.length,
+    suppliers_by_balance: withBalance.slice(0, 25),
+    suppliers_by_cost: [...rows]
+      .sort((a, b) => b.cost_in_period - a.cost_in_period)
+      .slice(0, 25),
+    period: { start: coverage.first_date, end: coverage.last_date },
+    ageing_available: false,
+    note:
+      "Saldoene er leverandørsaldoene SAF-T-filen oppgir per " +
+      `${coverage.last_date}. Filen har ikke forfallsdato per faktura, så ` +
+      "aldersfordeling og forfallsoversikt kan ikke beregnes.",
+    data_source: "saft_import",
   };
 };
 
+/**
+ * When the next VAT return is due.
+ *
+ * Reads no ledger. The deadlines are set by skatteforvaltningsforskriften and
+ * are the same for every business on the same scheme, so the answer is a
+ * calendar lookup that returns in microseconds. Asked this before, the
+ * assistant reached for the VAT estimate, the data coverage, the obligations
+ * list and a search of the accounting rules — four paged reads over the whole
+ * ledger — and then said it did not know, because the deadline was never in
+ * the ledger to find.
+ *
+ * The only thing worth reading from the database is which scheme the company
+ * is on, and even that has a safe default: two-month terms, which is what a
+ * VAT-registered business gets unless it has applied for something else.
+ */
+const getVatDeadline: ToolHandler = async (companyId, params) => {
+  const count = Math.min(Math.max((params.count as number) || 3, 1), 6);
+  const today = new Date().toISOString().slice(0, 10);
+
+  const supabase = await createClient();
+  const { data: settings } = (await supabase
+    .from("vat_settings")
+    .select("vat_registered, vat_period")
+    .eq("company_id", companyId)
+    .maybeSingle()) as {
+    data: { vat_registered: boolean | null; vat_period: string | null } | null;
+  };
+
+  if (settings?.vat_registered === false) {
+    return {
+      vat_registered: false,
+      note:
+        "Selskapet er ikke registrert i Merverdiavgiftsregisteret, så det " +
+        "skal ikke leveres mva-melding.",
+      data_source: "vat_settings",
+    };
+  }
+
+  const scheme = parseScheme(settings?.vat_period);
+  const terms = upcomingVatTerms(today, scheme.value, count);
+  const next = terms[0];
+
+  return {
+    today,
+    scheme: scheme.value,
+    scheme_label: scheme.label,
+    scheme_is_assumed: scheme.assumed,
+    next_deadline: next
+      ? {
+          term: next.label,
+          period: { start: next.periodStart, end: next.periodEnd },
+          deadline: next.deadline,
+          deadline_formatted: formatDeadline(next.deadline),
+          days_until: daysUntil(today, next.deadline),
+          moved_from: next.movedFrom,
+        }
+      : null,
+    following: terms.slice(1).map((t) => ({
+      term: t.label,
+      period: { start: t.periodStart, end: t.periodEnd },
+      deadline: t.deadline,
+      deadline_formatted: formatDeadline(t.deadline),
+    })),
+    note:
+      "Fristene følger skatteforvaltningsforskriften § 8-3. Frist som faller " +
+      "på lørdag, søndag eller helligdag flyttes til første virkedag etter. " +
+      "Samme frist gjelder for både innlevering og betaling." +
+      (scheme.assumed
+        ? " Terminlengden er ikke registrert på selskapet, så alminnelige " +
+          "terminer er lagt til grunn — si dette hvis selskapet kan ha " +
+          "årstermin eller månedlige terminer."
+        : ""),
+    data_source: "statute",
+  };
+};
+
+/** What the stored `vat_period` means, with the ordinary terms as default. */
+function parseScheme(period: string | null | undefined): {
+  value: VatScheme;
+  label: string;
+  assumed: boolean;
+} {
+  const raw = (period ?? "").toLowerCase();
+
+  if (raw.includes("year") || raw.includes("år") || raw.includes("annual")) {
+    return { value: "annual", label: "Årstermin", assumed: false };
+  }
+  if (raw.includes("month") || raw.includes("mnd") || raw.includes("måned")) {
+    return { value: "monthly", label: "Månedlige terminer", assumed: false };
+  }
+  return {
+    value: "bimonthly",
+    label: "Alminnelige terminer (to måneder)",
+    assumed: raw.length === 0,
+  };
+}
+
 const getUpcomingObligations: ToolHandler = async (companyId, params) => {
   const days = (params.days as number) || 30;
-  const now = new Date();
-  const futureDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
 
-  try {
-    const supabase = await createClient();
-    const { data: invoices } = await supabase
-      .from("incoming_invoices")
-      .select("*, suppliers!inner(name)")
-      .eq("company_id", companyId)
-      .gte("due_date", fmt(now))
-      .lte("due_date", fmt(futureDate))
-      .gt("remaining_amount", 0);
-
-    if (invoices && invoices.length > 0) {
-      return {
-        horizon_days: days,
-        obligations: invoices.map((inv) => ({
-          type: "leverandorfaktura",
-          supplier: (inv as Record<string, unknown>).suppliers,
-          amount: inv.remaining_amount ?? inv.total_amount,
-          due_date: inv.due_date,
-          currency: inv.currency,
-        })),
-        total: invoices.reduce(
-          (sum, inv) =>
-            sum + Math.abs(inv.remaining_amount ?? inv.total_amount ?? 0),
-          0
-        ),
-        data_source: "regnskapssystem",
-      };
-    }
-  } catch {
-    // Fall through
-  }
+  const payables = (await getSupplierPayables(companyId, {})) as {
+    total_payables?: { amount: number };
+  };
 
   return {
     horizon_days: days,
-    obligations: [
-      { type: "Leverandorfakturaer", amount: 85000, currency: "NOK" },
-      { type: "Lonn og arbeidsgiveravgift", amount: 195000, currency: "NOK" },
-      { type: "MVA-termin", amount: 68000, currency: "NOK" },
-      { type: "Husleie", amount: 35000, currency: "NOK" },
-    ],
-    total: { amount: 383000, currency: "NOK", confidence: "estimated" },
-    data_source: "mock_data",
+    scheduled_obligations_available: false,
+    total_payables_outstanding: payables.total_payables?.amount ?? 0,
+    note:
+      "SAF-T-filen inneholder ikke forfallsdatoer, så konkrete forfall de " +
+      `neste ${days} dagene kan ikke listes. Det som er kjent er samlet ` +
+      "leverandørgjeld per siste dag i regnskapet. Si dette tydelig framfor " +
+      "å anslå et forfallsbilde.",
+    data_source: "saft_import",
+  };
+};
+
+/**
+ * Recurring revenue — the figure this business is run on, and previously
+ * unreachable for the assistant even though the dashboard showed it.
+ */
+const getRecurringRevenue: ToolHandler = async (companyId) => {
+  const coverage = await getCoverage(companyId);
+  const supabase = await createClient();
+
+  // A contract list states the run rate outright. Inferring it from posting
+  // text counts one-off work that reads like a subscription, so where
+  // contracts exist they are the answer and the ledger is not consulted.
+  const contracts = await fetchAll<{
+    customer_name: string;
+    description: string | null;
+    interval_months: number;
+    net_amount: number;
+    gross_amount: number | null;
+    is_active: boolean;
+    is_draft: boolean;
+    next_invoice_date: string | null;
+  }>(
+    (from, to) =>
+      supabase
+        .from("recurring_contracts")
+        .select(
+          "customer_name, description, interval_months, net_amount, gross_amount, is_active, is_draft, next_invoice_date"
+        )
+        .eq("company_id", companyId)
+        .order("id", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{
+          customer_name: string;
+          description: string | null;
+          interval_months: number;
+          net_amount: number;
+          gross_amount: number | null;
+          is_active: boolean;
+          is_draft: boolean;
+          next_invoice_date: string | null;
+        }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "avtaler" }
+  );
+
+  const counted = contracts.filter((c) => c.is_active && !c.is_draft);
+
+  if (counted.length > 0) {
+    const net = counted.reduce(
+      (t, c) => t + Number(c.net_amount) / c.interval_months,
+      0
+    );
+
+    const byInterval = new Map<number, { count: number; mrr: number }>();
+    for (const c of counted) {
+      const entry = byInterval.get(c.interval_months) ?? { count: 0, mrr: 0 };
+      entry.count++;
+      entry.mrr += Number(c.net_amount) / c.interval_months;
+      byInterval.set(c.interval_months, entry);
+    }
+
+    const top = [...counted]
+      .sort(
+        (a, b) =>
+          Number(b.net_amount) / b.interval_months -
+          Number(a.net_amount) / a.interval_months
+      )
+      .slice(0, 15)
+      .map((c) => ({
+        customer: c.customer_name,
+        monthly_value: Math.round(Number(c.net_amount) / c.interval_months),
+        invoiced_amount: Number(c.net_amount),
+        interval_months: c.interval_months,
+        next_invoice_date: c.next_invoice_date,
+      }));
+
+    return {
+      source: "contract_list",
+      mrr: Math.round(net),
+      arr: Math.round(net) * 12,
+      contracts: {
+        total: contracts.length,
+        counted: counted.length,
+        drafts: contracts.filter((c) => c.is_draft).length,
+        inactive: contracts.filter((c) => !c.is_active).length,
+      },
+      by_interval: [...byInterval.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([months, v]) => ({
+          interval_months: months,
+          count: v.count,
+          mrr: Math.round(v.mrr),
+        })),
+      largest_contracts: top,
+      note:
+        "Alle beløp er eks. mva. MRR er beregnet fra den opplastede listen over " +
+        "gjentakende fakturaer: beløp per faktura delt på antall måneder mellom " +
+        "hver fakturering. Avtaler som står som utkast eller er inaktive er ikke " +
+        "med. Dette er et sikkert tall, ikke et estimat.",
+      data_source: "contract_list",
+    };
+  }
+
+  if (!coverage.has_data) return noData(coverage);
+  const { data } = (await supabase.rpc("company_mrr" as never, {
+    p_company_id: companyId,
+  } as never)) as unknown as {
+    data: Array<{
+      month: string;
+      recurring: number;
+      normalised_mrr: number;
+      one_off: number;
+      total: number;
+      is_complete: boolean;
+    }> | null;
+  };
+
+  const months = (data ?? []).map((m) => ({
+    month: m.month.slice(0, 7),
+    normalised_mrr: Math.round(Number(m.normalised_mrr)),
+    billed_recurring: Math.round(Number(m.recurring)),
+    one_off: Math.round(Number(m.one_off)),
+    total_revenue: Math.round(Number(m.total)),
+    is_complete: m.is_complete,
+  }));
+
+  const complete = months.filter((m) => m.is_complete);
+  const latest = complete[complete.length - 1] ?? null;
+  const previous = complete[complete.length - 2] ?? null;
+
+  return {
+    mrr: latest
+      ? {
+          month: latest.month,
+          value: latest.normalised_mrr,
+          arr: latest.normalised_mrr * 12,
+          previous_month: previous?.normalised_mrr ?? null,
+          change_percent:
+            previous && previous.normalised_mrr
+              ? Math.round(
+                  ((latest.normalised_mrr - previous.normalised_mrr) /
+                    previous.normalised_mrr) *
+                    10000
+                ) / 100
+              : null,
+          share_of_revenue: latest.total_revenue
+            ? Math.round((latest.normalised_mrr / latest.total_revenue) * 100)
+            : null,
+        }
+      : null,
+    months,
+    based_on_product_list: coverage.counts.recurring_products > 0,
+    note:
+      coverage.counts.recurring_products > 0
+        ? "MRR er beregnet fra produktlisten: kvartals-, halvårs- og årskontrakter " +
+          "er normalisert ned til månedsbeløp. Alle beløp er eks. mva."
+        : "Ingen liste over gjentakende fakturaer er lastet opp, så tallet er utledet " +
+          "fra posteringstekst og er USIKKERT — det teller med engangssalg som ligner " +
+          "på abonnement. Si dette tydelig, og be brukeren laste opp listen over " +
+          "repeterende fakturaer under «Importer data» for et sikkert tall.",
+    data_source: "saft_import",
+  };
+};
+
+/** Bank balances and their movement — what the liquidity page shows. */
+const getCashPosition: ToolHandler = async (companyId) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const supabase = await createClient();
+
+  const [{ data: series }, { data: accounts }] = await Promise.all([
+    supabase.rpc("company_cash_series" as never, {
+      p_company_id: companyId,
+    } as never) as unknown as Promise<{
+      data: Array<{ month: string; movement: number; balance: number }> | null;
+    }>,
+    supabase
+      .from("gl_accounts")
+      .select("account_number, name, closing_balance")
+      .eq("company_id", companyId)
+      .gte("account_number", "1900")
+      .lt("account_number", "2000")
+      .limit(5000),
+  ]);
+
+  const bank = (accounts ?? []).filter((a) => a.closing_balance != null);
+
+  return {
+    as_of: coverage.last_date,
+    booked_cash: Math.round(
+      bank.reduce((t, a) => t + Number(a.closing_balance ?? 0), 0)
+    ),
+    accounts: bank.map((a) => ({
+      account_number: a.account_number,
+      name: a.name,
+      balance: Math.round(Number(a.closing_balance ?? 0)),
+    })),
+    monthly: (series ?? []).map((s) => ({
+      month: String(s.month).slice(0, 7),
+      movement: Math.round(Number(s.movement)),
+      balance: Math.round(Number(s.balance)),
+    })),
+    note:
+      "Dette er bokført bankbeholdning fra regnskapet, ikke live banksaldo. " +
+      "Bruk «bokført likviditet».",
+    data_source: "saft_import",
+  };
+};
+
+/** Account balances — the closing balance per account, i.e. the balance sheet. */
+const getAccountBalances: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const supabase = await createClient();
+  let query = supabase
+    .from("gl_accounts")
+    .select("account_number, name, account_type, opening_balance, closing_balance")
+    .eq("company_id", companyId)
+    .order("account_number")
+    .limit(5000);
+
+  const prefix = params.account_prefix
+    ? String(params.account_prefix).replace(/\D/g, "")
+    : null;
+
+  if (prefix) {
+    const padded = prefix.padEnd(4, "0");
+    const upper = String(Number(prefix) + 1).padEnd(4, "0");
+    query = query.gte("account_number", padded).lt("account_number", upper);
+  }
+
+  const { data: accounts } = await query;
+
+  const rows = (accounts ?? [])
+    .filter((a) => a.closing_balance != null || a.opening_balance != null)
+    .map((a) => ({
+      account_number: a.account_number,
+      name: a.name,
+      opening_balance: a.opening_balance == null ? null : Math.round(Number(a.opening_balance)),
+      closing_balance: a.closing_balance == null ? null : Math.round(Number(a.closing_balance)),
+    }));
+
+  return {
+    as_of: coverage.last_date,
+    account_count: rows.length,
+    accounts: rows.slice(0, 200),
+    note:
+      "Saldoene er inngående og utgående balanse slik SAF-T-filen oppgir dem. " +
+      "Debet er positiv, kredit negativ.",
+    data_source: "saft_import",
+  };
+};
+
+/** Free-text search across the ledger, for "hva betalte vi til X". */
+const searchTransactions: ToolHandler = async (companyId, params) => {
+  const coverage = await getCoverage(companyId);
+  if (!coverage.has_data) return noData(coverage);
+
+  const supabase = await createClient();
+  const text = params.text ? sanitizeFilterTerm(String(params.text)) : null;
+  const limit = Math.min(Number(params.limit ?? 50) || 50, 200);
+
+  let query = supabase
+    .from("account_transactions")
+    .select("transaction_date, account_number, amount, description, vat_code")
+    .eq("company_id", companyId)
+    .order("transaction_date", { ascending: false })
+    .limit(limit);
+
+  if (text) query = query.ilike("description", `%${text}%`);
+  if (params.period) {
+    const resolved = clampToCoverage(
+      parsePeriodDates(String(params.period)),
+      coverage
+    );
+    query = query
+      .gte("transaction_date", resolved.start)
+      .lte("transaction_date", resolved.end);
+  }
+
+  const { data: rows } = await query;
+
+  return {
+    match_count: rows?.length ?? 0,
+    total_amount: Math.round(
+      (rows ?? []).reduce((t, r) => t + Number(r.amount), 0)
+    ),
+    transactions: (rows ?? []).map((r) => ({
+      date: r.transaction_date,
+      account: r.account_number,
+      amount: Number(r.amount),
+      description: r.description,
+      vat_code: r.vat_code,
+    })),
+    data_source: "saft_import",
+  };
+};
+
+/** What the books hold, so the assistant can answer scope questions directly. */
+const getDataCoverage: ToolHandler = async (companyId) => {
+  const coverage = await getCoverage(companyId);
+  return {
+    ...coverage,
+    note: coverage.has_data
+      ? `Regnskapet dekker ${coverage.first_date} til ${coverage.last_date}. ` +
+        "Spørsmål om perioder utenfor dette kan ikke besvares med tall."
+      : "Ingen regnskapsdata er importert ennå.",
   };
 };
 
@@ -627,19 +1402,11 @@ const getCashForecast: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    horizon_days: days,
-    current_balance: { amount: 1250000, currency: "NOK" },
-    expected_inflows: { amount: 420000, currency: "NOK" },
-    expected_outflows: { amount: 383000, currency: "NOK" },
-    projected_balance: { amount: 1287000, currency: "NOK" },
-    weekly_projection: [
-      { week: 1, inflow: 120000, outflow: 95000, balance: 1275000 },
-      { week: 2, inflow: 100000, outflow: 195000, balance: 1180000 },
-      { week: 3, inflow: 110000, outflow: 50000, balance: 1240000 },
-      { week: 4, inflow: 90000, outflow: 43000, balance: 1287000 },
-    ],
-    confidence: "estimated",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -658,7 +1425,7 @@ const getVatEstimate: ToolHandler = async (companyId) => {
       return {
         vat_registered: vatSettings.vat_registered,
         vat_period: vatSettings.vat_period,
-        note: "MVA-estimat basert paa innstillinger. Detaljert beregning krever full transaksjonsdata.",
+        note: "MVA-estimat basert på innstillinger. Detaljert beregning krever full transaksjonsdata.",
         data_source: "partial",
       };
     }
@@ -667,13 +1434,11 @@ const getVatEstimate: ToolHandler = async (companyId) => {
   }
 
   return {
-    termin: "1. termin 2025 (jan-feb)",
-    utgaaende_mva: { amount: 170000, currency: "NOK" },
-    inngaaende_mva: { amount: 102000, currency: "NOK" },
-    netto_aa_betale: { amount: 68000, currency: "NOK" },
-    frist: "2025-04-10",
-    confidence: "estimated",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -707,12 +1472,11 @@ const getTaxEstimate: ToolHandler = async (companyId) => {
   }
 
   return {
-    taxable_profit_ytd: { amount: 230000, currency: "NOK" },
-    tax_rate_percent: 22,
-    estimated_tax: { amount: 50600, currency: "NOK" },
-    note: "Forenklet estimat. Faktisk skatt kan avvike pga. midlertidige forskjeller, fremforbart underskudd, etc. Raadfor deg med regnskapsforer for noyaktig beregning.",
-    confidence: "estimated",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -724,7 +1488,8 @@ const getChartOfAccounts: ToolHandler = async (companyId) => {
       .select("account_number, name, account_type, is_active")
       .eq("company_id", companyId)
       .eq("is_active", true)
-      .order("account_number");
+      .order("account_number")
+      .limit(5000);
 
     if (accounts && accounts.length > 0) {
       return {
@@ -743,13 +1508,13 @@ const getChartOfAccounts: ToolHandler = async (companyId) => {
 
   return {
     account_count: 0,
-    note: "Kontoplan ikke tilgjengelig. Koble til regnskapssystem for aa hente kontoplan.",
+    note: "Kontoplan ikke tilgjengelig. Koble til regnskapssystem for å hente kontoplan.",
     standard_accounts_hint: [
       { number: "1920", name: "Bankinnskudd", type: "asset" },
-      { number: "2400", name: "Leverandorgjeld", type: "liability" },
+      { number: "2400", name: "Leverandørgjeld", type: "liability" },
       { number: "3000", name: "Salgsinntekt, avgiftspliktig", type: "revenue" },
       { number: "4000", name: "Varekostnad", type: "expense" },
-      { number: "5000", name: "Lonn", type: "expense" },
+      { number: "5000", name: "Lønn", type: "expense" },
       { number: "6300", name: "Leie av lokaler", type: "expense" },
       { number: "6800", name: "Kontorkostnader", type: "expense" },
       { number: "7100", name: "Bilkostnader", type: "expense" },
@@ -812,10 +1577,11 @@ const findSimilarVendorTransactions: ToolHandler = async (
   }
 
   return {
-    vendor_name: vendorName,
-    matching_transactions: [],
-    note: "Ingen tidligere transaksjoner funnet for denne leverandoren.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -860,10 +1626,11 @@ const findSimilarDescriptionTransactions: ToolHandler = async (
   }
 
   return {
-    search_text: text,
-    matching_transactions: [],
-    note: "Ingen lignende transaksjoner funnet.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
@@ -899,16 +1666,24 @@ const getVendorPostingHistory: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    vendor_name: vendorName,
-    posting_patterns: [],
-    note: "Ingen posteringshistorikk funnet for denne leverandoren.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
 
 const searchAccountingRules: ToolHandler = async (companyId, params) => {
   const topic = params.topic as string;
+  // The topic originates from a model tool call, which an uploaded document
+  // can influence, so it must not reach the filter string unescaped.
+  const safeTopic = sanitizeFilterTerm(topic ?? "");
   void companyId; // Rules are not company-specific, but we keep the signature consistent
+
+  if (!safeTopic) {
+    return { topic, rules: [], note: "Tomt eller ugyldig søkeord." };
+  }
 
   try {
     const supabase = await createClient();
@@ -916,7 +1691,7 @@ const searchAccountingRules: ToolHandler = async (companyId, params) => {
       .from("accounting_rules")
       .select("*")
       .or(
-        `title_nb.ilike.%${topic}%,content_nb.ilike.%${topic}%,category.ilike.%${topic}%`
+        `title_nb.ilike.%${safeTopic}%,content_nb.ilike.%${safeTopic}%,category.ilike.%${safeTopic}%`
       )
       .limit(5);
 
@@ -938,25 +1713,41 @@ const searchAccountingRules: ToolHandler = async (companyId, params) => {
   }
 
   return {
-    topic,
-    rules: [],
-    note: "Ingen spesifikke regler funnet i databasen. Assistenten vil svare basert paa generell kunnskap om norsk regnskapspraksis.",
-    data_source: "mock_data",
+    data_source: "no_data",
+    note:
+      "Ingen regnskapsdata er importert for dette selskapet ennå. " +
+      "Fortell brukeren dette og be dem importere en SAF-T-fil under " +
+      "«Importer data». Ikke oppgi tall.",
   };
 };
+
+// Payroll scenario rates. Zone 1 is the default employer's national
+// insurance rate; the user's actual zone is a company setting.
+const DEFAULT_EMPLOYER_TAX_RATE = 0.141;
+const HOLIDAY_PAY_RATE = 0.12;
+const MIN_PENSION_RATE = 0.02;
 
 const runScenario: ToolHandler = async (companyId, params) => {
   const scenarioParams = params.parameters as Record<string, unknown>;
   const scenarioType = (scenarioParams?.type as string) || "custom";
 
-  // For MVP, we provide mock scenario results. A full implementation
-  // would run the financial engine.
+  // Scenarios are computed from the parameters the user supplies rather
+  // than from company data, so they do not depend on an import having run.
   void companyId;
 
   switch (scenarioType) {
     case "new_hire": {
       const salary = (scenarioParams.monthly_salary as number) || 50000;
-      const totalCost = salary * 1.141 * 1.141; // Employer tax + pension estimate
+
+      // Holiday pay and mandatory occupational pension accrue on the gross
+      // salary; employer's national insurance is then charged on the sum of
+      // salary, holiday pay and the pension premium.
+      const holidayPay = salary * HOLIDAY_PAY_RATE;
+      const pension = salary * MIN_PENSION_RATE;
+      const employerTax =
+        (salary + holidayPay + pension) * DEFAULT_EMPLOYER_TAX_RATE;
+      const totalCost = salary + holidayPay + pension + employerTax;
+
       return {
         scenario: "Ny ansettelse",
         monthly_salary: salary,
@@ -964,15 +1755,18 @@ const runScenario: ToolHandler = async (companyId, params) => {
         annual_cost: Math.round(totalCost * 12),
         cost_breakdown: {
           bruttolonn: salary,
-          arbeidsgiveravgift: Math.round(salary * 0.141),
-          pensjon: Math.round(salary * 0.02),
-          feriepenger: Math.round(salary * 0.12),
+          feriepenger: Math.round(holidayPay),
+          pensjon: Math.round(pension),
+          arbeidsgiveravgift: Math.round(employerTax),
         },
         impact_on_result: {
           monthly: -Math.round(totalCost),
           annual: -Math.round(totalCost * 12),
         },
-        note: "Forenklet estimat. Faktiske kostnader avhenger av arbeidsgiveravgiftsone, pensjonsavtale og andre ytelser.",
+        note:
+          "Estimatet bruker sone 1 (14,1 %) arbeidsgiveravgift, 12 % feriepenger " +
+          "og 2 % obligatorisk tjenestepensjon. Faktisk kostnad avhenger av " +
+          "selskapets avgiftssone, pensjonsavtale og øvrige ytelser.",
         confidence: "estimated",
       };
     }
@@ -985,10 +1779,10 @@ const runScenario: ToolHandler = async (companyId, params) => {
         financing: scenarioParams.financing || "egenkapital",
         impact: {
           cash_effect: -amount,
-          balance_sheet: "Oker anleggsmidler, reduserer kontanter/oker gjeld",
+          balance_sheet: "Øker anleggsmidler, reduserer kontanter/øker gjeld",
           annual_depreciation: Math.round(amount / 5),
         },
-        note: "Avskrivningstiden avhenger av type eiendel. Konsulter regnskapsforer for korrekt avskrivningsplan.",
+        note: "Avskrivningstiden avhenger av type eiendel. Konsulter regnskapsfører for korrekt avskrivningsplan.",
         confidence: "estimated",
       };
     }
@@ -997,7 +1791,7 @@ const runScenario: ToolHandler = async (companyId, params) => {
       return {
         scenario: scenarioType,
         parameters: scenarioParams,
-        note: "Scenarioanalyse er under utvikling. For detaljerte analyser, ta kontakt med regnskapsforer.",
+        note: "Scenarioanalyse er under utvikling. For detaljerte analyser, ta kontakt med regnskapsfører.",
         confidence: "low",
       };
   }
@@ -1014,9 +1808,19 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_cost_analysis: getCostAnalysis,
   get_account_breakdown: getAccountBreakdown,
   get_customer_receivables: getCustomerReceivables,
-  get_customer_payment_profile: getCustomerPaymentProfile,
+  get_customer_detail: getCustomerDetail,
+  list_customers: listCustomers,
+  get_recurring_revenue: getRecurringRevenue,
+  get_cash_position: getCashPosition,
+  get_account_balances: getAccountBalances,
+  search_transactions: searchTransactions,
+  get_data_coverage: getDataCoverage,
   get_overdue_invoices: getOverdueInvoices,
   get_supplier_payables: getSupplierPayables,
+  get_vat_deadline: getVatDeadline,
+  create_budget: createBudget,
+  create_report: createReport,
+  find_savings: findSavings,
   get_upcoming_obligations: getUpcomingObligations,
   get_cash_forecast: getCashForecast,
   get_vat_estimate: getVatEstimate,
@@ -1027,6 +1831,8 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_vendor_posting_history: getVendorPostingHistory,
   search_accounting_rules: searchAccountingRules,
   run_scenario: runScenario,
+  get_budget: getBudget,
+  propose_budget_change: proposeBudgetChange,
 };
 
 /**
@@ -1036,11 +1842,12 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
 export async function executeTool(
   toolName: string,
   companyId: string,
-  params: ToolParams
+  params: ToolParams,
+  userId?: string
 ): Promise<ToolResult> {
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) {
-    throw new Error(`Ukjent verktoy: ${toolName}`);
+    throw new Error(`Ukjent verktøy: ${toolName}`);
   }
-  return handler(companyId, params);
+  return handler(companyId, params, userId);
 }

@@ -1,53 +1,123 @@
 @import "tailwindcss";
 
 :root {
-  /* Primary palette */
-  --primary: #1e3a5f;
-  --primary-light: #2a4f7f;
-  --primary-dark: #152b47;
-  --primary-50: #eef3f9;
-  --primary-100: #d4e1f0;
-  --primary-200: #a9c3e0;
-  --primary-700: #1e3a5f;
-  --primary-800: #152b47;
-  --primary-900: #0d1c30;
+  /* Brand ink — the navy of the Elida wordmark. */
+  --brand-ink: #16203c;
+
+  /* ---------------------------------------------------------------------
+     Dark by default.
+
+     A finance product is read for hours at a time, usually beside other
+     windows, and the figures are what should carry light — not the sheet
+     they sit on. The palette is therefore built from a near-black ground up,
+     rather than a light theme with the values flipped: a hue that reads on
+     white is too dark on black, so every one of them is re-picked here and
+     re-checked, not inverted.
+
+     `.report` keeps its own light palette further down. A board pack is a
+     document that ends up on paper.
+     --------------------------------------------------------------------- */
+
+  /* Primary — the interactive navy, lifted to stay visible on a dark ground. */
+  --primary: #2b4680;
+  --primary-light: #35578f;
+  --primary-dark: #1e3160;
+  --primary-50: #151d2c;
+  --primary-100: #1c2740;
+  --primary-200: #2a3a5e;
+  --primary-700: #35578f;
+  --primary-800: #2b4680;
+  --primary-900: #1e3160;
 
   /* Accent — teal */
-  --accent: #0d9488;
-  --accent-light: #14b8a6;
-  --accent-dark: #0a7a70;
-  --accent-50: #edfcfa;
-  --accent-100: #ccf7f1;
-  --accent-500: #0d9488;
+  --accent: #2dd4bf;
+  --accent-light: #5eead4;
+  --accent-dark: #14b8a6;
+  --accent-50: #10231f;
+  --accent-100: #16332d;
+  --accent-500: #2dd4bf;
 
-  /* Semantic */
-  --success: #16a34a;
-  --success-light: #dcfce7;
-  --warning: #f59e0b;
-  --warning-light: #fef3c7;
-  --danger: #dc2626;
-  --danger-light: #fee2e2;
-  --info: #2563eb;
-  --info-light: #dbeafe;
+  /* ---------------------------------------------------------------------
+     Data palette
 
-  /* Surface */
-  --background: #f8f9fb;
-  --surface: #ffffff;
-  --surface-hover: #f1f5f9;
-  --surface-active: #e2e8f0;
-  --border: #e2e8f0;
-  --border-light: #f1f5f9;
+     Colour marks the data, never the panel it sits in. A hue appears only
+     where it identifies something: an icon badge, a line, a bar, a dot.
 
-  /* Text */
-  --foreground: #0f172a;
-  --foreground-secondary: #475569;
-  --foreground-muted: #94a3b8;
+     Two values per hue, because the requirements differ:
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+       --tone-*      the fill, for bars, badges and chart lines.
+       --tone-*-ink  the same hue as text, at 4.5:1 on the card.
+
+     Adjacent pairs in SERIES_TONES are checked for deuteranopia and
+     tritanopia separation, so a list of series stays readable without
+     colour. Slate marks "other", not a series.
+     --------------------------------------------------------------------- */
+  --tone-ocean: #60a5fa;
+  --tone-ocean-ink: #7cb8ff;
+  --tone-ocean-soft: #14243d;
+
+  --tone-teal: #2dd4bf;
+  --tone-teal-ink: #5eead4;
+  --tone-teal-soft: #0f2b2a;
+
+  --tone-violet: #a78bfa;
+  --tone-violet-ink: #c4b5fd;
+  --tone-violet-soft: #1f1b3a;
+
+  --tone-copper: #fb923c;
+  --tone-copper-ink: #fdba74;
+  --tone-copper-soft: #2c1d10;
+
+  --tone-rose: #fb7185;
+  --tone-rose-ink: #fda4af;
+  --tone-rose-soft: #2e1520;
+
+  --tone-slate: #94a3b8;
+  --tone-slate-ink: #a8b4c4;
+  --tone-slate-soft: #1b2331;
+
+  /* Semantic
+     One green and one red for the whole product, and both are always paired
+     with something that is not colour: a sign, an arrow, or a word. Green and
+     red are precisely the pair a colour-blind reader cannot separate. */
+  --success: #34d399;
+  --success-light: #0f2b23;
+  --warning: #fb923c;
+  --warning-light: #2c1d10;
+  --danger: #fb7185;
+  --danger-light: #2e1520;
+  --info: #60a5fa;
+  --info-light: #14243d;
+
+  /* Surface
+     Three steps, all near-black. The page is the darkest, cards sit above it,
+     and a hovered row above them — so depth is legible without a border. */
+  --background: #0a0e15;
+  --surface: #121822;
+  --surface-hover: #1b2331;
+  --surface-active: #232d3d;
+  --border: #232c3a;
+  --border-light: #1a222e;
+
+  /* Text
+     Three inks, and the third is not a dimmer grey.
+
+     Hierarchy built out of lightness puts the smallest text at the lowest
+     contrast, which is backwards — small text needs more contrast than body
+     text, not less. All three clear 7:1 (AAA) on every surface they are drawn
+     on and sit close together on purpose. Hierarchy comes from size, weight
+     and position, which do not fail when contrast sensitivity or colour
+     vision does. */
+  --foreground: #e9eef6;
+  --foreground-secondary: #c4cede;
+  --foreground-muted: #aab7c8;
+
+  /* Shadows. On a near-black ground a soft grey shadow is invisible, so these
+     are deep and paired with the border rather than replacing it. */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 10px -2px rgba(0, 0, 0, 0.55), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 32px -8px rgba(0, 0, 0, 0.6), 0 4px 10px -4px rgba(0, 0, 0, 0.45);
 
   /* Radius */
   --radius-sm: 6px;
@@ -63,6 +133,7 @@
 }
 
 @theme inline {
+  --color-brand-ink: var(--brand-ink);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
@@ -91,13 +162,305 @@
   --color-border-light: var(--border-light);
   --color-foreground-secondary: var(--foreground-secondary);
   --color-foreground-muted: var(--foreground-muted);
+  --color-tone-ocean: var(--tone-ocean);
+  --color-tone-teal: var(--tone-teal);
+  --color-tone-violet: var(--tone-violet);
+  --color-tone-copper: var(--tone-copper);
+  --color-tone-rose: var(--tone-rose);
+  --color-tone-slate: var(--tone-slate);
+  --color-tone-ocean-ink: var(--tone-ocean-ink);
+  --color-tone-teal-ink: var(--tone-teal-ink);
+  --color-tone-violet-ink: var(--tone-violet-ink);
+  --color-tone-copper-ink: var(--tone-copper-ink);
+  --color-tone-rose-ink: var(--tone-rose-ink);
   --font-sans: var(--font-inter);
+}
+
+/* ---------------------------------------------------------------------------
+   Tone
+
+   An element sets `data-tone` and inherits the hue, its text-safe ink and its
+   tint from one place. Nothing hard-codes a colour, so the palette can be
+   changed here rather than in forty components.
+   --------------------------------------------------------------------------- */
+[data-tone] {
+  --tone: var(--tone-slate);
+  --tone-ink: var(--tone-slate-ink);
+  --tone-soft: var(--tone-slate-soft);
+}
+[data-tone="ocean"]  { --tone: var(--tone-ocean);  --tone-ink: var(--tone-ocean-ink);  --tone-soft: var(--tone-ocean-soft); }
+[data-tone="teal"]   { --tone: var(--tone-teal);   --tone-ink: var(--tone-teal-ink);   --tone-soft: var(--tone-teal-soft); }
+[data-tone="violet"] { --tone: var(--tone-violet); --tone-ink: var(--tone-violet-ink); --tone-soft: var(--tone-violet-soft); }
+[data-tone="copper"] { --tone: var(--tone-copper); --tone-ink: var(--tone-copper-ink); --tone-soft: var(--tone-copper-soft); }
+[data-tone="rose"]   { --tone: var(--tone-rose);   --tone-ink: var(--tone-rose-ink);   --tone-soft: var(--tone-rose-soft); }
+
+/*
+ * A card.
+ *
+ * White ground, one neutral border. The tinted gradient this used to carry
+ * made every box on every page look painted, and it was the worst possible
+ * place for the colour: behind the text, where it lowered contrast and
+ * identified nothing. The hue now lives in the badge, the bar and the figure —
+ * beside the text, where it can be read.
+ */
+.tone-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  /* The global transition list covers colours but not transform, so the
+     hover lift snapped into place instead of easing. */
+  transition:
+    transform 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Only a card that goes somewhere reacts to the pointer, and it does it in
+   neutral: a lift and a firmer edge, not a colour change. */
+a.tone-card:hover,
+button.tone-card:hover {
+  border-color: #33405480;
+  background: var(--surface-hover);
+  transform: translateY(-1px);
+}
+
+/*
+ * The badge carrying a card's icon — the one place a hue is allowed a ground.
+ * It is small, it sits beside the label rather than behind it, and the icon
+ * inside it is a shape, so it never carries meaning by colour alone.
+ *
+ * On a dark ground the light theme's arrangement inverts: a saturated fill
+ * with a white glyph drops to 2.5:1 there, because these hues are light. The
+ * ground is the hue's dark tint and the glyph is the hue itself.
+ */
+.tone-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--tone-ink);
+  background: var(--tone-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 22%, transparent);
+}
+
+/*
+ * A change figure reads as a chip.
+ *
+ * Up is green and down is red — the pair colour-blind readers cannot separate
+ * — so the arrow inside is not decoration, it is the encoding. The colours
+ * also differ in lightness, which survives any form of colour blindness.
+ */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+.chip--up   { color: var(--success); background: var(--success-light); box-shadow: inset 0 0 0 1px #1d4b3a; }
+.chip--down { color: var(--danger);  background: var(--danger-light);  box-shadow: inset 0 0 0 1px #4d2634; }
+.chip--flat { color: var(--foreground-secondary); background: var(--surface-hover); box-shadow: inset 0 0 0 1px var(--border); }
+
+/* A bar is a flat block of its hue. The gradient it used to carry made the
+   left end pale, which read as a different colour from the right end. */
+.tone-bar {
+  background: var(--tone);
+  border-radius: 5px;
+}
+
+.tone-track {
+  background: #1b2331;
+  border-radius: 5px;
+}
+
+/* Every solid primary surface — buttons, active pills, the chat avatar —
+   picks up a little depth. Layered on top of Tailwind's background-color so
+   nothing has to be restyled call site by call site.
+
+   The gradient is an image and sits above background-color, which made every
+   hover:bg-primary-light in the codebase invisible. Hover and pressed states
+   are therefore restored here, where the gradient lives. */
+.bg-primary {
+  background-image: linear-gradient(
+    135deg,
+    var(--primary-light) 0%,
+    var(--primary) 58%,
+    var(--primary-dark) 100%
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+a.bg-primary:hover,
+button.bg-primary:hover:not(:disabled) {
+  filter: brightness(1.14);
+}
+
+a.bg-primary:active,
+button.bg-primary:active:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+/* ---------------------------------------------------------------------------
+   Reports
+   ---------------------------------------------------------------------------
+   A report is a document, not a dashboard. It gets its own restrained palette
+   and typographic scale so a board pack reads like something a finance lead
+   would hand out — white ground, one ink, hairline rules, generous margins —
+   and prints to A4 without carrying screen furniture onto the page.
+   --------------------------------------------------------------------------- */
+
+.report {
+  /* A light island in a dark app. The app's tokens never reach in here — the
+     report has its own — but the declaration makes that a rule rather than a
+     coincidence, and keeps form controls and scrollbars inside a preview from
+     being drawn dark on a white page. */
+  color-scheme: light;
+
+  --report-ink: #14213d;
+  --report-body: #2f3a4f;
+  --report-muted: #6b7688;
+  --report-rule: #dfe3ea;
+  --report-rule-strong: #b9c0cd;
+  --report-positive: #2f7a52;
+  --report-negative: #a33a34;
+  --report-warning: #9a6b16;
+  --report-accent: #14213d;
+  --report-page: #ffffff;
+
+  background: var(--report-page);
+  color: var(--report-body);
+  font-feature-settings: "tnum" 1;
+}
+
+.report h1,
+.report h2,
+.report h3,
+.report h4 {
+  color: var(--report-ink);
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+
+/* A page in the on-screen preview, and a physical page when printed. */
+.report-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 20mm 18mm 16mm;
+  margin: 0 auto 10mm;
+  background: var(--report-page);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.05);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.report-page--landscape {
+  width: 297mm;
+  min-height: 210mm;
+}
+
+.report-rule {
+  border: 0;
+  border-top: 1px solid var(--report-rule);
+  margin: 0;
+}
+
+.report-rule--strong {
+  border-top-color: var(--report-rule-strong);
+}
+
+/* Figures line up column to column only if the digits are the same width. */
+.report table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.report th {
+  font-weight: 500;
+  color: var(--report-muted);
+  text-align: left;
+  padding: 0 0 6px;
+  border-bottom: 1px solid var(--report-rule-strong);
+  font-size: 11.5px;
+}
+
+.report td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--report-rule);
+  font-size: 13px;
+  color: var(--report-body);
+}
+
+.report td.num,
+.report th.num {
+  text-align: right;
+  padding-left: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+.report tr.total td {
+  border-top: 1px solid var(--report-rule-strong);
+  border-bottom: none;
+  font-weight: 600;
+  color: var(--report-ink);
+}
+
+@media print {
+  /* Everything that belongs to the application, not the document. */
+  .report-hide-in-print,
+  aside,
+  header.app-header {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .report-page {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+
+  .report-page:last-child {
+    break-after: auto;
+  }
+
+  .report-avoid-break {
+    break-inside: avoid;
+  }
+
+  @page {
+    size: A4;
+    margin: 18mm 16mm 14mm;
+  }
+
+  @page landscape {
+    size: A4 landscape;
+  }
 }
 
 /* Base styles */
 body {
+  /* Flat. A card sits one step above the page and carries a border; nothing
+     needs a wash behind it. */
   background: var(--background);
   color: var(--foreground);
+  color-scheme: dark;
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -140,4 +503,28 @@ a, button, input, select, textarea {
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Text selection in the brand's navy rather than the browser default. */
+::selection {
+  background: var(--primary-light);
+  color: #fff;
+}
+
+/* Columns of figures only line up if every digit is the same width. Applied
+   to all tables: this is a finance product, nearly every table holds money. */
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+/* The column headings of a data table: quiet, small caps, letterspaced —
+   they label the figures, the figures carry the weight. */
+.th-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  /* Secondary, not muted: these labels sit on the grey header row, where
+     muted grey on grey was 2.3:1. */
+  color: var(--foreground-secondary);
 }

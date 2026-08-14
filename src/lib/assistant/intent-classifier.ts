@@ -190,14 +190,52 @@ export function classifyIntent(
   return {
     intent: topIntent,
     confidence,
-    suggestedTools: getSuggestedTools(topIntent),
+    suggestedTools: isDeadlineQuestion(message)
+      ? // The answer is one calendar lookup. Offered the full financial
+        // toolset, the model reached for a VAT estimate, a coverage check, an
+        // obligations list and a search of the accounting rules — paged reads
+        // over the whole ledger to answer a question whose answer is in the
+        // statute. Unless the amount is asked for in the same breath, in
+        // which case the estimate comes along and the two run together.
+        ASKS_AMOUNT.test(message)
+        ? ["get_vat_deadline", "get_vat_estimate"]
+        : ["get_vat_deadline"]
+      : getSuggestedTools(topIntent),
   };
+}
+
+/** Names VAT. */
+const NAMES_VAT = /\b(mva|merverdiavgift|moms)/i;
+
+/** Asks when, rather than how much. */
+const ASKS_WHEN =
+  /(frist|forfall|termin|innlever|leverer|leveres|rapporter|n(å|a)r\s)/i;
+
+/** Asks for a figure as well as a date. */
+const ASKS_AMOUNT = /(hvor\s*mye|hvor\s*stor|bel(ø|o)p|hva\s+blir|hva\s+skal)/i;
+
+/**
+ * "Når er neste mva-innlevering?" and its variants.
+ *
+ * Deliberately narrow: the message has to name VAT *and* ask about timing, so
+ * "hvor mye mva skylder vi" still goes to the estimate.
+ */
+function isDeadlineQuestion(message: string): boolean {
+  return NAMES_VAT.test(message) && ASKS_WHEN.test(message);
 }
 
 function getSuggestedTools(intent: Intent): string[] {
   switch (intent) {
     case "FINANCIAL_QUERY":
       return [
+        // The actions. A question about the figures is often followed by
+        // "then make me a budget for it", and the tools have to be present
+        // for that to be possible rather than described.
+        "create_report",
+        "create_budget",
+        "propose_budget_change",
+        "get_budget",
+        "find_savings",
         "get_financial_summary",
         "get_revenue_analysis",
         "get_profit_analysis",
@@ -205,6 +243,7 @@ function getSuggestedTools(intent: Intent): string[] {
         "get_customer_receivables",
         "get_overdue_invoices",
         "get_vat_estimate",
+        "get_vat_deadline",
       ];
     case "ACCOUNTING_ADVICE":
       return [
@@ -220,6 +259,11 @@ function getSuggestedTools(intent: Intent): string[] {
         "get_financial_summary",
         "get_cash_forecast",
         "get_upcoming_obligations",
+        "get_vat_deadline",
+        "get_budget",
+        "create_budget",
+        "propose_budget_change",
+        "get_cost_analysis",
       ];
     case "DOCUMENT_ACCOUNTING_ADVICE":
       return [

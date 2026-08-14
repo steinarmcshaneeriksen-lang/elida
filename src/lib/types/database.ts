@@ -115,6 +115,7 @@ export type Database = {
           created_at: string
           currency: string
           currency_amount: number | null
+          customer_id: string | null
           department_id: string | null
           description: string | null
           gl_account_id: string | null
@@ -123,6 +124,7 @@ export type Database = {
           project_id: string | null
           source_id: string | null
           source_system: string | null
+          supplier_id: string | null
           transaction_date: string
           vat_amount: number | null
           vat_code: string | null
@@ -135,6 +137,7 @@ export type Database = {
           created_at?: string
           currency?: string
           currency_amount?: number | null
+          customer_id?: string | null
           department_id?: string | null
           description?: string | null
           gl_account_id?: string | null
@@ -143,6 +146,7 @@ export type Database = {
           project_id?: string | null
           source_id?: string | null
           source_system?: string | null
+          supplier_id?: string | null
           transaction_date: string
           vat_amount?: number | null
           vat_code?: string | null
@@ -155,6 +159,7 @@ export type Database = {
           created_at?: string
           currency?: string
           currency_amount?: number | null
+          customer_id?: string | null
           department_id?: string | null
           description?: string | null
           gl_account_id?: string | null
@@ -163,6 +168,7 @@ export type Database = {
           project_id?: string | null
           source_id?: string | null
           source_system?: string | null
+          supplier_id?: string | null
           transaction_date?: string
           vat_amount?: number | null
           vat_code?: string | null
@@ -177,10 +183,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "account_transactions_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "account_transactions_gl_account_id_fkey"
             columns: ["gl_account_id"]
             isOneToOne: false
             referencedRelation: "gl_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_transactions_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
           {
@@ -196,44 +216,65 @@ export type Database = {
         Row: {
           category: string
           content_nb: string
+          content_version: number | null
           created_at: string
+          description: string | null
           effective_from: string
           effective_to: string | null
           id: string
           jurisdiction: string
           last_reviewed_at: string | null
           metadata: Json
+          parameters: Json | null
           rule_id: string
+          rule_key: string | null
+          rule_type: string | null
           source: string | null
+          title: string | null
           title_nb: string
+          updated_at: string | null
         }
         Insert: {
           category: string
           content_nb: string
+          content_version?: number | null
           created_at?: string
+          description?: string | null
           effective_from: string
           effective_to?: string | null
           id?: string
           jurisdiction?: string
           last_reviewed_at?: string | null
           metadata?: Json
+          parameters?: Json | null
           rule_id: string
+          rule_key?: string | null
+          rule_type?: string | null
           source?: string | null
+          title?: string | null
           title_nb: string
+          updated_at?: string | null
         }
         Update: {
           category?: string
           content_nb?: string
+          content_version?: number | null
           created_at?: string
+          description?: string | null
           effective_from?: string
           effective_to?: string | null
           id?: string
           jurisdiction?: string
           last_reviewed_at?: string | null
           metadata?: Json
+          parameters?: Json | null
           rule_id?: string
+          rule_key?: string | null
+          rule_type?: string | null
           source?: string | null
+          title?: string | null
           title_nb?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -366,6 +407,148 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "assistant_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_assumptions: {
+        Row: {
+          budget_id: string
+          created_at: string
+          effective_from: string | null
+          effective_to: string | null
+          id: string
+          metadata: Json
+          name: string
+          type: string
+          value: number | null
+        }
+        Insert: {
+          budget_id: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          metadata?: Json
+          name: string
+          type: string
+          value?: number | null
+        }
+        Update: {
+          budget_id?: string
+          created_at?: string
+          effective_from?: string | null
+          effective_to?: string | null
+          id?: string
+          metadata?: Json
+          name?: string
+          type?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_assumptions_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budget_lines: {
+        Row: {
+          account_number: string | null
+          amount: number
+          budget_id: string
+          category_key: string
+          comment: string | null
+          id: string
+          month: number
+        }
+        Insert: {
+          account_number?: string | null
+          amount?: number
+          budget_id: string
+          category_key: string
+          comment?: string | null
+          id?: string
+          month: number
+        }
+        Update: {
+          account_number?: string | null
+          amount?: number
+          budget_id?: string
+          category_key?: string
+          comment?: string | null
+          id?: string
+          month?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budget_lines_budget_id_fkey"
+            columns: ["budget_id"]
+            isOneToOne: false
+            referencedRelation: "budgets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      budgets: {
+        Row: {
+          approved_at: string | null
+          based_on: string | null
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          scenario: string
+          status: string
+          updated_at: string
+          version: number
+          year: number
+        }
+        Insert: {
+          approved_at?: string | null
+          based_on?: string | null
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          scenario?: string
+          status?: string
+          updated_at?: string
+          version?: number
+          year: number
+        }
+        Update: {
+          approved_at?: string | null
+          based_on?: string | null
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          scenario?: string
+          status?: string
+          updated_at?: string
+          version?: number
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "budgets_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "budgets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -553,6 +736,7 @@ export type Database = {
       customers: {
         Row: {
           address: string | null
+          closing_balance: number | null
           company_id: string
           created_at: string
           customer_number: string | null
@@ -560,6 +744,7 @@ export type Database = {
           id: string
           is_active: boolean
           name: string
+          opening_balance: number | null
           org_number: string | null
           phone: string | null
           source_id: string | null
@@ -568,6 +753,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          closing_balance?: number | null
           company_id: string
           created_at?: string
           customer_number?: string | null
@@ -575,6 +761,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -583,6 +770,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          closing_balance?: number | null
           company_id?: string
           created_at?: string
           customer_number?: string | null
@@ -590,6 +778,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           name?: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -637,6 +826,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "departments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      entity_balances: {
+        Row: {
+          closing_balance: number | null
+          company_id: string
+          entity_key: string
+          entity_type: string
+          id: string
+          opening_balance: number | null
+          source: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          closing_balance?: number | null
+          company_id: string
+          entity_key: string
+          entity_type: string
+          id?: string
+          opening_balance?: number | null
+          source?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          closing_balance?: number | null
+          company_id?: string
+          entity_key?: string
+          entity_type?: string
+          id?: string
+          opening_balance?: number | null
+          source?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "entity_balances_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -961,12 +1194,14 @@ export type Database = {
         Row: {
           account_number: string
           account_type: string | null
+          closing_balance: number | null
           company_id: string
           created_at: string
           description: string | null
           id: string
           is_active: boolean
           name: string
+          opening_balance: number | null
           source_id: string | null
           source_system: string | null
           updated_at: string
@@ -974,12 +1209,14 @@ export type Database = {
         Insert: {
           account_number: string
           account_type?: string | null
+          closing_balance?: number | null
           company_id: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name: string
+          opening_balance?: number | null
           source_id?: string | null
           source_system?: string | null
           updated_at?: string
@@ -987,12 +1224,14 @@ export type Database = {
         Update: {
           account_number?: string
           account_type?: string | null
+          closing_balance?: number | null
           company_id?: string
           created_at?: string
           description?: string | null
           id?: string
           is_active?: boolean
           name?: string
+          opening_balance?: number | null
           source_id?: string | null
           source_system?: string | null
           updated_at?: string
@@ -1003,6 +1242,72 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_runs: {
+        Row: {
+          company_id: string
+          completed_at: string | null
+          counts: Json | null
+          error_message: string | null
+          file_name: string | null
+          file_size: number | null
+          id: string
+          period_end: string | null
+          period_start: string | null
+          source_format: string
+          started_at: string
+          status: string
+          user_id: string | null
+          warnings: Json | null
+        }
+        Insert: {
+          company_id: string
+          completed_at?: string | null
+          counts?: Json | null
+          error_message?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          source_format?: string
+          started_at?: string
+          status?: string
+          user_id?: string | null
+          warnings?: Json | null
+        }
+        Update: {
+          company_id?: string
+          completed_at?: string | null
+          counts?: Json | null
+          error_message?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          id?: string
+          period_end?: string | null
+          period_start?: string | null
+          source_format?: string
+          started_at?: string
+          status?: string
+          user_id?: string | null
+          warnings?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_runs_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_runs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -1208,6 +1513,167 @@ export type Database = {
           },
         ]
       }
+      knowledge_articles: {
+        Row: {
+          accounting_treatment: string
+          beginner_explanation: string
+          category: Database["public"]["Enums"]["article_category"]
+          common_mistakes: string[]
+          company_types: Database["public"]["Enums"]["company_type"][]
+          confidence: Database["public"]["Enums"]["article_confidence"]
+          content_version: number
+          created_at: string
+          documentation_requirements: string[]
+          effective_from: string
+          effective_to: string | null
+          examples: Json
+          exceptions: string[]
+          id: string
+          jurisdiction: string
+          keywords: string[]
+          last_researched_at: string
+          main_rule: string
+          poweroffice_guidance: string
+          professional_explanation: string
+          professional_review_reason: string
+          questions_to_ask_user: string[]
+          recommended_accounts: Json
+          related_topics: string[]
+          requires_professional_review: boolean
+          review_status: Database["public"]["Enums"]["review_status"]
+          risk_level: Database["public"]["Enums"]["risk_level"]
+          search_phrases: string[]
+          slug: string
+          sources: Json
+          subcategory: string
+          summary: string
+          tax_treatment: string
+          title: string
+          updated_at: string
+          vat_treatment: string
+          warning_signs: string[]
+        }
+        Insert: {
+          accounting_treatment?: string
+          beginner_explanation: string
+          category: Database["public"]["Enums"]["article_category"]
+          common_mistakes?: string[]
+          company_types?: Database["public"]["Enums"]["company_type"][]
+          confidence?: Database["public"]["Enums"]["article_confidence"]
+          content_version?: number
+          created_at?: string
+          documentation_requirements?: string[]
+          effective_from?: string
+          effective_to?: string | null
+          examples?: Json
+          exceptions?: string[]
+          id?: string
+          jurisdiction?: string
+          keywords?: string[]
+          last_researched_at?: string
+          main_rule: string
+          poweroffice_guidance?: string
+          professional_explanation: string
+          professional_review_reason?: string
+          questions_to_ask_user?: string[]
+          recommended_accounts?: Json
+          related_topics?: string[]
+          requires_professional_review?: boolean
+          review_status?: Database["public"]["Enums"]["review_status"]
+          risk_level?: Database["public"]["Enums"]["risk_level"]
+          search_phrases?: string[]
+          slug: string
+          sources?: Json
+          subcategory?: string
+          summary: string
+          tax_treatment?: string
+          title: string
+          updated_at?: string
+          vat_treatment?: string
+          warning_signs?: string[]
+        }
+        Update: {
+          accounting_treatment?: string
+          beginner_explanation?: string
+          category?: Database["public"]["Enums"]["article_category"]
+          common_mistakes?: string[]
+          company_types?: Database["public"]["Enums"]["company_type"][]
+          confidence?: Database["public"]["Enums"]["article_confidence"]
+          content_version?: number
+          created_at?: string
+          documentation_requirements?: string[]
+          effective_from?: string
+          effective_to?: string | null
+          examples?: Json
+          exceptions?: string[]
+          id?: string
+          jurisdiction?: string
+          keywords?: string[]
+          last_researched_at?: string
+          main_rule?: string
+          poweroffice_guidance?: string
+          professional_explanation?: string
+          professional_review_reason?: string
+          questions_to_ask_user?: string[]
+          recommended_accounts?: Json
+          related_topics?: string[]
+          requires_professional_review?: boolean
+          review_status?: Database["public"]["Enums"]["review_status"]
+          risk_level?: Database["public"]["Enums"]["risk_level"]
+          search_phrases?: string[]
+          slug?: string
+          sources?: Json
+          subcategory?: string
+          summary?: string
+          tax_treatment?: string
+          title?: string
+          updated_at?: string
+          vat_treatment?: string
+          warning_signs?: string[]
+        }
+        Relationships: []
+      }
+      knowledge_evaluations: {
+        Row: {
+          article_id: string
+          created_at: string
+          expected_risk_level: Database["public"]["Enums"]["risk_level"]
+          expected_topics: string[]
+          id: string
+          question: string
+          required_clarifying_questions: string[]
+          unacceptable_behavior: string[]
+        }
+        Insert: {
+          article_id: string
+          created_at?: string
+          expected_risk_level?: Database["public"]["Enums"]["risk_level"]
+          expected_topics?: string[]
+          id?: string
+          question: string
+          required_clarifying_questions?: string[]
+          unacceptable_behavior?: string[]
+        }
+        Update: {
+          article_id?: string
+          created_at?: string
+          expected_risk_level?: Database["public"]["Enums"]["risk_level"]
+          expected_topics?: string[]
+          id?: string
+          question?: string
+          required_clarifying_questions?: string[]
+          unacceptable_behavior?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_evaluations_article_id_fkey"
+            columns: ["article_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       outgoing_invoice_lines: {
         Row: {
           account_number: string | null
@@ -1390,29 +1856,53 @@ export type Database = {
         Row: {
           code: string | null
           company_id: string
+          cost_price: number | null
           id: string
           is_active: boolean
+          is_recurring: boolean
           name: string
+          price_updated_at: string | null
+          product_group: string | null
+          sales_account: string | null
+          sales_price: number | null
           source_id: string | null
           source_system: string | null
+          unit: string | null
+          updated_at: string
         }
         Insert: {
           code?: string | null
           company_id: string
+          cost_price?: number | null
           id?: string
           is_active?: boolean
+          is_recurring?: boolean
           name: string
+          price_updated_at?: string | null
+          product_group?: string | null
+          sales_account?: string | null
+          sales_price?: number | null
           source_id?: string | null
           source_system?: string | null
+          unit?: string | null
+          updated_at?: string
         }
         Update: {
           code?: string | null
           company_id?: string
+          cost_price?: number | null
           id?: string
           is_active?: boolean
+          is_recurring?: boolean
           name?: string
+          price_updated_at?: string | null
+          product_group?: string | null
+          sales_account?: string | null
+          sales_price?: number | null
           source_id?: string | null
           source_system?: string | null
+          unit?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -1458,6 +1948,84 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recurring_contracts: {
+        Row: {
+          company_id: string
+          customer_id: string | null
+          customer_name: string
+          customer_number: string | null
+          department: string | null
+          description: string | null
+          gross_amount: number | null
+          id: string
+          imported_at: string
+          interval_months: number
+          is_active: boolean
+          is_draft: boolean
+          net_amount: number
+          next_invoice_date: string | null
+          org_number: string | null
+          seller: string | null
+          source_id: string | null
+          source_system: string
+        }
+        Insert: {
+          company_id: string
+          customer_id?: string | null
+          customer_name: string
+          customer_number?: string | null
+          department?: string | null
+          description?: string | null
+          gross_amount?: number | null
+          id?: string
+          imported_at?: string
+          interval_months: number
+          is_active?: boolean
+          is_draft?: boolean
+          net_amount: number
+          next_invoice_date?: string | null
+          org_number?: string | null
+          seller?: string | null
+          source_id?: string | null
+          source_system?: string
+        }
+        Update: {
+          company_id?: string
+          customer_id?: string | null
+          customer_name?: string
+          customer_number?: string | null
+          department?: string | null
+          description?: string | null
+          gross_amount?: number | null
+          id?: string
+          imported_at?: string
+          interval_months?: number
+          is_active?: boolean
+          is_draft?: boolean
+          net_amount?: number
+          next_invoice_date?: string | null
+          org_number?: string | null
+          seller?: string | null
+          source_id?: string | null
+          source_system?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_contracts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "recurring_contracts_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
             referencedColumns: ["id"]
           },
         ]
@@ -1528,6 +2096,117 @@ export type Database = {
             columns: ["supplier_id"]
             isOneToOne: false
             referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      report_templates: {
+        Row: {
+          company_id: string
+          configuration: Json
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          report_type: string
+        }
+        Insert: {
+          company_id: string
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          report_type: string
+        }
+        Update: {
+          company_id?: string
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          report_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "report_templates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "report_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          company_id: string
+          comparison_type: string | null
+          configuration: Json
+          created_at: string
+          created_by: string | null
+          dataset: Json | null
+          dataset_version: string
+          generated_at: string
+          id: string
+          period_end: string
+          period_start: string
+          report_type: string
+          status: string
+          title: string
+        }
+        Insert: {
+          company_id: string
+          comparison_type?: string | null
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          dataset?: Json | null
+          dataset_version?: string
+          generated_at?: string
+          id?: string
+          period_end: string
+          period_start: string
+          report_type: string
+          status?: string
+          title: string
+        }
+        Update: {
+          company_id?: string
+          comparison_type?: string | null
+          configuration?: Json
+          created_at?: string
+          created_by?: string | null
+          dataset?: Json | null
+          dataset_version?: string
+          generated_at?: string
+          id?: string
+          period_end?: string
+          period_start?: string
+          report_type?: string
+          status?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reports_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -1607,13 +2286,17 @@ export type Database = {
       suppliers: {
         Row: {
           address: string | null
+          closing_balance: number | null
           company_id: string
           country: string | null
           created_at: string
           email: string | null
           id: string
           is_active: boolean
+          is_anonymised: boolean
+          is_possible_private_person: boolean
           name: string
+          opening_balance: number | null
           org_number: string | null
           phone: string | null
           source_id: string | null
@@ -1623,13 +2306,17 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          closing_balance?: number | null
           company_id: string
           country?: string | null
           created_at?: string
           email?: string | null
           id?: string
           is_active?: boolean
+          is_anonymised?: boolean
+          is_possible_private_person?: boolean
           name: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -1639,13 +2326,17 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          closing_balance?: number | null
           company_id?: string
           country?: string | null
           created_at?: string
           email?: string | null
           id?: string
           is_active?: boolean
+          is_anonymised?: boolean
+          is_possible_private_person?: boolean
           name?: string
+          opening_balance?: number | null
           org_number?: string | null
           phone?: string | null
           source_id?: string | null
@@ -2015,11 +2706,115 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      company_balance_totals: {
+        Args: { p_company_id: string }
+        Returns: {
+          cash: number
+          is_stated: boolean
+          payables: number
+          receivables: number
+        }[]
+      }
+      company_cash_series: {
+        Args: { p_company_id: string }
+        Returns: {
+          balance: number
+          is_estimated: boolean
+          month: string
+          movement: number
+        }[]
+      }
+      company_customer_summary: {
+        Args: { p_company_id: string }
+        Returns: {
+          customer_id: string
+          customer_number: string
+          last_activity: string
+          name: string
+          org_number: string
+          outstanding: number
+          outstanding_is_stated: boolean
+          posting_count: number
+          revenue: number
+        }[]
+      }
+      company_mrr: {
+        Args: { p_company_id: string }
+        Returns: {
+          is_complete: boolean
+          month: string
+          normalised_mrr: number
+          one_off: number
+          recurring: number
+          total: number
+        }[]
+      }
+      company_recurring_revenue: {
+        Args: { p_company_id: string }
+        Returns: {
+          avg_per_month: number
+          description: string
+          first_month: string
+          has_cadence: boolean
+          has_keyword: boolean
+          last_month: string
+          matched_product: string
+          months_active: number
+          posting_count: number
+          total: number
+        }[]
+      }
+      company_supplier_summary: {
+        Args: { p_company_id: string }
+        Returns: {
+          cost: number
+          last_activity: string
+          name: string
+          org_number: string
+          outstanding: number
+          outstanding_is_stated: boolean
+          posting_count: number
+          supplier_id: string
+          supplier_number: string
+        }[]
+      }
+      create_company_with_access: {
+        Args: {
+          p_company_name: string
+          p_industry?: string
+          p_knowledge_level?: Database["public"]["Enums"]["accounting_knowledge_level"]
+          p_org_number?: string
+        }
+        Returns: Json
+      }
       get_user_company_ids: { Args: never; Returns: string[] }
+      user_administers_company: {
+        Args: { p_company_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
       accounting_knowledge_level: "beginner" | "intermediate" | "advanced"
+      article_category:
+        | "bookkeeping"
+        | "accounting"
+        | "vat"
+        | "tax"
+        | "payroll"
+        | "travel"
+        | "representation"
+        | "employee_benefits"
+        | "assets"
+        | "depreciation"
+        | "receivables"
+        | "shareholder"
+        | "foreign_transactions"
+        | "vehicle"
+        | "documentation"
+        | "poweroffice"
+      article_confidence: "HIGH" | "MEDIUM" | "LOW"
       assistant_message_role: "user" | "assistant" | "system"
+      company_type: "AS" | "ENK" | "ANS" | "DA" | "NUF" | "SA"
       confidence_level:
         | "confirmed"
         | "high_confidence"
@@ -2033,6 +2828,8 @@ export type Database = {
         | "failed"
         | "deleted"
       integration_provider: "poweroffice"
+      review_status: "AI_GENERATED" | "NEEDS_REVIEW" | "REVIEWED" | "PUBLISHED"
+      risk_level: "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH"
       sync_status: "pending" | "running" | "completed" | "failed" | "partial"
     }
     CompositeTypes: {
@@ -2162,7 +2959,27 @@ export const Constants = {
   public: {
     Enums: {
       accounting_knowledge_level: ["beginner", "intermediate", "advanced"],
+      article_category: [
+        "bookkeeping",
+        "accounting",
+        "vat",
+        "tax",
+        "payroll",
+        "travel",
+        "representation",
+        "employee_benefits",
+        "assets",
+        "depreciation",
+        "receivables",
+        "shareholder",
+        "foreign_transactions",
+        "vehicle",
+        "documentation",
+        "poweroffice",
+      ],
+      article_confidence: ["HIGH", "MEDIUM", "LOW"],
       assistant_message_role: ["user", "assistant", "system"],
+      company_type: ["AS", "ENK", "ANS", "DA", "NUF", "SA"],
       confidence_level: [
         "confirmed",
         "high_confidence",
@@ -2178,16 +2995,13 @@ export const Constants = {
         "deleted",
       ],
       integration_provider: ["poweroffice"],
+      review_status: ["AI_GENERATED", "NEEDS_REVIEW", "REVIEWED", "PUBLISHED"],
+      risk_level: ["LOW", "MEDIUM", "HIGH", "VERY_HIGH"],
       sync_status: ["pending", "running", "completed", "failed", "partial"],
     },
   },
 } as const
 
-// ─── Named type aliases for backward compatibility ──────────────────────────
-// These provide convenient named types that can be imported directly,
-// derived from the generated Database type above.
-
-// Row types (what you get back from SELECT queries)
 export type Company = Tables<"companies">;
 export type User = Tables<"users">;
 export type UserCompanyAccess = Tables<"user_company_access">;
@@ -2227,11 +3041,23 @@ export type EphemeralDocumentJob = Tables<"ephemeral_document_jobs">;
 export type Department = Tables<"departments">;
 export type Product = Tables<"products">;
 export type Project = Tables<"projects">;
+export type KnowledgeArticle = Tables<"knowledge_articles">;
+export type KnowledgeEvaluation = Tables<"knowledge_evaluations">;
+export type ImportRun = Tables<"import_runs">;
 
-// Enum types
 export type AccountingKnowledgeLevel = Enums<"accounting_knowledge_level">;
 export type IntegrationProvider = Enums<"integration_provider">;
 export type SyncStatus = Enums<"sync_status">;
 export type ConfidenceLevel = Enums<"confidence_level">;
 export type DocumentJobStatus = Enums<"document_job_status">;
 export type AssistantMessageRole = Enums<"assistant_message_role">;
+export type ReviewStatusEnum = Enums<"review_status">;
+export type RiskLevelEnum = Enums<"risk_level">;
+
+export type Report = Tables<"reports">;
+export type ReportTemplate = Tables<"report_templates">;
+export type Budget = Tables<"budgets">;
+export type BudgetLine = Tables<"budget_lines">;
+export type BudgetAssumption = Tables<"budget_assumptions">;
+export type RecurringContract = Tables<"recurring_contracts">;
+export type EntityBalance = Tables<"entity_balances">;
