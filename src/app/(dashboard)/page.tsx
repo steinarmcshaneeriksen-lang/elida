@@ -1,15 +1,23 @@
 "use client";
 
-import { MetricCard, type Tone } from "@/components/dashboard/metric-card";
+import Link from "next/link";
 import {
   TrendingUp,
-  LineChart,
+  Coins,
+  Percent,
   Wallet,
-  Receipt,
   Info,
-  type LucideIcon,
+  Lightbulb,
+  Gauge,
+  Droplets,
+  Upload,
+  FileText,
+  MessageCircleQuestion,
+  Target,
 } from "lucide-react";
+import { KpiCard } from "@/components/dashboard/kpi-card";
 import { InsightCard } from "@/components/dashboard/insight-card";
+import { Panel } from "@/components/ui/panel";
 import {
   NoDataState,
   LoadingState,
@@ -18,13 +26,20 @@ import {
 import { useUser } from "@/lib/hooks/use-user";
 import { useCompanyData } from "@/lib/hooks/use-company-data";
 import { MrrCard, type MrrData } from "@/components/dashboard/mrr-card";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatPercent } from "@/lib/format";
 
 interface Metric {
   ytd: number;
   comparison_ytd: number | null;
   change_percent: number | null;
   has_comparison: boolean;
+}
+
+interface MonthRow {
+  month: string;
+  revenue: number;
+  profit: number;
+  margin: number;
 }
 
 interface SummaryResponse {
@@ -36,6 +51,7 @@ interface SummaryResponse {
     comparison_end: string | null;
     note: string | null;
   } | null;
+  monthly?: MonthRow[];
   revenue: Metric | null;
   profit: Metric | null;
   cash: { current: number } | null;
@@ -49,62 +65,53 @@ interface SummaryResponse {
     evidence: string[];
     created_at: string;
   }>;
-  data_quality: {
-    last_sync: string | null;
-    freshness: string;
-    completeness: string;
-  };
+}
+
+interface CashflowResponse {
+  has_data?: boolean;
+  current_balance: number | null;
+  lowest_point: { month: string; balance: number } | null;
+  monthly: Array<{ month: string; movement: number; balance: number }>;
+  receivables: { total: number };
+  payables: { total: number };
 }
 
 function getGreeting(): string {
   const hour = new Date().getHours();
-  if (hour < 10) return "God morgen!";
-  if (hour < 17) return "God dag!";
-  return "God kveld!";
-}
-
-function direction(percent: number): "up" | "down" | "flat" {
-  if (percent > 0.5) return "up";
-  if (percent < -0.5) return "down";
-  return "flat";
+  if (hour < 10) return "God morgen";
+  if (hour < 17) return "God dag";
+  return "God kveld";
 }
 
 export default function DashboardPage() {
-  const { company } = useUser();
+  const { company, profile } = useUser();
   const { data, isLoading, error, isEmpty } =
     useCompanyData<SummaryResponse>("summary");
   const mrr = useCompanyData<MrrData>("mrr");
+  const cashflow = useCompanyData<CashflowResponse>("cashflow");
+
+  const monthly = data?.monthly ?? [];
+  const firstName = profile?.full_name?.split(" ")[0];
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight text-foreground">
           {getGreeting()}
+          {firstName ? `, ${firstName}` : ""}
         </h2>
         <p className="mt-1 text-sm text-foreground-secondary">
-          Her er en oppsummering av den økonomiske situasjonen
-          {company ? ` til ${company.name}` : ""}.
+          Her er hva som skjer i {company?.name ?? "selskapet"}
+          {data?.period ? ` — ${formatPeriod(data.period.start, data.period.end)}` : ""}.
+          {data?.period?.comparison_start && data.period.comparison_end
+            ? ` Sammenlignet med ${formatPeriod(data.period.comparison_start, data.period.comparison_end)}.`
+            : ""}
         </p>
-        {data?.period && (
-          // Which period the figures cover is not small print — it is what
-          // makes every number below it mean something. Body size, body ink.
-          <p className="mt-2 text-sm text-foreground-secondary">
-            Tallene gjelder {formatPeriod(data.period.start, data.period.end)}
-            {data.period.comparison_start && data.period.comparison_end
-              ? `, sammenlignet med ${formatPeriod(data.period.comparison_start, data.period.comparison_end)}.`
-              : ". Last opp foregående år for å se utvikling."}
-          </p>
-        )}
       </div>
 
-      {/* Why the period stops before the last posting in the books. This was a
-          grey paragraph in the page heading; it is the same explanation the
-          Økonomi page gives, so it gets the same shape. */}
+      {/* Why the period stops before the last posting in the books. */}
       {data?.period?.note && (
-        <div
-          data-tone="copper"
-          className="tone-card flex max-w-3xl gap-3 p-4"
-        >
+        <div data-tone="copper" className="tone-card flex max-w-3xl gap-3 p-4">
           <span className="tone-badge shrink-0">
             <Info size={16} strokeWidth={2.2} />
           </span>
@@ -120,188 +127,264 @@ export default function DashboardPage() {
 
       {!isLoading && !error && !isEmpty && data && (
         <>
+          {/* The four headline figures. */}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {data.revenue && (
+              <KpiCard
+                label="Omsetning"
+                value={formatCurrency(data.revenue.ytd)}
+                tone="ocean"
+                href="/okonomi"
+                series={monthly.map((m) => m.revenue)}
+                change={
+                  data.revenue.has_comparison && data.revenue.change_percent != null
+                    ? {
+                        percent: data.revenue.change_percent,
+                        label: "vs. samme periode i fjor",
+                      }
+                    : null
+                }
+                note="Eks. mva · ingen sammenligning ennå"
+              />
+            )}
+            {data.profit && (
+              <KpiCard
+                label="Driftsresultat"
+                value={formatCurrency(data.profit.ytd)}
+                tone="teal"
+                href="/okonomi"
+                series={monthly.map((m) => m.profit)}
+                change={
+                  data.profit.has_comparison && data.profit.change_percent != null
+                    ? {
+                        percent: data.profit.change_percent,
+                        label: "vs. samme periode i fjor",
+                      }
+                    : null
+                }
+                note="Eks. mva · ingen sammenligning ennå"
+              />
+            )}
+            {data.revenue && data.profit && (
+              <KpiCard
+                label="Driftsmargin"
+                value={formatPercent(margin(data.profit.ytd, data.revenue.ytd))}
+                tone="violet"
+                href="/okonomi"
+                series={monthly.map((m) => m.margin)}
+                change={
+                  marginChange(data) != null
+                    ? {
+                        percent: marginChange(data)!,
+                        unit: "points",
+                        label: "vs. samme periode i fjor",
+                      }
+                    : null
+                }
+                note="Ingen sammenligning ennå"
+              />
+            )}
+            {data.cash && (
+              <KpiCard
+                label="Likviditet"
+                value={formatCurrency(data.cash.current)}
+                tone="copper"
+                href="/likviditet"
+                series={cashflow.data?.monthly?.map((m) => m.balance)}
+                change={null}
+                note="Bokført saldo ved periodens slutt"
+              />
+            )}
+          </div>
+
           {mrr.data?.has_data && <MrrCard data={mrr.data} />}
 
-          <section>
-            {/* One row of equal cards. A three-column grid left the fourth
-                card alone on a second row, which read as a mistake. */}
-            <div className="grid items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {buildMetrics(data).map((metric) => (
-                <MetricCard
-                  key={metric.question}
-                  question={metric.question}
-                  label={metric.label}
-                  value={metric.value}
-                  comparison={metric.comparison}
-                  detail={metric.detail}
-                  href={metric.href}
-                  tone={metric.tone}
-                  icon={metric.icon}
-                />
-              ))}
+          <div className="grid gap-4 lg:grid-cols-3">
+            {/* Two thirds: the observations, which is what the page is for. */}
+            <div className="lg:col-span-2">
+              <Panel
+                tone="ocean"
+                icon={Lightbulb}
+                title="Dette bør du vite nå"
+                description="Utledet av regnskapet ved siste import. Hver observasjon oppgir tallene den bygger på."
+              >
+                {data.insights.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-foreground-muted">
+                    Ingenting krever oppmerksomhet akkurat nå. Elida varsler her
+                    når noe endrer seg.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {data.insights.map((insight) => (
+                      <InsightCard
+                        key={insight.id}
+                        severity={
+                          insight.severity as "high" | "medium" | "low" | "info"
+                        }
+                        title={insight.title}
+                        description={insight.description}
+                        evidence={insight.evidence}
+                        period={insight.period ?? undefined}
+                        createdAt={insight.created_at}
+                      />
+                    ))}
+                  </div>
+                )}
+              </Panel>
             </div>
-          </section>
 
-          <section>
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-foreground">
-                Dette bør du vite nå
-              </h3>
-              <p className="text-sm text-foreground-muted">
-                Viktige hendelser og observasjoner fra Elida
-              </p>
-            </div>
-
-            {data.insights.length === 0 ? (
-              <div className="rounded-xl border border-border bg-surface px-5 py-8 text-center text-sm text-foreground-muted">
-                Ingen observasjoner å vise ennå. Elida varsler her når noe
-                krever oppmerksomhet.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {data.insights.map((insight) => (
-                  <InsightCard
-                    key={insight.id}
-                    severity={
-                      insight.severity as "high" | "medium" | "low" | "info"
-                    }
-                    title={insight.title}
-                    description={insight.description}
-                    evidence={insight.evidence}
-                    period={insight.period ?? undefined}
-                    createdAt={insight.created_at}
+            <div className="space-y-4">
+              <Panel tone="slate" icon={Gauge} title="Nøkkeltall">
+                <dl className="space-y-0.5">
+                  <KeyFigure
+                    label="Omsetning"
+                    value={formatCurrency(data.revenue?.ytd ?? 0)}
+                    hint="Eks. mva"
                   />
-                ))}
-              </div>
-            )}
-          </section>
+                  <KeyFigure
+                    label="Driftsresultat"
+                    value={formatCurrency(data.profit?.ytd ?? 0)}
+                    hint={`Margin ${formatPercent(
+                      margin(data.profit?.ytd ?? 0, data.revenue?.ytd ?? 0)
+                    )}`}
+                  />
+                  {data.receivables && (
+                    <KeyFigure
+                      label="Kundefordringer"
+                      value={formatCurrency(data.receivables.total)}
+                      hint="Inkl. mva — fakturert beløp"
+                    />
+                  )}
+                  {cashflow.data?.payables && (
+                    <KeyFigure
+                      label="Leverandørgjeld"
+                      value={formatCurrency(cashflow.data.payables.total)}
+                      hint="Inkl. mva"
+                    />
+                  )}
+                  {cashflow.data?.lowest_point && (
+                    <KeyFigure
+                      label="Laveste likviditet"
+                      value={formatCurrency(cashflow.data.lowest_point.balance)}
+                      hint={monthName(cashflow.data.lowest_point.month)}
+                    />
+                  )}
+                </dl>
+              </Panel>
+
+              <Panel tone="teal" icon={Droplets} title="Hurtighandlinger">
+                <div className="grid gap-2">
+                  <Action href="/import" icon={Upload} label="Importer data" />
+                  <Action href="/rapporter" icon={FileText} label="Lag en rapport" />
+                  <Action href="/budsjett" icon={Target} label="Nytt budsjett" />
+                  <Action
+                    href="/okonomi"
+                    icon={MessageCircleQuestion}
+                    label="Se økonomien i detalj"
+                  />
+                </div>
+              </Panel>
+            </div>
+          </div>
         </>
       )}
     </div>
   );
 }
 
+// ---------------------------------------------------------------------------
+// Pieces
+// ---------------------------------------------------------------------------
+
+function KeyFigure({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 border-b border-border-light py-2.5 last:border-0">
+      <dt className="min-w-0">
+        <span className="block truncate text-sm text-foreground-secondary">
+          {label}
+        </span>
+        {hint && (
+          <span className="block text-xs text-foreground-muted">{hint}</span>
+        )}
+      </dt>
+      <dd className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function Action({
+  href,
+  icon: Icon,
+  label,
+}: {
+  href: string;
+  icon: typeof Upload;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm font-medium text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-foreground"
+    >
+      <Icon size={16} className="shrink-0 text-foreground-muted" />
+      {label}
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Figures
+// ---------------------------------------------------------------------------
+
 const MONTHS = [
   "januar", "februar", "mars", "april", "mai", "juni",
   "juli", "august", "september", "oktober", "november", "desember",
 ];
 
-/** "1. jan – 30. jun 2026", collapsing the year when both ends share it. */
+/** "januar–13. august 2026", collapsing the year when both ends share it. */
 function formatPeriod(start: string, end: string): string {
   const [sy, sm] = start.split("-").map(Number);
   const [ey, em, ed] = end.split("-").map(Number);
-  const from = `${MONTHS[sm - 1]}`;
+  const from = MONTHS[sm - 1];
   const to = `${ed}. ${MONTHS[em - 1]}`;
   return sy === ey ? `${from}–${to} ${ey}` : `${from} ${sy} – ${to} ${ey}`;
 }
 
-interface DashboardMetric {
-  question: string;
-  label: string;
-  value: string;
-  comparison: {
-    percent: number;
-    direction: "up" | "down" | "flat";
-    label: string;
-  };
-  detail?: string;
-  href: string;
-  tone: Tone;
-  icon: LucideIcon;
+function monthName(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  return `${MONTHS[m - 1]} ${y}`;
 }
 
-function buildMetrics(data: SummaryResponse): DashboardMetric[] {
-  const metrics: DashboardMetric[] = [];
-
-  if (data.profit) {
-    const margin =
-      data.revenue?.ytd && data.profit
-        ? (data.profit.ytd / data.revenue.ytd) * 100
-        : null;
-    metrics.push({
-      question: "Går bedriften med overskudd?",
-      label: "Driftsresultat i perioden",
-      value: formatCurrency(data.profit.ytd),
-      comparison: comparisonFor(data.profit),
-      detail:
-        margin != null
-          ? `Eks. mva · driftsmargin ${margin.toLocaleString("nb-NO", { maximumFractionDigits: 1 })} %`
-          : "Eks. mva",
-      href: "/okonomi",
-      tone: "teal",
-      icon: LineChart,
-    });
-  }
-
-  if (data.revenue) {
-    metrics.push({
-      question: "Vokser bedriften?",
-      label: "Omsetning i perioden",
-      value: formatCurrency(data.revenue.ytd),
-      comparison: comparisonFor(data.revenue),
-      detail: data.revenue.has_comparison
-        ? `Eks. mva · i fjor ${formatCurrency(data.revenue.comparison_ytd ?? 0)}`
-        : "Eks. mva",
-      href: "/okonomi",
-      tone: "ocean",
-      icon: TrendingUp,
-    });
-  }
-
-  if (data.cash) {
-    metrics.push({
-      question: "Har bedriften nok penger?",
-      label: "Bokført likviditet",
-      value: formatCurrency(data.cash.current),
-      comparison: {
-        percent: 0,
-        direction: "flat",
-        label: "ved periodens slutt",
-      },
-      detail: "Bokført saldo, ikke live banksaldo.",
-      href: "/likviditet",
-      tone: "violet",
-      icon: Wallet,
-    });
-  }
-
-  if (data.receivables) {
-    metrics.push({
-      question: "Hvem skylder oss penger?",
-      label: "Utestående kundefordringer",
-      value: formatCurrency(data.receivables.total),
-      comparison: {
-        percent: 0,
-        direction: "flat",
-        label: "bokført ved periodens slutt",
-      },
-      // A receivable is what was invoiced, VAT included; unlike revenue it
-      // cannot be stated net without inventing a VAT split per invoice.
-      detail: "Inkl. mva — fakturert beløp",
-      href: "/kunder",
-      tone: "copper",
-      icon: Receipt,
-    });
-  }
-
-  return metrics;
+function margin(profit: number, revenue: number): number {
+  return revenue > 0 ? (profit / revenue) * 100 : 0;
 }
 
 /**
- * Without a previous year there is nothing to compare against. Showing a
- * zero baseline would render as a 100% change, so say so instead.
+ * A margin moves in percentage points, not in percent — a margin going from
+ * 5 % to 10 % has risen five points, and calling that "up 100 %" is the kind
+ * of true-but-useless figure that gets a board pack questioned.
  */
-function comparisonFor(metric: Metric) {
-  if (!metric.has_comparison || metric.change_percent == null) {
-    return {
-      percent: 0,
-      direction: "flat" as const,
-      label: "ingen sammenligning ennå",
-    };
+function marginChange(data: SummaryResponse): number | null {
+  if (
+    !data.revenue?.has_comparison ||
+    data.revenue.comparison_ytd == null ||
+    data.profit?.comparison_ytd == null ||
+    data.revenue.comparison_ytd <= 0
+  ) {
+    return null;
   }
-  return {
-    percent: metric.change_percent,
-    direction: direction(metric.change_percent),
-    label: "vs. i fjor",
-  };
+
+  const now = margin(data.profit.ytd, data.revenue.ytd);
+  const before = margin(data.profit.comparison_ytd, data.revenue.comparison_ytd);
+  return Math.round((now - before) * 10) / 10;
 }

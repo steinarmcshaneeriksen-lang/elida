@@ -7,6 +7,7 @@ import type {
   IntegrationSyncState,
 } from "@/lib/types/database";
 import { trailingNote } from "@/lib/data-window";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
  * GET /api/companies/[id]/summary
@@ -84,6 +85,15 @@ export async function GET(
 
       const lastSync = syncStates?.[0]?.last_sync_completed_at ?? null;
 
+      // The shape of the period behind each headline figure. The cards state
+      // the amount and the movement; this is the path between them.
+      const monthly = await loadMonthly(
+        supabase,
+        companyId,
+        revenueMetric.period_start,
+        revenueMetric.period_end
+      );
+
       // A metric with no comparison means the previous year has not been
       // imported. Report that as absent rather than as zero, which would
       // render as a 100% collapse.
@@ -105,6 +115,7 @@ export async function GET(
           // what follows is forward-dated periodisation rather than trading.
           note: periodNote(revenueMetric),
         },
+        monthly,
         revenue: withComparison(revenueMetric),
         profit: withComparison(profitMetric),
         cash: cashMetric ? { current: cashMetric.value } : null,
@@ -146,6 +157,69 @@ export async function GET(
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+interface MonthRow {
+  month: string;
+  revenue: number;
+  profit: number;
+  margin: number;
+}
+
+/**
+ * Revenue and operating profit per month inside the period.
+ *
+ * Amounts are stored debit-positive, so revenue accounts — which are
+ * credit-normal — are flipped to read as income.
+ */
+async function loadMonthly(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  companyId: string,
+  start: string,
+  end: string
+): Promise<MonthRow[]> {
+  type Row = { account_number: string; amount: number; transaction_date: string };
+
+  const rows = await fetchAll<Row>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("account_number, amount, transaction_date")
+        .eq("company_id", companyId)
+        .gte("transaction_date", start)
+        .lte("transaction_date", end)
+        .order("transaction_date", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Row[] | null;
+        error: { message: string } | null;
+      }>,
+    { label: "posteringer" }
+  );
+
+  const byMonth = new Map<string, { revenue: number; costs: number }>();
+
+  for (const row of rows) {
+    const account = parseInt(row.account_number, 10);
+    if (!Number.isFinite(account)) continue;
+
+    const month = row.transaction_date.slice(0, 7);
+    const entry = byMonth.get(month) ?? { revenue: 0, costs: 0 };
+
+    if (account >= 3000 && account <= 3999) entry.revenue -= Number(row.amount);
+    else if (account >= 4000 && account <= 7999) entry.costs += Number(row.amount);
+
+    byMonth.set(month, entry);
+  }
+
+  return [...byMonth.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, v]) => ({
+      month,
+      revenue: Math.round(v.revenue),
+      profit: Math.round(v.revenue - v.costs),
+      margin: v.revenue > 0 ? Math.round(((v.revenue - v.costs) / v.revenue) * 1000) / 10 : 0,
+    }));
+}
 
 /**
  * The metrics carry what was left outside the period. Rebuilt into the

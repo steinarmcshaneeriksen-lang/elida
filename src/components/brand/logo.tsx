@@ -3,9 +3,12 @@ import { jost } from "@/lib/fonts";
 /**
  * The Elida wordmark: lowercase, light-weight geometric sans in the brand ink.
  *
- * Set as live text rather than an image so it stays sharp at any size, inherits
- * colour where it sits on a dark ground, and needs no asset request before the
- * shell can paint.
+ * Set as live text rather than an image so it stays sharp at any size and needs
+ * no asset request before the shell can paint.
+ *
+ * The ink is the wordmark's navy on paper — in the app, which is dark, that
+ * navy would disappear into the ground, so the mark is drawn in the page's
+ * brightest ink instead. Same letterforms, legible where they actually sit.
  */
 export function Logo({
   className = "",
@@ -21,7 +24,7 @@ export function Logo({
         fontSize: size,
         fontWeight: 300,
         letterSpacing: "0.01em",
-        color: "var(--brand-ink)",
+        color: "var(--foreground)",
       }}
     >
       elida
@@ -46,7 +49,7 @@ export function LogoMark({
       style={{
         fontSize: size,
         fontWeight: 300,
-        color: "var(--brand-ink)",
+        color: "var(--foreground)",
       }}
     >
       e

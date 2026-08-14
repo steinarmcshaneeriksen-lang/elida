@@ -4,128 +4,120 @@
   /* Brand ink — the navy of the Elida wordmark. */
   --brand-ink: #16203c;
 
-  /* Primary palette — one navy, the wordmark's.
-     The buttons used to sit on #1e3a5f, a bluer navy than the logo's ink, so
-     the chrome and the brand were two different colours a few degrees apart.
-     Everything interactive now draws from the same hue as the wordmark. */
-  --primary: #1f2d55;
-  --primary-light: #2c3f73;
-  --primary-dark: #141d3a;
-  --primary-50: #f0f3fa;
-  --primary-100: #dde4f3;
-  --primary-200: #bac7e6;
-  --primary-700: #1f2d55;
-  --primary-800: #16203c;
-  --primary-900: #0d1326;
+  /* ---------------------------------------------------------------------
+     Dark by default.
+
+     A finance product is read for hours at a time, usually beside other
+     windows, and the figures are what should carry light — not the sheet
+     they sit on. The palette is therefore built from a near-black ground up,
+     rather than a light theme with the values flipped: a hue that reads on
+     white is too dark on black, so every one of them is re-picked here and
+     re-checked, not inverted.
+
+     `.report` keeps its own light palette further down. A board pack is a
+     document that ends up on paper.
+     --------------------------------------------------------------------- */
+
+  /* Primary — the interactive navy, lifted to stay visible on a dark ground. */
+  --primary: #2b4680;
+  --primary-light: #35578f;
+  --primary-dark: #1e3160;
+  --primary-50: #151d2c;
+  --primary-100: #1c2740;
+  --primary-200: #2a3a5e;
+  --primary-700: #35578f;
+  --primary-800: #2b4680;
+  --primary-900: #1e3160;
 
   /* Accent — teal */
-  --accent: #0d9488;
-  --accent-light: #14b8a6;
-  --accent-dark: #0a7a70;
-  --accent-50: #edfcfa;
-  --accent-100: #ccf7f1;
-  --accent-500: #0d9488;
+  --accent: #2dd4bf;
+  --accent-light: #5eead4;
+  --accent-dark: #14b8a6;
+  --accent-50: #10231f;
+  --accent-100: #16332d;
+  --accent-500: #2dd4bf;
 
   /* ---------------------------------------------------------------------
      Data palette
 
-     Colour marks the data, never the panel it sits in. Tinting whole card
-     grounds made the pages look washed — and a wash is the one place colour
-     does least work, because it sits behind text rather than beside it.
-     A hue now appears only where it identifies something: an icon badge, a
-     bar, a dot, a figure.
+     Colour marks the data, never the panel it sits in. A hue appears only
+     where it identifies something: an icon badge, a line, a bar, a dot.
 
      Two values per hue, because the requirements differ:
 
-       --tone-*      the fill. Used for bars, badges and dots, where the
-                     mark is large and only has to be told apart from its
-                     neighbours.
-       --tone-*-ink  the same hue, dark enough to be read as text at 4.5:1
-                     on white. Teal at fill strength is 3.7:1 — legible as a
-                     bar, not as a number.
+       --tone-*      the fill, for bars, badges and chart lines.
+       --tone-*-ink  the same hue as text, at 4.5:1 on the card.
 
      Adjacent pairs in SERIES_TONES are checked for deuteranopia and
      tritanopia separation, so a list of series stays readable without
-     colour. Slate sits below the chroma floor on purpose — it marks
-     "other", not a series.
+     colour. Slate marks "other", not a series.
      --------------------------------------------------------------------- */
-  --tone-ocean: #2563eb;
-  --tone-ocean-ink: #1d4ed8;
-  --tone-ocean-soft: #eef4fe;
+  --tone-ocean: #60a5fa;
+  --tone-ocean-ink: #7cb8ff;
+  --tone-ocean-soft: #14243d;
 
-  --tone-teal: #0d9488;
-  --tone-teal-ink: #0f766e;
-  --tone-teal-soft: #edf7f6;
+  --tone-teal: #2dd4bf;
+  --tone-teal-ink: #5eead4;
+  --tone-teal-soft: #0f2b2a;
 
-  --tone-violet: #7c3aed;
-  --tone-violet-ink: #6d28d9;
-  --tone-violet-soft: #f4f0fe;
+  --tone-violet: #a78bfa;
+  --tone-violet-ink: #c4b5fd;
+  --tone-violet-soft: #1f1b3a;
 
-  --tone-copper: #c2410c;
-  --tone-copper-ink: #b03a0a;
-  --tone-copper-soft: #fbf0eb;
+  --tone-copper: #fb923c;
+  --tone-copper-ink: #fdba74;
+  --tone-copper-soft: #2c1d10;
 
-  --tone-rose: #e11d48;
-  --tone-rose-ink: #c2183c;
-  --tone-rose-soft: #fdf0f3;
+  --tone-rose: #fb7185;
+  --tone-rose-ink: #fda4af;
+  --tone-rose-soft: #2e1520;
 
-  --tone-slate: #475569;
-  --tone-slate-ink: #475569;
-  --tone-slate-soft: #f1f5f9;
+  --tone-slate: #94a3b8;
+  --tone-slate-ink: #a8b4c4;
+  --tone-slate-soft: #1b2331;
 
   /* Semantic
-     One green and one red for the whole product. --success shipped at
-     #16a34a, which is 3.3:1 as text and was used for every positive amount
-     in the ledger; it now matches the green the change chips use. --danger
-     matches the chips' red and the rose ink, so "down", "owed out" and
-     "negative" are the same colour everywhere rather than three reds a few
-     degrees apart.
+     One green and one red for the whole product, and both are always paired
+     with something that is not colour: a sign, an arrow, or a word. Green and
+     red are precisely the pair a colour-blind reader cannot separate. */
+  --success: #34d399;
+  --success-light: #0f2b23;
+  --warning: #fb923c;
+  --warning-light: #2c1d10;
+  --danger: #fb7185;
+  --danger-light: #2e1520;
+  --info: #60a5fa;
+  --info-light: #14243d;
 
-     Both are also always paired with something that is not colour: a sign, an
-     arrow, or a word. Green and red are precisely the pair a colour-blind
-     reader cannot separate. */
-  --success: #15803d;
-  --success-light: #eaf7ee;
-  --warning: #c2410c;
-  --warning-light: #fbf0eb;
-  --danger: #c2183c;
-  --danger-light: #fceef1;
-  --info: #1d4ed8;
-  --info-light: #eef4fe;
-
-  /* Surface */
-  --background: #f8f9fb;
-  --surface: #ffffff;
-  --surface-hover: #f1f5f9;
-  --surface-active: #e2e8f0;
-  --border: #e2e8f0;
-  --border-light: #f1f5f9;
+  /* Surface
+     Three steps, all near-black. The page is the darkest, cards sit above it,
+     and a hovered row above them — so depth is legible without a border. */
+  --background: #0a0e15;
+  --surface: #121822;
+  --surface-hover: #1b2331;
+  --surface-active: #232d3d;
+  --border: #232c3a;
+  --border-light: #1a222e;
 
   /* Text
-     Three inks, and the third is not a lighter grey.
+     Three inks, and the third is not a dimmer grey.
 
-     The mistake here was building hierarchy out of lightness: --foreground
-     for headings, a lighter grey for body, a lighter one again for the small
-     print. That put the smallest text at the lowest contrast, which is
-     backwards — small text needs more contrast than body text, not less, and
-     the muted grey landed on grey surfaces besides. It shipped at #94a3b8:
-     2.6:1 on white, 2.3:1 on the grey it sat on, against a 4.5:1 minimum,
-     carrying nearly every detail line, unit, hint and table heading in the
-     product.
+     Hierarchy built out of lightness puts the smallest text at the lowest
+     contrast, which is backwards — small text needs more contrast than body
+     text, not less. All three clear 7:1 (AAA) on every surface they are drawn
+     on and sit close together on purpose. Hierarchy comes from size, weight
+     and position, which do not fail when contrast sensitivity or colour
+     vision does. */
+  --foreground: #e9eef6;
+  --foreground-secondary: #c4cede;
+  --foreground-muted: #aab7c8;
 
-     All three now clear 7:1 (AAA) on every surface they are drawn on, and
-     they sit close together on purpose. Hierarchy comes from size, weight
-     and position — the things that do not fail when contrast sensitivity or
-     colour vision does. */
-  --foreground: #0f172a;
-  --foreground-secondary: #3f4b5c;
-  --foreground-muted: #434f61;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  /* Shadows. On a near-black ground a soft grey shadow is invisible, so these
+     are deep and paired with the border rather than replacing it. */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 10px -2px rgba(0, 0, 0, 0.55), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 16px 32px -8px rgba(0, 0, 0, 0.6), 0 4px 10px -4px rgba(0, 0, 0, 0.45);
 
   /* Radius */
   --radius-sm: 6px;
@@ -216,7 +208,6 @@
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
   /* The global transition list covers colours but not transform, so the
      hover lift snapped into place instead of easing. */
   transition:
@@ -229,10 +220,8 @@
    neutral: a lift and a firmer edge, not a colour change. */
 a.tone-card:hover,
 button.tone-card:hover {
-  border-color: #cbd5e1;
-  box-shadow:
-    0 8px 20px -12px rgba(15, 23, 42, 0.18),
-    0 2px 6px -2px rgba(15, 23, 42, 0.07);
+  border-color: #33405480;
+  background: var(--surface-hover);
   transform: translateY(-1px);
 }
 
@@ -240,6 +229,10 @@ button.tone-card:hover {
  * The badge carrying a card's icon — the one place a hue is allowed a ground.
  * It is small, it sits beside the label rather than behind it, and the icon
  * inside it is a shape, so it never carries meaning by colour alone.
+ *
+ * On a dark ground the light theme's arrangement inverts: a saturated fill
+ * with a white glyph drops to 2.5:1 there, because these hues are light. The
+ * ground is the hue's dark tint and the glyph is the hue itself.
  */
 .tone-badge {
   display: inline-flex;
@@ -248,8 +241,9 @@ button.tone-card:hover {
   width: 30px;
   height: 30px;
   border-radius: 9px;
-  color: #fff;
-  background: var(--tone);
+  color: var(--tone-ink);
+  background: var(--tone-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tone) 22%, transparent);
 }
 
 /*
@@ -271,8 +265,8 @@ button.tone-card:hover {
   line-height: 1.35;
   white-space: nowrap;
 }
-.chip--up   { color: var(--success); background: var(--success-light); box-shadow: inset 0 0 0 1px #c2e3cd; }
-.chip--down { color: var(--danger);  background: var(--danger-light);  box-shadow: inset 0 0 0 1px #f2c4cf; }
+.chip--up   { color: var(--success); background: var(--success-light); box-shadow: inset 0 0 0 1px #1d4b3a; }
+.chip--down { color: var(--danger);  background: var(--danger-light);  box-shadow: inset 0 0 0 1px #4d2634; }
 .chip--flat { color: var(--foreground-secondary); background: var(--surface-hover); box-shadow: inset 0 0 0 1px var(--border); }
 
 /* A bar is a flat block of its hue. The gradient it used to carry made the
@@ -283,7 +277,7 @@ button.tone-card:hover {
 }
 
 .tone-track {
-  background: #eef1f5;
+  background: #1b2331;
   border-radius: 5px;
 }
 
@@ -301,9 +295,7 @@ button.tone-card:hover {
     var(--primary) 58%,
     var(--primary-dark) 100%
   );
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    0 1px 2px rgba(13, 19, 38, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 a.bg-primary:hover,
@@ -326,6 +318,12 @@ button.bg-primary:active:not(:disabled) {
    --------------------------------------------------------------------------- */
 
 .report {
+  /* A light island in a dark app. The app's tokens never reach in here — the
+     report has its own — but the declaration makes that a rule rather than a
+     coincidence, and keeps form controls and scrollbars inside a preview from
+     being drawn dark on a white page. */
+  color-scheme: light;
+
   --report-ink: #14213d;
   --report-body: #2f3a4f;
   --report-muted: #6b7688;
@@ -458,11 +456,11 @@ button.bg-primary:active:not(:disabled) {
 
 /* Base styles */
 body {
-  /* Flat. Two faint colour washes used to sit behind the page; combined with
-     the tinted cards they were most of what made the product look painted. A
-     white card on a light grey ground separates on its own. */
+  /* Flat. A card sits one step above the page and carries a border; nothing
+     needs a wash behind it. */
   background: var(--background);
   color: var(--foreground);
+  color-scheme: dark;
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -509,8 +507,8 @@ a, button, input, select, textarea {
 
 /* Text selection in the brand's navy rather than the browser default. */
 ::selection {
-  background: var(--primary-100);
-  color: var(--primary-900);
+  background: var(--primary-light);
+  color: #fff;
 }
 
 /* Columns of figures only line up if every digit is the same width. Applied

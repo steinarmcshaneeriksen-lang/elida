@@ -29,6 +29,7 @@ export default function DashboardLayout({
   return (
     <AppShell
       title={title}
+      showTitle={pathname !== "/"}
       companyId={company?.id}
       companyName={company?.name}
       orgNumber={company?.org_number}

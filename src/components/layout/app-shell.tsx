@@ -14,6 +14,8 @@ interface AppShellProps {
   companyName?: string | null;
   orgNumber?: string | null;
   knowledgeLevel?: string;
+  /** The overview leads with a greeting, so it carries no separate title. */
+  showTitle?: boolean;
 }
 
 export function AppShell({
@@ -23,6 +25,7 @@ export function AppShell({
   companyName,
   orgNumber,
   knowledgeLevel = "intermediate",
+  showTitle = true,
 }: AppShellProps) {
   // Held here rather than inside the sidebar so the content column moves with
   // it; previously collapsing left a 190px strip of empty background.
@@ -42,8 +45,8 @@ export function AppShell({
           collapsed ? "pl-[72px]" : "pl-[260px]"
         }`}
       >
-        <Header title={title} />
-        <main className="flex-1 p-6 lg:p-8">{children}</main>
+        <Header title={title} showTitle={showTitle} />
+        <main className="flex-1 px-6 pb-10 pt-6 lg:px-8">{children}</main>
       </div>
 
       {companyId ? (

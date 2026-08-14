@@ -354,9 +354,25 @@ for (const hue of HUES) {
   atLeast(`${hue}-ink som tekst`, token(`tone-${hue}-ink`), token("surface"), CONTRAST.TONE_TEXT);
 }
 
-// The fill variant only has to work as a mark: an icon on its badge.
+// The badge: the hue's glyph on the hue's own tinted ground. Checked as text
+// rather than as a mark, since an icon at 16px is finer than a bar.
 for (const hue of HUES) {
-  atLeast(`hvitt ikon på ${hue}`, "#ffffff", token(`tone-${hue}`), CONTRAST.GRAPHIC);
+  atLeast(
+    `${hue}-ikon på egen brikke`,
+    token(`tone-${hue}-ink`),
+    token(`tone-${hue}-soft`),
+    CONTRAST.TONE_TEXT
+  );
+}
+
+// The fill has to separate from the track it is drawn on.
+for (const hue of HUES) {
+  atLeast(
+    `${hue}-søyle mot sporet`,
+    token(`tone-${hue}`),
+    token("surface-hover"),
+    CONTRAST.GRAPHIC
+  );
 }
 
 // The semantic inks, all of which are drawn as text somewhere.
