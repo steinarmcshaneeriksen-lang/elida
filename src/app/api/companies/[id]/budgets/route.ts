@@ -116,6 +116,16 @@ export async function POST(
 
     await writeGrid(supabase, budget.id, grid);
 
+    // Stored, not just returned: which months a budget was derived from is
+    // part of what it means, and the page has to be able to say so on a later
+    // visit rather than only in the moment it was created.
+    if (basis) {
+      await supabase
+        .from("budgets")
+        .update({ basis_start: basis.start, basis_end: basis.end } as never)
+        .eq("id", budget.id);
+    }
+
     return NextResponse.json({ budget, basis });
   } catch (error) {
     console.error("Budget create error:", error);

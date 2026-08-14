@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import {
+  CalendarRange,
   Check,
   ChevronDown,
   ChevronUp,
@@ -216,6 +217,8 @@ export function BudgetGridEditor({
           )}
         </div>
       </div>
+
+      <BasisNote budget={data.budget} />
 
       <SummaryStrip data={data} />
 
@@ -594,6 +597,63 @@ function CategoryRow({
       )}
     </>
   );
+}
+
+const BASIS_MONTHS = [
+  "januar", "februar", "mars", "april", "mai", "juni",
+  "juli", "august", "september", "oktober", "november", "desember",
+];
+
+/**
+ * Which months the starting figures came from.
+ *
+ * A generated budget is a claim about next year built out of a specific
+ * stretch of last year, and it was not saying which. That mattered here:
+ * the basis used to run to the last posting in the ledger, which swept in
+ * three months holding nothing but forward-dated periodisations, and the
+ * budget proposed nothing for them. Stating the period makes a basis that
+ * looks wrong visible instead of silent.
+ */
+function BasisNote({
+  budget,
+}: {
+  budget: { basis_start: string | null; basis_end: string | null };
+}) {
+  if (!budget.basis_start || !budget.basis_end) return null;
+
+  const span = monthSpan(budget.basis_start, budget.basis_end);
+  const seasonal = span === 12;
+
+  return (
+    <div data-tone={seasonal ? "ocean" : "copper"} className="tone-card flex gap-3 p-4">
+      <span className="tone-badge shrink-0">
+        <CalendarRange size={16} strokeWidth={2.2} />
+      </span>
+      <p className="text-sm leading-relaxed text-foreground-secondary">
+        Bygget på regnskapstallene fra{" "}
+        <span className="font-medium text-foreground">
+          {monthLabel(budget.basis_start)}–{monthLabel(budget.basis_end)}
+        </span>
+        .{" "}
+        {seasonal
+          ? "Tolv hele måneder, så sesongsvingningene i tallene er beholdt."
+          : `Grunnlaget er ${span} måneder, ikke tolv, så beløpene er fordelt jevnt utover året. Sesongsvingninger må du legge inn selv.`}
+      </p>
+    </div>
+  );
+}
+
+/** "2025-08-01" → "august 2025". */
+function monthLabel(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  return `${BASIS_MONTHS[m - 1]} ${y}`;
+}
+
+/** Whole months from one date to another, both ends counted. */
+function monthSpan(start: string, end: string): number {
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em] = end.split("-").map(Number);
+  return (ey - sy) * 12 + (em - sm) + 1;
 }
 
 function SummaryStrip({ data }: { data: BudgetDetail }) {

@@ -44,6 +44,9 @@ export interface BudgetDetail {
     status: string;
     scenario: string;
     based_on: string | null;
+    /** The months of actuals the starting grid was generated from. */
+    basis_start: string | null;
+    basis_end: string | null;
     version: number;
   };
   grid: Record<string, number[]>;

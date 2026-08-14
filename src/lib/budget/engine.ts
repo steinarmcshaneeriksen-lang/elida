@@ -18,6 +18,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CATEGORIES, categoryForAccount, signedAmount } from "@/lib/reports/categories";
 import { EMPLOYER_TAX_RATES } from "@/lib/constants";
+import { resolveDataWindow, type MonthActivity } from "@/lib/data-window";
+import { fetchAll } from "@/lib/supabase/paginate";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type DB = SupabaseClient<any, any, any>;
@@ -428,27 +430,55 @@ export function computeCashEffect(
 // Loading
 // ---------------------------------------------------------------------------
 
-async function resolveBasisPeriod(
-  supabase: DB,
-  options: GenerateOptions
-): Promise<{ start: string; end: string } | null> {
-  const { data: last } = await supabase
-    .from("account_transactions")
-    .select("transaction_date")
-    .eq("company_id", options.companyId)
-    .order("transaction_date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const lastDate = last?.transaction_date as string | undefined;
-  if (!lastDate) return null;
+/**
+ * The period the starting budget is built from.
+ *
+ * Anchored on where the bookkeeping ends, not on the last posting.
+ *
+ * This is the same trap the reporting periods fell into, and it showed up here
+ * as a budget with empty months: the ledger's last posting was 6 December, so
+ * "the last twelve months" ran to 30 November and swept in September, October
+ * and November — months holding a handful of forward-dated periodisations and
+ * no trading at all. The budget dutifully proposed nothing for them.
+ *
+ * `resolveDataWindow` decides where the books actually stop, and the twelve
+ * months are counted back from there.
+ */
+export function basisFromActivity(
+  activity: MonthActivity[],
+  options: { year: number; basedOn: string }
+): { start: string; end: string } | null {
+  if (activity.length === 0) return null;
 
   if (options.basedOn === "previous_year") {
     const year = options.year - 1;
-    return { start: `${year}-01-01`, end: `${year}-12-31` };
+    const months = activity.filter((a) => a.month.startsWith(String(year)));
+    if (months.length === 0) return null;
+
+    // A year still running has no December to end at. Ending at its last month
+    // of real bookkeeping gives a shorter basis, which is spread evenly across
+    // the budget year — seasonality is lost, but no month comes out empty.
+    // To the end of the last month of bookkeeping, not to its last posting.
+    // A complete year whose final entry falls on 28 December would otherwise
+    // leave the 29th to the 31st out of the basis.
+    const window = resolveDataWindow(months);
+    return {
+      start: `${year}-01-01`,
+      end: window ? endOfMonth(window.end) : `${year}-12-31`,
+    };
   }
 
-  // Last 12 complete months ending with the last month the books fully cover.
+  // The last twelve whole months of bookkeeping.
+  const byYear = new Map<number, MonthActivity[]>();
+  for (const a of activity) {
+    const year = Number(a.month.slice(0, 4));
+    byYear.set(year, [...(byYear.get(year) ?? []), a]);
+  }
+
+  const latestYear = Math.max(...byYear.keys());
+  const window = resolveDataWindow(byYear.get(latestYear)!);
+  const lastDate = window?.end ?? activity[activity.length - 1].lastDate;
+
   const [y, m, d] = lastDate.split("-").map(Number);
   const lastComplete =
     d >= new Date(y, m, 0).getDate()
@@ -465,6 +495,60 @@ async function resolveBasisPeriod(
   const start = `${startDate.getFullYear()}-${String(startDate.getMonth() + 1).padStart(2, "0")}-01`;
 
   return { start, end };
+}
+
+async function resolveBasisPeriod(
+  supabase: DB,
+  options: GenerateOptions
+): Promise<{ start: string; end: string } | null> {
+  return basisFromActivity(
+    await loadMonthActivity(supabase, options.companyId),
+    options
+  );
+}
+
+/** The last day of the month the given date falls in. */
+function endOfMonth(iso: string): string {
+  const [y, m] = iso.split("-").map(Number);
+  const day = new Date(y, m, 0).getDate();
+  return `${y}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** One row per month the ledger holds postings in, oldest first. */
+async function loadMonthActivity(
+  supabase: DB,
+  companyId: string
+): Promise<MonthActivity[]> {
+  const rows = await fetchAll<{ transaction_date: string }>(
+    (from, to) =>
+      supabase
+        .from("account_transactions")
+        .select("transaction_date")
+        .eq("company_id", companyId)
+        .order("transaction_date", { ascending: true })
+        .range(from, to) as PromiseLike<{
+        data: Array<{ transaction_date: string }> | null;
+        error: { message: string } | null;
+      }>,
+    { label: "posteringer" }
+  );
+
+  const byMonth = new Map<string, { count: number; lastDate: string }>();
+  for (const row of rows) {
+    const month = row.transaction_date.slice(0, 7);
+    const entry = byMonth.get(month) ?? { count: 0, lastDate: row.transaction_date };
+    entry.count++;
+    if (row.transaction_date > entry.lastDate) entry.lastDate = row.transaction_date;
+    byMonth.set(month, entry);
+  }
+
+  return [...byMonth.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, v]) => ({
+      month,
+      postingCount: v.count,
+      lastDate: v.lastDate,
+    }));
 }
 
 async function loadPostings(

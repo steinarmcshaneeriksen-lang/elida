@@ -3,10 +3,10 @@ import {
   buildFinancialsFromTransactions,
   type TxRow,
 } from "@/app/api/companies/[id]/financials/route";
-import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual } from "@/lib/budget/engine";
+import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual, basisFromActivity } from "@/lib/budget/engine";
 import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } from "@/lib/reports/categories";
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
-import { resolveDataWindow, trailingNote } from "@/lib/data-window";
+import { resolveDataWindow, trailingNote, type MonthActivity } from "@/lib/data-window";
 import { deriveInsights, type InsightInput } from "@/lib/insights/derive";
 import { readFileSync } from "node:fs";
 import {
@@ -239,6 +239,53 @@ check("Framdaterte posteringer forklares",
     .includes("forward_dated_postings"), true);
 
 // Most serious first.
+// --- 7b. Hvilke tolv måneder et budsjett bygges på ------------------------
+// The ledger as it actually stands: 2025 complete, 2026 trading through
+// August, then forward-dated periodisations to 6 December. A budget built on
+// "the last twelve months" must not reach into those — it proposed nothing
+// for September, October and November because it did.
+const ledger: MonthActivity[] = [
+  ...Array.from({ length: 12 }, (_, i) => ({
+    month: `2025-${String(i + 1).padStart(2, "0")}`,
+    postingCount: 1100 + i,
+    lastDate: `2025-${String(i + 1).padStart(2, "0")}-28`,
+  })),
+  ...[1240, 1445, 1430, 1197, 1343, 1606, 1146, 844].map((count, i) => ({
+    month: `2026-${String(i + 1).padStart(2, "0")}`,
+    postingCount: count,
+    lastDate: i === 7 ? "2026-08-13" : `2026-${String(i + 1).padStart(2, "0")}-28`,
+  })),
+  { month: "2026-09", postingCount: 6, lastDate: "2026-09-01" },
+  { month: "2026-10", postingCount: 4, lastDate: "2026-10-01" },
+  { month: "2026-11", postingCount: 4, lastDate: "2026-11-01" },
+  { month: "2026-12", postingCount: 16, lastDate: "2026-12-06" },
+];
+
+check("Budsjettgrunnlag stopper før de framdaterte månedene",
+  basisFromActivity(ledger, { year: 2027, basedOn: "last_12_months" }),
+  { start: "2025-08-01", end: "2026-07-31" });
+
+check("Grunnlaget er tolv hele måneder",
+  (() => {
+    const b = basisFromActivity(ledger, { year: 2027, basedOn: "last_12_months" })!;
+    const [sy, sm] = b.start.split("-").map(Number);
+    const [ey, em] = b.end.split("-").map(Number);
+    return (ey - sy) * 12 + (em - sm) + 1;
+  })(), 12);
+
+// A finished year used as the basis keeps all twelve of its months.
+check("Fjoråret som grunnlag når 31. desember",
+  basisFromActivity(ledger, { year: 2026, basedOn: "previous_year" }),
+  { start: "2025-01-01", end: "2025-12-31" });
+
+// A year still running ends where its bookkeeping does, not at 31 December.
+check("Et uavsluttet år som grunnlag stopper etter august",
+  basisFromActivity(ledger, { year: 2027, basedOn: "previous_year" }),
+  { start: "2026-01-01", end: "2026-08-31" });
+
+check("Uten posteringer finnes ikke noe grunnlag",
+  basisFromActivity([], { year: 2027, basedOn: "last_12_months" }), null);
+
 // --- 8. Kontrast --------------------------------------------------------
 // Read from the stylesheet, so the palette cannot drift past the threshold
 // without a check going red. The muted token once shipped at 2.3:1 on the grey
