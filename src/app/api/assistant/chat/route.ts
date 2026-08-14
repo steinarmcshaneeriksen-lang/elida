@@ -139,6 +139,44 @@ async function getOrCreateConversation(
   return data.id;
 }
 
+/** How many turns are carried forward. */
+const HISTORY_TURNS = 20;
+
+/**
+ * How many of the most recent turns keep their tool output. Figures are bulky
+ * — a cost analysis is thousands of tokens — so older turns keep only what the
+ * assistant said about them.
+ */
+const TURNS_WITH_TOOL_OUTPUT = 3;
+
+/** Long enough for a table of figures, short enough to carry several. */
+const MAX_RESULT_CHARS = 2500;
+
+interface StoredMessage {
+  role: "user" | "assistant";
+  content: string | null;
+  tool_calls: Array<{ id: string; name: string; arguments: string }> | null;
+  tool_results: Array<{ id: string; content: string }> | null;
+}
+
+/**
+ * What the assistant is allowed to remember.
+ *
+ * Two faults sat here, and together they are most of why the chat did not
+ * behave like one.
+ *
+ * The rows were ordered oldest-first and then capped at twenty, so a
+ * conversation longer than twenty messages kept its *opening* and dropped
+ * everything since. The assistant answered the twenty-first question with the
+ * first twenty in mind and nothing after them.
+ *
+ * And only the prose was kept. Every figure a tool returned was thrown away at
+ * the end of the turn, so "og hva var kostnadene?" arrived at a model that no
+ * longer held the revenue it had just quoted, and "ja, gjør det" arrived at one
+ * that no longer had the proposal it was agreeing to. It re-fetched, re-derived
+ * and sometimes re-answered differently — the same question, two answers, for
+ * no reason the reader could see.
+ */
 async function loadConversationHistory(
   conversationId: string
 ): Promise<OpenAI.ChatCompletionMessageParam[]> {
@@ -146,20 +184,75 @@ async function loadConversationHistory(
 
   try {
     const supabase = await createClient();
-    const { data: messages } = await supabase
+    const { data } = (await supabase
       .from("assistant_messages")
-      .select("role, content")
+      .select("role, content, tool_calls, tool_results")
       .eq("conversation_id", conversationId)
       .in("role", ["user", "assistant"])
-      .order("created_at", { ascending: true })
-      .limit(20);
+      // The most recent, not the first: a chat is about what was just said.
+      .order("created_at", { ascending: false })
+      .limit(HISTORY_TURNS)) as { data: StoredMessage[] | null };
 
-    if (!messages) return [];
+    if (!data) return [];
 
-    return messages.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    }));
+    const messages = [...data].reverse();
+    const out: OpenAI.ChatCompletionMessageParam[] = [];
+
+    // Which assistant turns are recent enough to keep their figures.
+    const assistantTurns = messages.filter((m) => m.role === "assistant").length;
+    let seen = 0;
+
+    for (const m of messages) {
+      if (m.role === "user") {
+        out.push({ role: "user", content: m.content ?? "" });
+        continue;
+      }
+
+      seen++;
+      const recent = seen > assistantTurns - TURNS_WITH_TOOL_OUTPUT;
+      const calls = m.tool_calls ?? [];
+      const results = m.tool_results ?? [];
+
+      /*
+       * A tool call and its result travel together or not at all: the API
+       * rejects a call with no answer, and an answer with no call. So the pair
+       * is replayed only when every call has a matching result.
+       */
+      const paired =
+        recent &&
+        calls.length > 0 &&
+        calls.every((c) => results.some((r) => r.id === c.id));
+
+      if (paired) {
+        // The stored text is what was written *after* the tools ran, so it
+        // belongs below their results, not on the call that asked for them.
+        out.push({
+          role: "assistant",
+          content: null,
+          tool_calls: calls.map((c) => ({
+            id: c.id,
+            type: "function" as const,
+            function: { name: c.name, arguments: c.arguments },
+          })),
+        });
+
+        for (const call of calls) {
+          const result = results.find((r) => r.id === call.id)!;
+          out.push({
+            role: "tool",
+            tool_call_id: call.id,
+            content: result.content.slice(0, MAX_RESULT_CHARS),
+          });
+        }
+
+        if (m.content) out.push({ role: "assistant", content: m.content });
+        continue;
+      }
+
+      if (m.content) out.push({ role: "assistant", content: m.content });
+    }
+
+    return out;
   } catch {
     return [];
   }
@@ -289,6 +382,18 @@ export async function POST(request: NextRequest) {
         try {
           let currentMessages = openaiMessages;
           let continueLoop = true;
+
+          /*
+           * Everything the tools were asked and everything they answered, kept
+           * across the rounds of this turn so it can be stored with the reply.
+           *
+           * The columns for these have existed all along and only the calls
+           * were ever written — never the results. So the next turn inherited
+           * the questions without the answers, and the figures the assistant
+           * had just quoted were gone by the time the user asked about them.
+           */
+          const turnCalls: Array<{ id: string; name: string; arguments: string }> = [];
+          const turnResults: Array<{ id: string; content: string }> = [];
 
           while (continueLoop) {
             /*
@@ -442,6 +547,20 @@ export async function POST(request: NextRequest) {
                 });
               }
 
+              for (const call of calls) {
+                turnCalls.push({
+                  id: call.id,
+                  name: call.name,
+                  arguments: call.args || "{}",
+                });
+              }
+              for (const r of toolResults) {
+                turnResults.push({
+                  id: r.message.tool_call_id,
+                  content: r.message.content,
+                });
+              }
+
               currentMessages = [
                 ...currentMessages,
                 assistantMessage,
@@ -454,13 +573,8 @@ export async function POST(request: NextRequest) {
                 convId,
                 "assistant",
                 textContent,
-                calls.length > 0
-                  ? calls.map((c) => ({
-                      id: c.id,
-                      name: c.name,
-                      arguments: c.args,
-                    }))
-                  : undefined
+                turnCalls.length > 0 ? turnCalls : undefined,
+                turnResults.length > 0 ? turnResults : undefined
               );
             }
           }
