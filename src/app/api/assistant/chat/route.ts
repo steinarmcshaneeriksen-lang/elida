@@ -212,20 +212,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const [{ companyName, dataQuality }, coverage] = await Promise.all([
+    /*
+     * Everything the first model call needs, fetched at once.
+     *
+     * These ran one after another — company context and coverage together,
+     * then the conversation, then its history, then the write — four round
+     * trips to the database stacked in front of a request that had not
+     * started yet. Only the history genuinely depends on the conversation id.
+     */
+    const [{ companyName, dataQuality }, coverage, convId] = await Promise.all([
       getCompanyContext(company_id),
       // Stated up front so the assistant knows which periods exist before it
       // reaches for a tool, rather than reporting 'no data' for a month the
       // books simply do not reach.
       getCoverage(company_id),
+      getOrCreateConversation(company_id, auth.userId, conversation_id),
     ]);
-    const convId = await getOrCreateConversation(
-      company_id,
-      auth.userId,
-      conversation_id
-    );
+
+    // The user's message is stored, not read back, so the write does not have
+    // to finish before the model starts.
     const history = await loadConversationHistory(convId);
-    await storeMessage(convId, "user", message);
+    const stored = storeMessage(convId, "user", message);
 
     const systemPrompt = getSystemPrompt(
       knowledge_level || "intermediate",
@@ -245,7 +252,22 @@ export async function POST(request: NextRequest) {
 
     const openai = new OpenAI({ apiKey });
 
-    const openaiTools: OpenAI.ChatCompletionTool[] = TOOLS.map((t) => ({
+    /*
+     * Only the tools the question could plausibly need.
+     *
+     * The classifier already worked out which those were, and the result was
+     * computed and then thrown away — every one of the tools went to the model
+     * on every turn. That cost a large prefill each round trip, and it meant
+     * the routing added for VAT deadlines did nothing at all: the model still
+     * had the whole toolbox in front of it and still reached for four things.
+     *
+     * An empty list means the classifier had no opinion, and then it gets
+     * everything.
+     */
+    const allowed = new Set(intent.suggestedTools);
+    const openaiTools: OpenAI.ChatCompletionTool[] = TOOLS.filter(
+      (t) => allowed.size === 0 || allowed.has(t.function.name)
+    ).map((t) => ({
       type: "function" as const,
       function: {
         name: t.function.name,
@@ -282,6 +304,19 @@ export async function POST(request: NextRequest) {
             const completion = await openai.chat.completions.create({
               model: routing.model,
               max_completion_tokens: 4096,
+              /*
+               * Reasoning effort was never set, so it defaulted to medium —
+               * the model thought silently for tens of seconds before writing
+               * anything, and did it twice, once to choose a tool and once to
+               * answer. Streaming cannot help with that: there is nothing to
+               * stream until the thinking stops.
+               *
+               * A chat answering from tool output does not need to deliberate.
+               * The expert tier does — it is reached for foreign VAT,
+               * capitalisation and shareholder questions, where the reasoning
+               * is the product.
+               */
+              reasoning_effort: routing.tier === "expert" ? "medium" : "low",
               messages: currentMessages,
               tools: openaiTools,
               tool_choice: "auto",
@@ -414,6 +449,7 @@ export async function POST(request: NextRequest) {
               ];
               continueLoop = true;
             } else {
+              await stored;
               await storeMessage(
                 convId,
                 "assistant",

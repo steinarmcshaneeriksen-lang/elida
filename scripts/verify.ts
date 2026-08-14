@@ -428,6 +428,15 @@ check("«Når er neste mva innlevering?» spør bare kalenderen",
 check("«Hvor mye mva skylder vi?» går fortsatt til estimatet",
   classifyIntent("Hvor mye mva skylder vi?").suggestedTools
     .includes("get_vat_estimate"), true);
+check("Spørsmål om både frist og beløp får begge verktøyene",
+  classifyIntent("Når er neste mva-frist og hvor mye blir det?").suggestedTools,
+  ["get_vat_deadline", "get_vat_estimate"]);
+
+// The routing has to reach the model. The suggested tools were computed and
+// then discarded — every tool went on every turn — so this checks the list is
+// short enough to be a real restriction, not just that it exists.
+check("Fristspørsmål tilbyr ett verktøy, ikke hele kassen",
+  classifyIntent("Når er neste mva innlevering?").suggestedTools.length, 1);
 
 // --- 8. Kontrast --------------------------------------------------------
 // Read from the stylesheet, so the palette cannot drift past the threshold

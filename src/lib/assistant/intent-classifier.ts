@@ -191,12 +191,15 @@ export function classifyIntent(
     intent: topIntent,
     confidence,
     suggestedTools: isDeadlineQuestion(message)
-      ? // One tool, because the answer is one calendar lookup. Offered the
-        // full financial toolset, the model reached for a VAT estimate, a
-        // coverage check, an obligations list and a search of the accounting
-        // rules — a minute of paged reads over the ledger to answer a
-        // question whose answer is in the statute.
-        ["get_vat_deadline"]
+      ? // The answer is one calendar lookup. Offered the full financial
+        // toolset, the model reached for a VAT estimate, a coverage check, an
+        // obligations list and a search of the accounting rules — paged reads
+        // over the whole ledger to answer a question whose answer is in the
+        // statute. Unless the amount is asked for in the same breath, in
+        // which case the estimate comes along and the two run together.
+        ASKS_AMOUNT.test(message)
+        ? ["get_vat_deadline", "get_vat_estimate"]
+        : ["get_vat_deadline"]
       : getSuggestedTools(topIntent),
   };
 }
@@ -207,6 +210,9 @@ const NAMES_VAT = /\b(mva|merverdiavgift|moms)/i;
 /** Asks when, rather than how much. */
 const ASKS_WHEN =
   /(frist|forfall|termin|innlever|leverer|leveres|rapporter|n(å|a)r\s)/i;
+
+/** Asks for a figure as well as a date. */
+const ASKS_AMOUNT = /(hvor\s*mye|hvor\s*stor|bel(ø|o)p|hva\s+blir|hva\s+skal)/i;
 
 /**
  * "Når er neste mva-innlevering?" and its variants.
