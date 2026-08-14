@@ -91,7 +91,9 @@ export async function GET(
         supabase,
         companyId,
         revenueMetric.period_start,
-        revenueMetric.period_end
+        revenueMetric.period_end,
+        revenueMetric.comparison_period_start,
+        revenueMetric.comparison_period_end
       );
 
       // A metric with no comparison means the previous year has not been
@@ -158,15 +160,26 @@ export async function GET(
 // Helpers
 // ---------------------------------------------------------------------------
 
-interface MonthRow {
-  month: string;
+interface MonthFigures {
   revenue: number;
   profit: number;
   margin: number;
 }
 
+interface MonthRow extends MonthFigures {
+  month: string;
+  /** The same calendar month a year earlier, when that year is held. */
+  previous: MonthFigures | null;
+}
+
 /**
- * Revenue and operating profit per month inside the period.
+ * Each month of the period, and the same month a year earlier.
+ *
+ * The comparison months are not decoration. Drawn alone, a rising line beside
+ * a chip reading "down 18 %" looks like the two disagree — they measure
+ * different things, and nothing on the card said so. With last year behind it,
+ * the gap between the lines is the change the chip states, and the two agree
+ * by construction.
  *
  * Amounts are stored debit-positive, so revenue accounts — which are
  * credit-normal — are flipped to read as income.
@@ -176,8 +189,40 @@ async function loadMonthly(
   supabase: any,
   companyId: string,
   start: string,
-  end: string
+  end: string,
+  comparisonStart: string | null,
+  comparisonEnd: string | null
 ): Promise<MonthRow[]> {
+  const [current, previous] = await Promise.all([
+    monthTotals(supabase, companyId, start, end),
+    comparisonStart && comparisonEnd
+      ? monthTotals(supabase, companyId, comparisonStart, comparisonEnd)
+      : Promise.resolve(new Map<string, MonthFigures>()),
+  ]);
+
+  return [...current.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, figures]) => ({
+      month,
+      ...figures,
+      // Matched by calendar month: the comparison is the same months a year
+      // earlier, so July lines up with July.
+      previous: previous.get(shiftYear(month)) ?? null,
+    }));
+}
+
+/** "2026-07" → "2025-07". */
+function shiftYear(month: string): string {
+  return `${Number(month.slice(0, 4)) - 1}${month.slice(4)}`;
+}
+
+async function monthTotals(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  companyId: string,
+  start: string,
+  end: string
+): Promise<Map<string, MonthFigures>> {
   type Row = { account_number: string; amount: number; transaction_date: string };
 
   const rows = await fetchAll<Row>(
@@ -196,29 +241,33 @@ async function loadMonthly(
     { label: "posteringer" }
   );
 
-  const byMonth = new Map<string, { revenue: number; costs: number }>();
+  const raw = new Map<string, { revenue: number; costs: number }>();
 
   for (const row of rows) {
     const account = parseInt(row.account_number, 10);
     if (!Number.isFinite(account)) continue;
 
     const month = row.transaction_date.slice(0, 7);
-    const entry = byMonth.get(month) ?? { revenue: 0, costs: 0 };
+    const entry = raw.get(month) ?? { revenue: 0, costs: 0 };
 
     if (account >= 3000 && account <= 3999) entry.revenue -= Number(row.amount);
     else if (account >= 4000 && account <= 7999) entry.costs += Number(row.amount);
 
-    byMonth.set(month, entry);
+    raw.set(month, entry);
   }
 
-  return [...byMonth.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([month, v]) => ({
-      month,
+  const out = new Map<string, MonthFigures>();
+  for (const [month, v] of raw) {
+    out.set(month, {
       revenue: Math.round(v.revenue),
       profit: Math.round(v.revenue - v.costs),
-      margin: v.revenue > 0 ? Math.round(((v.revenue - v.costs) / v.revenue) * 1000) / 10 : 0,
-    }));
+      margin:
+        v.revenue > 0
+          ? Math.round(((v.revenue - v.costs) / v.revenue) * 1000) / 10
+          : 0,
+    });
+  }
+  return out;
 }
 
 /**

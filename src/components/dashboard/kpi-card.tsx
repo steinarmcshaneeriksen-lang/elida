@@ -21,6 +21,8 @@ export interface KpiCardProps {
   note?: string;
   /** The shape of the figure over the period. */
   series?: number[];
+  /** The same months a year earlier, so the line agrees with the chip. */
+  comparisonSeries?: (number | null)[];
   tone?: Tone;
   href?: string;
 }
@@ -39,6 +41,7 @@ export function KpiCard({
   change,
   note,
   series,
+  comparisonSeries,
   tone = "ocean",
   href,
 }: KpiCardProps) {
@@ -61,7 +64,7 @@ export function KpiCard({
           </p>
         </div>
         {series && series.length > 1 && (
-          <Sparkline values={series} tone={tone} />
+          <Sparkline values={series} comparison={comparisonSeries} tone={tone} />
         )}
       </div>
 
@@ -78,6 +81,9 @@ export function KpiCard({
             </span>
             <span className="truncate text-xs text-foreground-muted">
               {change.label}
+              {/* Names the dashed line, so the graphic is not a second,
+                  unexplained reading of the same card. */}
+              {comparisonSeries ? " — stiplet linje" : ""}
             </span>
           </>
         ) : (

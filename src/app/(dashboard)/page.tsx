@@ -34,11 +34,16 @@ interface Metric {
   has_comparison: boolean;
 }
 
-interface MonthRow {
-  month: string;
+interface MonthFigures {
   revenue: number;
   profit: number;
   margin: number;
+}
+
+interface MonthRow extends MonthFigures {
+  month: string;
+  /** The same calendar month a year earlier, when that year is held. */
+  previous: MonthFigures | null;
 }
 
 interface SummaryResponse {
@@ -131,6 +136,7 @@ export default function DashboardPage() {
                 tone="ocean"
                 href="/okonomi"
                 series={monthly.map((m) => m.revenue)}
+                comparisonSeries={monthly.map((m) => m.previous?.revenue ?? null)}
                 change={
                   data.revenue.has_comparison && data.revenue.change_percent != null
                     ? {
@@ -149,6 +155,7 @@ export default function DashboardPage() {
                 tone="teal"
                 href="/okonomi"
                 series={monthly.map((m) => m.profit)}
+                comparisonSeries={monthly.map((m) => m.previous?.profit ?? null)}
                 change={
                   data.profit.has_comparison && data.profit.change_percent != null
                     ? {
@@ -167,6 +174,7 @@ export default function DashboardPage() {
                 tone="violet"
                 href="/okonomi"
                 series={monthly.map((m) => m.margin)}
+                comparisonSeries={monthly.map((m) => m.previous?.margin ?? null)}
                 change={
                   marginChange(data) != null
                     ? {
