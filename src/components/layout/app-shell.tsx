@@ -34,6 +34,7 @@ export function AppShell({
   return (
     <div className="flex min-h-screen">
       <Sidebar
+        companyId={companyId}
         companyName={companyName}
         orgNumber={orgNumber}
         collapsed={collapsed}

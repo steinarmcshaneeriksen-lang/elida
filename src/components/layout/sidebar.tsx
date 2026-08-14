@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Logo, LogoMark } from "@/components/brand/logo";
 import {
   Building2,
@@ -18,7 +19,13 @@ import {
   Target,
   ChevronLeft,
   ChevronRight,
+  RefreshCw,
 } from "lucide-react";
+import { formatRelativeTime } from "@/lib/format";
+import {
+  refreshCompanyData,
+  useCachedFetch,
+} from "@/lib/hooks/use-company-data";
 
 const navItems = [
   { label: "Oversikt", href: "/", icon: LayoutDashboard },
@@ -33,6 +40,7 @@ const navItems = [
 ];
 
 interface SidebarProps {
+  companyId?: string | null;
   companyName?: string | null;
   orgNumber?: string | null;
   collapsed: boolean;
@@ -48,6 +56,7 @@ interface SidebarProps {
  * lets every page start at the top of the window.
  */
 export function Sidebar({
+  companyId,
   companyName,
   orgNumber,
   collapsed,
@@ -136,6 +145,8 @@ export function Sidebar({
       </div>
 
       <div className="border-t border-border p-3">
+        <DataStatus companyId={companyId} collapsed={collapsed} />
+
         {companyName && (
           <div
             className={`mb-1 flex items-center gap-3 rounded-lg border border-border bg-surface px-3 py-2.5 ${
@@ -168,5 +179,83 @@ export function Sidebar({
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * When the figures were last imported, and the way to fetch them again.
+ *
+ * This used to run across the top of every page, where it was the first thing
+ * read on a screen whose point is the numbers below it. It is a statement about
+ * the data's age, not a task — so it sits at the foot of the navigation with
+ * the company it describes, and the refresh sits with it because that is the
+ * only thing anyone does about it.
+ */
+function DataStatus({
+  companyId,
+  collapsed,
+}: {
+  companyId?: string | null;
+  collapsed: boolean;
+}) {
+  const router = useRouter();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Through the shared cache: the status is the same on every page, so it is
+  // fetched once per tab rather than on each navigation.
+  const { data } = useCachedFetch<{
+    runs?: Array<{ status: string; started_at: string }>;
+  }>(companyId ? `/api/import/saft?company_id=${companyId}` : null);
+
+  const lastImport =
+    data?.runs?.find((r) => r.status === "completed")?.started_at ?? null;
+
+  const refresh = () => {
+    setIsRefreshing(true);
+    // Drops every cached figure so the pages refetch, then re-renders the tree.
+    refreshCompanyData();
+    router.refresh();
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
+
+  const label = lastImport
+    ? `Importert ${formatRelativeTime(lastImport)}`
+    : "Ingen data importert";
+
+  if (collapsed) {
+    return (
+      <button
+        onClick={refresh}
+        disabled={isRefreshing}
+        title={label}
+        aria-label={`${label}. Hent på nytt.`}
+        className="mb-1 flex w-full items-center justify-center rounded-lg px-3 py-2 text-foreground-muted hover:bg-surface hover:text-foreground-secondary disabled:opacity-50"
+      >
+        <RefreshCw size={16} className={isRefreshing ? "animate-spin" : undefined} />
+      </button>
+    );
+  }
+
+  return (
+    <div className="mb-1 flex items-center gap-2 px-1">
+      {/* The dot repeats what the words say; it is never the only signal. */}
+      <span
+        className={`h-2 w-2 shrink-0 rounded-full ${
+          lastImport ? "bg-success" : "bg-foreground-muted"
+        }`}
+      />
+      <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
+        {label}
+      </span>
+      <button
+        onClick={refresh}
+        disabled={isRefreshing}
+        title="Hent tallene på nytt"
+        aria-label="Hent tallene på nytt"
+        className="shrink-0 rounded-md p-1.5 text-foreground-muted hover:bg-surface hover:text-foreground-secondary disabled:opacity-50"
+      >
+        <RefreshCw size={14} className={isRefreshing ? "animate-spin" : undefined} />
+      </button>
+    </div>
   );
 }
