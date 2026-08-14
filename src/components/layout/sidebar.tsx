@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Logo, LogoMark } from "@/components/brand/logo";
@@ -20,12 +20,15 @@ import {
   ChevronLeft,
   ChevronRight,
   RefreshCw,
+  LogOut,
+  User,
 } from "lucide-react";
 import { formatRelativeTime } from "@/lib/format";
 import {
   refreshCompanyData,
   useCachedFetch,
 } from "@/lib/hooks/use-company-data";
+import { useUser } from "@/lib/hooks/use-user";
 
 const navItems = [
   { label: "Oversikt", href: "/", icon: LayoutDashboard },
@@ -169,9 +172,11 @@ export function Sidebar({
             )}
           </div>
         )}
+        <AccountMenu collapsed={collapsed} />
+
         <button
           onClick={onToggle}
-          className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground-muted hover:bg-surface hover:text-foreground-secondary"
+          className="mt-1 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground-muted hover:bg-surface hover:text-foreground-secondary"
           aria-label={collapsed ? "Vis sidemeny" : "Skjul sidemeny"}
         >
           {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -179,6 +184,70 @@ export function Sidebar({
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * The signed-in account.
+ *
+ * It sat in the top-right of every page, one line above a sidebar foot that
+ * already named the company — the same context stated twice, once in the place
+ * with the least room for it. Who you are is context, like the company, so it
+ * belongs in the same place.
+ */
+function AccountMenu({ collapsed }: { collapsed: boolean }) {
+  const { user, signOut } = useUser();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  if (!user?.email) return null;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(!open)}
+        title={collapsed ? user.email : undefined}
+        aria-label="Brukermeny"
+        aria-expanded={open}
+        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors hover:bg-surface ${
+          collapsed ? "justify-center px-2" : ""
+        }`}
+      >
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-surface-hover text-foreground-secondary">
+          <User size={14} />
+        </span>
+        {!collapsed && (
+          <span className="min-w-0 flex-1 truncate text-left text-foreground-secondary">
+            {user.email}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        // Upwards: there is nothing below the foot of the window to open into.
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-full min-w-[13rem] overflow-hidden rounded-xl border border-border bg-surface shadow-[var(--shadow-lg)]">
+          <button
+            onClick={() => {
+              setOpen(false);
+              signOut();
+            }}
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-foreground-secondary hover:bg-surface-hover hover:text-foreground"
+          >
+            <LogOut size={14} />
+            Logg ut
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
