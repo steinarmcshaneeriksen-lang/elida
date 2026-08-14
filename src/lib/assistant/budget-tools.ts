@@ -545,7 +545,48 @@ export const createBudget = async (
   const name = String(params.name ?? `Budsjett ${year}`).slice(0, 120);
   const basedOn = String(params.based_on ?? "last_12_months");
 
-  const facts = { company: companyId, name, year, based_on: basedOn };
+  /*
+   * The growth belongs to the same request, so it belongs to the same yes.
+   *
+   * "Opprett salgsbudsjett med økning til 400 000 på MRR" is one sentence
+   * asking for one thing, and it was answered in two halves: the budget was
+   * made from last year's figures, and then — «Vil du at jeg nå legger inn en
+   * trappeopp mot MRR 400 000?» — the user was asked whether they wanted the
+   * part they had just asked for. Two tools met in one request and each
+   * insisted on its own confirmation.
+   *
+   * Splitting it was not a choice either: a budget must exist before a change
+   * can be proposed against it, so the second step could not even be shown
+   * until the first was carried out. Building the target into the creation
+   * removes the ordering problem and the second question with it.
+   */
+  const mrrTarget = Number(params.mrr_target);
+  const wantsGrowth = Number.isFinite(mrrTarget) && mrrTarget > 0;
+  const targetMonth = clampMonth(params.target_month ?? 12);
+  const fromMonth = clampMonth(params.from_month ?? 1);
+
+  const mrrNow = wantsGrowth ? await currentMrr(companyId) : null;
+
+  if (wantsGrowth && mrrNow == null) {
+    return {
+      error:
+        "Finner ingen gjentakende inntekt å måle målet mot. Be brukeren laste " +
+        "opp listen over repeterende fakturaer under «Importer data», eller " +
+        "oppgi dagens MRR selv.",
+    };
+  }
+
+  const increase = mrrNow == null ? 0 : Math.round(mrrTarget - mrrNow);
+
+  const facts = {
+    company: companyId,
+    name,
+    year,
+    based_on: basedOn,
+    mrr_target: wantsGrowth ? mrrTarget : null,
+    from: fromMonth,
+    to: targetMonth,
+  };
 
   if (!mayApply(params, "create_budget", facts)) {
     return {
@@ -559,12 +600,27 @@ export const createBudget = async (
           basedOn === "last_12_months"
             ? "de siste tolv månedene med reell drift"
             : basedOn,
+        vekst: wantsGrowth
+          ? {
+              gjentakende_inntekt_i_dag: Math.round(mrrNow!),
+              maal_per_maaned: Math.round(mrrTarget),
+              oekning_per_maaned: increase,
+              naadd_innen: MONTH_LONG[targetMonth - 1],
+              trappes_opp_fra: MONTH_LONG[fromMonth - 1],
+            }
+          : null,
       },
       note:
-        "Dette er et FORSLAG. Budsjettet er ikke opprettet. Si hvilket år det " +
-        "gjelder og hva det bygger på, spør om det skal lages, og kall " +
-        "verktøyet på nytt med samme «confirm_code» først når brukeren har " +
-        "sagt ja.",
+        "Dette er et FORSLAG. Ingenting er opprettet. Still ETT spørsmål som " +
+        "dekker hele forespørselen — både budsjettet og veksten, hvis " +
+        "brukeren ba om begge — og kall verktøyet på nytt med samme " +
+        "«confirm_code» når brukeren har sagt ja. Ikke spør om veksten som et " +
+        "eget steg etterpå: brukeren har allerede bedt om den." +
+        (wantsGrowth && increase <= 0
+          ? ` MERK: dagens gjentakende inntekt er ${format(mrrNow!)} per måned, ` +
+            "altså allerede på eller over målet. Si det, og spør hva brukeren " +
+            "vil oppnå."
+          : ""),
       data_source: "budget",
     };
   }
@@ -603,7 +659,13 @@ export const createBudget = async (
     basedOn,
   });
 
-  await writeGrid(supabase, budget.id, generated.grid);
+  // The growth goes in before the budget is ever written, so the draft the
+  // user opens is the one they asked for rather than last year repeated.
+  const grid = wantsGrowth
+    ? rampIncrement(generated.grid, "revenue", increase, fromMonth, targetMonth)
+    : generated.grid;
+
+  await writeGrid(supabase, budget.id, grid);
 
   if (generated.basis) {
     await supabase
@@ -616,10 +678,18 @@ export const createBudget = async (
       .eq("id", budget.id);
   }
 
-  const result = computeBudgetResult(generated.grid);
+  const result = computeBudgetResult(grid);
 
   return {
     created: true,
+    growth: wantsGrowth
+      ? {
+          gjentakende_inntekt_i_dag: Math.round(mrrNow!),
+          maal_per_maaned: Math.round(mrrTarget),
+          oekning_per_maaned: increase,
+          naadd_innen: MONTH_LONG[targetMonth - 1],
+        }
+      : null,
     budget: {
       id: budget.id,
       name: budget.name,
@@ -636,10 +706,12 @@ export const createBudget = async (
       "som de var, ikke bare den linjen brukeren spurte om. Si dette, og si " +
       "hvilken periode det bygger på — ellers ser brukeren en skjerm full av " +
       "poster hen ikke har bedt om. " +
-      "INGEN vekst, mål eller endring er lagt inn ennå. Ba brukeren om et " +
-      "vekstbudsjett, er dette bare utgangspunktet: neste steg er å legge inn " +
-      "endringen på riktig linje, og det må bekreftes for seg. Ikke si at " +
-      "veksten er med.",
+      (wantsGrowth
+        ? "Veksten mot MRR-målet ER lagt inn på omsetningslinja, trappet opp " +
+          "jevnt fram til målmåneden. Si hva økningen utgjør per måned og hva " +
+          "budsjettert årsomsetning ble."
+        : "INGEN vekst eller mål er lagt inn. Ba brukeren om et vekstbudsjett, " +
+          "er dette bare utgangspunktet."),
     data_source: "budget",
   };
 };

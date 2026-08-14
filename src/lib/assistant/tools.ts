@@ -145,9 +145,12 @@ export const TOOLS: ToolDefinition[] = [
     "Henter leverandørgjeld"),
 
   tool("create_budget",
-    "Oppretter et nytt budsjett for et år, fylt med tallene fra de siste tolv månedene med reell drift. Krever bekreftelse: kall først uten confirmed for å vise hva som blir laget, så med confirmed: true når brukeren har sagt ja.",
+    "Oppretter et nytt budsjett for et år, fylt med tallene fra de siste tolv månedene med reell drift. Ba brukeren om et VEKSTBUDSJETT — «lag et salgsbudsjett med økning til 400 000 på MRR» — sett mrr_target her, så legges veksten inn med det samme og hele forespørselen dekkes av ETT spørsmål til brukeren. Ikke lag budsjettet først og spør om veksten etterpå. Krever bekreftelse: kall først uten confirmed for å vise hva som blir laget, så med confirmed: true og samme confirm_code når brukeren har sagt ja.",
     { properties: {
         year: { type: "number", description: "Året budsjettet gjelder." },
+        mrr_target: { type: "number", description: "Ønsket gjentakende inntekt (MRR) per måned, eks. mva, ved slutten av opptrappingen. Verktøyet henter dagens MRR selv og trapper differansen opp på omsetningen. Utelat når brukeren bare vil ha et vanlig budsjett." },
+        from_month: { type: "number", description: "Måned 1–12 opptrappingen starter. Standard januar." },
+        target_month: { type: "number", description: "Måned 1–12 MRR-målet skal være nådd innen. Standard desember." },
         name: { type: "string", description: "Navn på budsjettet. Standard «Budsjett <år>»." },
         based_on: { type: "string", description: "last_12_months (standard), previous_year eller empty. Ikke spør brukeren om dette — bruk standarden med mindre brukeren selv sier noe annet." },
         confirmed: { type: "boolean", description: "Sett true KUN etter at brukeren har bekreftet." },
