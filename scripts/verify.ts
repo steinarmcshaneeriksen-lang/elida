@@ -520,6 +520,22 @@ check("Hver endringstype har en norsk beskrivelse",
   ["adjust_percent", "set_annual", "reach_target", "add_cost", "add_employee"]
     .filter((k) => !CHANGE_LABELS[k] || /_/.test(CHANGE_LABELS[k])), []);
 
+// Et chatsvar som fyller skjermen leses ikke. Fire spørsmål under hver sin
+// mellomtittel, med et sammendrag av hva den nettopp hadde gjort, var svaret
+// på «lag et budsjett».
+check("Systemprompten setter en lengdegrense", /Under 120 ord/.test(prompt), true);
+check("Systemprompten tillater ett spørsmål om gangen",
+  /ALDRI mer enn ett spørsmål/.test(prompt), true);
+check("Systemprompten forbyr mellomtitler i svaret",
+  /Mellomtitler\./.test(prompt), true);
+
+// Valg med et opplagt standardsvar skal ikke stilles som spørsmål. «base,
+// optimistic eller cautious» var både et unødvendig spørsmål og tre engelske
+// ord midt i en norsk setning.
+check("Ingen scenariovalg å spørre om",
+  JSON.stringify(TOOLS.find((t) => t.function.name === "create_budget"))
+    .includes("optimistic"), false);
+
 // --- 7f. Hva slags fil er dette? --------------------------------------------
 // Every upload used to go through the recurring-contract parser, whatever it
 // was. A product list has no customer and no billing interval, produced no

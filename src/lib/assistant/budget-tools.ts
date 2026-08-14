@@ -186,8 +186,9 @@ export const getBudget = async (
       id: budget.id,
       name: budget.name,
       year: budget.year,
-      status: budget.status,
-      scenario: budget.scenario,
+      // Norwegian, because the model reads this back to the user. "draft"
+      // came straight out of the column and straight into the answer.
+      status: budget.status === "approved" ? "godkjent" : "utkast",
     },
     annual: result.annual,
     by_month: result.months,
@@ -516,7 +517,7 @@ export const createBudget = async (
       id: budget.id,
       name: budget.name,
       year: budget.year,
-      status: budget.status,
+      status: "utkast",
     },
     basis: generated.basis,
     // Months the basis said nothing about, filled from the rest of the year.

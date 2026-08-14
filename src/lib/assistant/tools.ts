@@ -149,8 +149,7 @@ export const TOOLS: ToolDefinition[] = [
     { properties: {
         year: { type: "number", description: "Året budsjettet gjelder." },
         name: { type: "string", description: "Navn på budsjettet. Standard «Budsjett <år>»." },
-        based_on: { type: "string", description: "last_12_months (standard), previous_year eller empty." },
-        scenario: { type: "string", description: "base, optimistic eller cautious." },
+        based_on: { type: "string", description: "last_12_months (standard), previous_year eller empty. Ikke spør brukeren om dette — bruk standarden med mindre brukeren selv sier noe annet." },
         confirmed: { type: "boolean", description: "Sett true KUN etter at brukeren har bekreftet." },
         confirm_code: { type: "string", description: "Koden fra forrige kall. Send den uendret tilbake sammen med confirmed: true." },
       },
