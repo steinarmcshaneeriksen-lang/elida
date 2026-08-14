@@ -12,6 +12,9 @@ import { nextVatTerm, upcomingVatTerms, daysUntil } from "@/lib/tax/vat-terms";
 import { classifyIntent } from "@/lib/assistant/intent-classifier";
 import { TOOLS, TOOL_LABELS } from "@/lib/assistant/tools";
 import { TOOL_HANDLERS } from "@/lib/assistant/tool-handlers";
+import { scoreProductSheet, parseProductSheet } from "@/lib/import/spreadsheet/products";
+import { scoreRecurringSheet } from "@/lib/import/spreadsheet/recurring";
+import type { Sheet } from "@/lib/import/spreadsheet/read";
 import { readFileSync } from "node:fs";
 import {
   CONTRAST,
@@ -111,7 +114,7 @@ check("Full årskostnad", hire.total_annual,
 
 }
 
-main().then(() => {
+main().then(async () => {
 // --- 5. Period selection ---------------------------------------------------
 // A closed year and a part year must each resolve to ranges inside themselves.
 const closed: YearBounds = { year: 2025, start: "2025-01-01", end: "2025-12-31", is_complete: true };
@@ -464,6 +467,68 @@ check("Foreslåtte verktøy finnes",
    "Lag et budsjett for 2027", "Hvor kan vi kutte kostnader?"]
     .flatMap((q) => classifyIntent(q).suggestedTools)
     .filter((n) => !toolNames.includes(n)), []);
+
+// --- 7f. Hva slags fil er dette? --------------------------------------------
+// Every upload used to go through the recurring-contract parser, whatever it
+// was. A product list has no customer and no billing interval, produced no
+// contracts, and came back as "forsto ikke innholdet i filen" — the column
+// interpretation working perfectly on a file it was never meant for. The kinds
+// are scored against each other now, and the file decides.
+const productSheet: Sheet = {
+  name: "Salg per produkt",
+  headers: [
+    "Produktkode", "Produkt", "Produktgruppe", "Standard salgskonto",
+    "Nåværende enhetspris", "Gj.sn. pris", "Gj.sn. kostpris",
+    "Total kostpris", "Antall", "Total",
+  ],
+  rows: [
+    ["10", "Lisens Pro", "Washd", "3000 (3100)", 1490, 1200, 400, 40000, 100, 120000],
+    ["11", "Lisens Mini", "Washd", "3000", 690, 690, 200, 20000, 100, 69000],
+    ["", "Sum Washd", "", "", null, null, null, 60000, 200, 189000],
+    ["20", "Konsulenttime", "Ingen produktgruppe", "3010", 1250, 1250, null, null, 40, 50000],
+  ],
+  headerRowIndex: 4,
+  preamble: ["Salg per produkt", "avilo as", "Periode 1. januar 2025 - 31. august 2026"],
+};
+
+const contractSheet: Sheet = {
+  name: "Repeterende",
+  headers: ["Kundenavn", "Repeterer", "Beløp eks. mva", "Aktiv"],
+  rows: [["Kunde AS", "Månedlig", 5000, "Ja"]],
+  headerRowIndex: 0,
+  preamble: [],
+};
+
+check("Produktlisten kjennes igjen som produktliste",
+  scoreProductSheet(productSheet) > scoreRecurringSheet(productSheet), true);
+check("Kontraktlisten kjennes fortsatt igjen som kontraktliste",
+  scoreRecurringSheet(contractSheet) > scoreProductSheet(contractSheet), true);
+check("Produktlisten scorer høyt nok til å bli trodd",
+  scoreProductSheet(productSheet) >= 5, true);
+
+const parsedProducts = await parseProductSheet(productSheet);
+
+// A subtotal is not a product. "Sum Washd" counted as one doubled the turnover:
+// every sale appeared once on its product and again in its group's total.
+check("Delsummer telles ikke som produkter",
+  parsedProducts.products.map((p) => p.name),
+  ["Lisens Pro", "Lisens Mini", "Konsulenttime"]);
+check("Omsetningen telles bare én gang",
+  parsedProducts.products.reduce((s, p) => s + (p.revenue ?? 0), 0), 239000);
+
+// The unit price, not the average achieved over the period, and not what the
+// period's sales cost altogether.
+check("Enhetsprisen vinner over gjennomsnittsprisen",
+  parsedProducts.products[0].salesPrice, 1490);
+check("Kostprisen er per stk, ikke totalen",
+  parsedProducts.products[0].costPrice, 400);
+check("Kolonnene ble gjenkjent uten AI",
+  parsedProducts.interpretation.some((n) => n.includes("på navn")), true);
+
+check("«3000 (3100)» leses som konto 3000",
+  parsedProducts.products[0].salesAccount, "3000");
+check("«Ingen produktgruppe» lagres som ingen gruppe",
+  parsedProducts.products[2].productGroup, null);
 
 // --- 8. Kontrast --------------------------------------------------------
 // Read from the stylesheet, so the palette cannot drift past the threshold

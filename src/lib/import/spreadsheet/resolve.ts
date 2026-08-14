@@ -46,7 +46,12 @@ export async function resolveColumns(
   const ruleMap = mapColumns(sheet.headers, sheet.rows, spec.fields);
 
   const missing = spec.required.filter((f) => ruleMap[f] === undefined);
-  const intervalUnderstood = intervalCoverage(sheet, ruleMap);
+
+  // Only a document that has intervals can fail to state them. A product list
+  // has no billing interval to find, and demanding one of every file sent the
+  // rules to the model on a question the file never posed.
+  const hasIntervals = spec.fields.some((f) => f.key === "interval");
+  const intervalUnderstood = hasIntervals ? intervalCoverage(sheet, ruleMap) : 1;
 
   // The rules are trusted when they found everything required and the interval
   // column actually parses. A named column that yields nothing is not a match.

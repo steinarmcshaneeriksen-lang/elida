@@ -7,6 +7,11 @@ import {
   parseRecurringSheet,
   scoreRecurringSheet,
 } from "@/lib/import/spreadsheet/recurring";
+import {
+  importProducts,
+  parseProductSheet,
+  scoreProductSheet,
+} from "@/lib/import/spreadsheet/products";
 
 export const maxDuration = 60;
 
@@ -76,23 +81,78 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Pick the sheet to read. The rule score decides when it is confident;
-    // where no sheet scores well the file is simply written in wording the
-    // rules do not know, and the largest table is the one to hand to the
-    // model. Rejecting here on the rule score alone would refuse every export
-    // the rules were not written for — the case this is meant to handle.
-    const scored = sheets
-      .map((sheet) => ({ sheet, score: scoreRecurringSheet(sheet) }))
-      .sort((a, b) => b.score - a.score);
+    /*
+     * What is this file?
+     *
+     * This used to be settled before it was asked. Every upload went through
+     * the recurring-contract parser, which looks for a customer, an amount and
+     * a billing interval. A product list has none of those, produced no
+     * contracts, and came back as "forsto ikke innholdet i filen" — while the
+     * column interpretation, AI included, had worked perfectly on a file it
+     * was never meant for.
+     *
+     * Each kind scores every sheet on the same scale, and the best pairing of
+     * sheet and kind wins. Where nothing scores well the file is written in
+     * wording the rules do not know, and the largest table goes to the model
+     * as a contract list, which is the commoner upload.
+     */
+    const candidates = sheets.flatMap((sheet) => [
+      { sheet, kind: "recurring" as const, score: scoreRecurringSheet(sheet) },
+      { sheet, kind: "products" as const, score: scoreProductSheet(sheet) },
+    ]);
 
-    const best =
-      scored[0].score >= 5
-        ? scored[0]
-        : [...scored].sort(
+    const ranked = [...candidates].sort((a, b) => b.score - a.score);
+    const confident = ranked[0].score >= 5;
+
+    const best = confident
+      ? ranked[0]
+      : {
+          kind: "recurring" as const,
+          score: ranked[0].score,
+          sheet: [...sheets].sort(
             (a, b) =>
-              b.sheet.rows.length * b.sheet.headers.length -
-              a.sheet.rows.length * a.sheet.headers.length
-          )[0];
+              b.rows.length * b.headers.length - a.rows.length * a.headers.length
+          )[0],
+        };
+
+    const supabase = await createClient();
+
+    if (best.kind === "products") {
+      const parsed = await parseProductSheet(best.sheet);
+
+      if (parsed.products.length === 0) {
+        return NextResponse.json(
+          {
+            error: "Forsto ikke innholdet i filen",
+            detail:
+              "Filen ser ut som en produktliste, men Elida fant ingen rader " +
+              "med produktnavn.",
+            found_columns: best.sheet.headers.filter(Boolean),
+            interpretation: parsed.interpretation,
+            skipped: parsed.skipped.slice(0, 10),
+          },
+          { status: 422 }
+        );
+      }
+
+      const result = await importProducts(supabase, companyId, parsed);
+
+      return NextResponse.json({
+        kind: "products",
+        file_name: file.name,
+        sheet: best.sheet.name,
+        header_row: best.sheet.headerRowIndex + 1,
+        columns_used: parsed.mapping,
+        interpretation: parsed.interpretation,
+        products: result.written,
+        with_sales: result.withSales,
+        total_revenue: result.totalRevenue,
+        product_groups: result.groups,
+        period: best.sheet.preamble.find((p) => /periode/i.test(p)) ?? null,
+        skipped: parsed.skipped.slice(0, 20),
+        warnings: result.warnings,
+      });
+    }
 
     const parsed = await parseRecurringSheet(best.sheet);
 
@@ -112,7 +172,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
     const result = await importRecurringContracts(supabase, companyId, parsed);
 
     const counted = result.contracts.filter((c) => c.isActive && !c.isDraft);

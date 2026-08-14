@@ -529,15 +529,18 @@ function SpreadsheetUpload({ companyId }: { companyId: string | undefined }) {
       <div className="mb-1 flex items-center gap-2">
         <Repeat size={18} className="text-foreground-muted" />
         <h3 className="text-base font-semibold text-foreground">
-          Gjentakende fakturaer
+          Lister fra regnskapssystemet
         </h3>
       </div>
       <p className="mb-4 max-w-3xl text-sm text-foreground-secondary">
-        SAF-T sier ikke hva som gjentar seg. Last opp listen over repeterende
-        fakturaer fra regnskapssystemet, så leser Elida hver avtale — beløp,
-        hvor ofte den faktureres og om den er aktiv — og regner MRR direkte fra
-        den i stedet for å gjette ut fra posteringstekst. Filen trenger ingen
-        bestemt kolonnerekkefølge; Elida finner kolonnene selv.
+        SAF-T sier ikke hva som gjentar seg, og ikke hva som ble solgt. Last opp
+        listen over <strong className="font-medium text-foreground">repeterende
+        fakturaer</strong>, så regner Elida MRR direkte fra avtalene i stedet
+        for å gjette ut fra posteringstekst — eller en{" "}
+        <strong className="font-medium text-foreground">produktliste</strong>, så
+        leses produkter, priser og grupper inn. Filen trenger ingen bestemt
+        kolonnerekkefølge: Elida finner ut hva slags liste det er og hvilke
+        kolonner den har.
       </p>
 
       <div
@@ -599,12 +602,27 @@ function SpreadsheetUpload({ companyId }: { companyId: string | undefined }) {
   );
 }
 
-interface SpreadsheetResult {
-  kind: string;
+/**
+ * Two kinds of file, told apart by the import rather than by the uploader.
+ *
+ * The upload used to be a contract upload wearing a general name: every file
+ * was read as a list of recurring invoices, and a product list — no customer,
+ * no billing interval — came back as "forsto ikke innholdet i filen". What
+ * comes back now says which kind it turned out to be, and is shown accordingly.
+ */
+type SpreadsheetResult = RecurringResult | ProductResult;
+
+interface CommonResult {
   file_name: string;
   sheet: string;
   header_row: number;
   columns_used: Record<string, string>;
+  skipped: Array<{ row: number; reason: string }>;
+  warnings: string[];
+}
+
+interface RecurringResult extends CommonResult {
+  kind: "recurring_contracts";
   interpretation: {
     method: "rules" | "ai" | "rules+ai";
     documentKind: string | null;
@@ -619,8 +637,18 @@ interface SpreadsheetResult {
   mrr: number;
   arr: number;
   by_interval: Array<{ months: number; label: string; count: number; mrr: number }>;
-  skipped: Array<{ row: number; reason: string }>;
-  warnings: string[];
+}
+
+interface ProductResult extends CommonResult {
+  kind: "products";
+  /** Sentences, already written — a product list has no method flag to render. */
+  interpretation: string[];
+  products: number;
+  with_sales: number;
+  total_revenue: number;
+  product_groups: string[];
+  /** The period line from the file's own heading, when it has one. */
+  period: string | null;
 }
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -636,9 +664,125 @@ const COLUMN_LABELS: Record<string, string> = {
   description: "Beskrivelse",
   seller: "Selger",
   department: "Avdeling",
+  name: "Produkt",
+  code: "Produktkode",
+  group: "Produktgruppe",
+  salesPrice: "Salgspris",
+  costPrice: "Kostpris",
+  quantity: "Antall solgt",
+  revenue: "Omsetning",
+  account: "Salgskonto",
 };
 
 function SpreadsheetResultView({ result }: { result: SpreadsheetResult }) {
+  if (result.kind === "products") return <ProductResultView result={result} />;
+  return <RecurringResultView result={result} />;
+}
+
+/**
+ * What a product list came to.
+ *
+ * The turnover is stated with the period it belongs to, because the export
+ * covers whatever dates were chosen when it was run — a figure labelled only
+ * "omsetning" would be read as the year's.
+ */
+function ProductResultView({ result }: { result: ProductResult }) {
+  return (
+    <div className="mt-4 space-y-4 rounded-lg bg-background px-4 py-4 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
+        <div>
+          <p className="text-xs text-foreground-muted">Produkter</p>
+          <p className="text-2xl font-bold tabular-nums text-foreground">
+            {result.products}
+          </p>
+        </div>
+        {result.with_sales > 0 && (
+          <div>
+            <p className="text-xs text-foreground-muted">
+              Omsetning i filen{result.period ? "" : " (perioden filen dekker)"}
+            </p>
+            <p className="text-lg font-semibold tabular-nums text-foreground">
+              {formatCurrency(result.total_revenue)}
+            </p>
+          </div>
+        )}
+        {result.product_groups.length > 0 && (
+          <div>
+            <p className="text-xs text-foreground-muted">Produktgrupper</p>
+            <p className="text-lg font-semibold tabular-nums text-foreground">
+              {result.product_groups.length}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {result.period && (
+        <p className="text-xs text-foreground-secondary">{result.period}</p>
+      )}
+
+      {result.product_groups.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {result.product_groups.slice(0, 12).map((g) => (
+            <span
+              key={g}
+              className="rounded-full bg-surface-hover px-2 py-0.5 text-xs text-foreground-secondary"
+            >
+              {g}
+            </span>
+          ))}
+          {result.product_groups.length > 12 && (
+            <span className="px-1 py-0.5 text-xs text-foreground-muted">
+              +{result.product_groups.length - 12} til
+            </span>
+          )}
+        </div>
+      )}
+
+      {result.warnings.map((w, i) => (
+        <p key={i} className="text-xs text-foreground-secondary">
+          {w}
+        </p>
+      ))}
+
+      <details className="text-xs">
+        <summary className="cursor-pointer text-foreground-muted hover:text-foreground-secondary">
+          Slik tolket Elida filen
+        </summary>
+        <div className="mt-2 space-y-1 text-foreground-secondary">
+          <p>
+            Ark «{result.sheet}», overskrifter på rad {result.header_row}. Elida
+            leste filen som en produktliste.
+          </p>
+          {result.interpretation.map((n, i) => (
+            <p key={i}>{n}</p>
+          ))}
+          <ul className="space-y-0.5">
+            {Object.entries(result.columns_used).map(([field, column]) => (
+              <li key={field}>
+                {COLUMN_LABELS[field] ?? field}:{" "}
+                <span className="text-foreground">{column}</span>
+              </li>
+            ))}
+          </ul>
+          {result.skipped.length > 0 && (
+            <div className="pt-1">
+              <p className="font-medium text-warning">Hoppet over</p>
+              <ul className="space-y-0.5">
+                {result.skipped.map((s) => (
+                  <li key={s.row}>
+                    Rad {s.row}: {s.reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function RecurringResultView({ result }: { result: RecurringResult }) {
   return (
     <div className="mt-4 space-y-4 rounded-lg bg-background px-4 py-4 text-sm">
       <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
