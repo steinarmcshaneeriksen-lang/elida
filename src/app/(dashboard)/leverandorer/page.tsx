@@ -73,10 +73,10 @@ export default function LeverandorerPage() {
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      {/* Summary — costs keep the amber they have on Økonomi; what we owe
+      {/* Summary — costs keep the copper they have on Økonomi; what we owe
           out is rose, the outflow colour. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div data-tone="amber" className="tone-card p-5">
+        <div data-tone="copper" className="tone-card p-5">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-medium text-foreground-secondary">
               Totale kostnader i perioden

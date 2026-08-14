@@ -26,8 +26,8 @@ const severityConfig: Record<
 > = {
   info: { icon: Info, tone: "ocean", label: "Info" },
   low: { icon: Bell, tone: "slate", label: "Lav" },
-  medium: { icon: AlertCircle, tone: "amber", label: "Medium" },
-  high: { icon: AlertTriangle, tone: "amber", label: "Høy" },
+  medium: { icon: AlertCircle, tone: "copper", label: "Medium" },
+  high: { icon: AlertTriangle, tone: "copper", label: "Høy" },
   critical: { icon: AlertOctagon, tone: "rose", label: "Kritisk" },
 };
 

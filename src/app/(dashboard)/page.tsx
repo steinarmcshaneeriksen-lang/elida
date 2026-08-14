@@ -264,7 +264,7 @@ function buildMetrics(data: SummaryResponse): DashboardMetric[] {
       // cannot be stated net without inventing a VAT split per invoice.
       detail: "Inkl. mva — fakturert beløp",
       href: "/kunder",
-      tone: "amber",
+      tone: "copper",
       icon: Receipt,
     });
   }

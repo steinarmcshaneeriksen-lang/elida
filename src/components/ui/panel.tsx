@@ -3,12 +3,16 @@
 import type { LucideIcon } from "lucide-react";
 import type { Tone } from "@/components/dashboard/metric-card";
 
-/** The order hues are handed out to a list of series. */
+/*
+ * The order hues are handed out to a list of series. Validated as a set:
+ * adjacent pairs keep enough separation for deuteranopia and tritanopia,
+ * which is why copper sits between ocean and teal rather than next to rose.
+ */
 export const SERIES_TONES: Tone[] = [
   "ocean",
+  "copper",
   "teal",
   "violet",
-  "amber",
   "rose",
   "slate",
 ];

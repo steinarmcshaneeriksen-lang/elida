@@ -31,40 +31,46 @@
 
      Every figure on every page used to be drawn in the one navy, so a
      dashboard read as a wall of identical bars with nothing to tell one
-     series from another. These six hues carry the data: one per series,
-     each with a tint for backgrounds and a soft ring for borders. They are
-     deliberately desaturated a step below their Tailwind equivalents so a
-     page of them still looks like a finance product.
+     series from another. Five hues plus a deliberate neutral carry the
+     data: one per series, each with a tint for backgrounds and a soft ring
+     for borders.
+
+     The warm slot was #d97706 — an amber whose cream tint read as yellow
+     everywhere it appeared, and it appeared a lot: costs, receivables,
+     warnings. It is now a terracotta with no yellow cast. The five chromatic
+     hues pass the CVD-separation and contrast checks as a set, in the order
+     SERIES_TONES hands them out; slate sits below the chroma floor on
+     purpose — it marks "other/one-off", not a series.
      --------------------------------------------------------------------- */
   --tone-ocean: #2563eb;
-  --tone-ocean-soft: #eff5ff;
-  --tone-ocean-ring: #c7dbfe;
+  --tone-ocean-soft: #e9f0fd;
+  --tone-ocean-ring: #bcd2f9;
 
   --tone-teal: #0d9488;
-  --tone-teal-soft: #ecfbf8;
-  --tone-teal-ring: #bfeee6;
+  --tone-teal-soft: #e7f4f3;
+  --tone-teal-ring: #b6dfdb;
 
   --tone-violet: #7c3aed;
-  --tone-violet-soft: #f5f1ff;
-  --tone-violet-ring: #ddd0fe;
+  --tone-violet-soft: #f2ebfd;
+  --tone-violet-ring: #d8c4fa;
 
-  --tone-amber: #d97706;
-  --tone-amber-soft: #fff6e8;
-  --tone-amber-ring: #fbdfb4;
+  --tone-copper: #c2410c;
+  --tone-copper-soft: #f8e9e2;
+  --tone-copper-ring: #edc6b6;
 
   --tone-rose: #e11d48;
-  --tone-rose-soft: #fff0f3;
-  --tone-rose-ring: #fbcdd7;
+  --tone-rose-soft: #fce8ed;
+  --tone-rose-ring: #f6bbc8;
 
   --tone-slate: #475569;
-  --tone-slate-soft: #f1f5f9;
-  --tone-slate-ring: #dbe3ec;
+  --tone-slate-soft: #edf2f7;
+  --tone-slate-ring: #d7e0ea;
 
   /* Semantic */
   --success: #16a34a;
   --success-light: #dcfce7;
-  --warning: #f59e0b;
-  --warning-light: #fef3c7;
+  --warning: #c2410c;
+  --warning-light: #f8e9e2;
   --danger: #dc2626;
   --danger-light: #fee2e2;
   --info: #2563eb;
@@ -135,7 +141,7 @@
   --color-tone-ocean: var(--tone-ocean);
   --color-tone-teal: var(--tone-teal);
   --color-tone-violet: var(--tone-violet);
-  --color-tone-amber: var(--tone-amber);
+  --color-tone-copper: var(--tone-copper);
   --color-tone-rose: var(--tone-rose);
   --color-tone-slate: var(--tone-slate);
   --font-sans: var(--font-inter);
@@ -156,7 +162,7 @@
 [data-tone="ocean"]  { --tone: var(--tone-ocean);  --tone-soft: var(--tone-ocean-soft);  --tone-ring: var(--tone-ocean-ring); }
 [data-tone="teal"]   { --tone: var(--tone-teal);   --tone-soft: var(--tone-teal-soft);   --tone-ring: var(--tone-teal-ring); }
 [data-tone="violet"] { --tone: var(--tone-violet); --tone-soft: var(--tone-violet-soft); --tone-ring: var(--tone-violet-ring); }
-[data-tone="amber"]  { --tone: var(--tone-amber);  --tone-soft: var(--tone-amber-soft);  --tone-ring: var(--tone-amber-ring); }
+[data-tone="copper"] { --tone: var(--tone-copper); --tone-soft: var(--tone-copper-soft); --tone-ring: var(--tone-copper-ring); }
 [data-tone="rose"]   { --tone: var(--tone-rose);   --tone-soft: var(--tone-rose-soft);   --tone-ring: var(--tone-rose-ring); }
 
 /* A card that belongs to a tone: tinted ground fading to white, and a lift on
@@ -166,7 +172,7 @@
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(180deg, var(--tone-soft) 0%, var(--surface) 62%);
+    linear-gradient(180deg, var(--tone-soft) 0%, var(--surface) 78%);
   border: 1px solid var(--tone-ring);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);

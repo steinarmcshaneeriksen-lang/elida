@@ -112,7 +112,7 @@ export default function LikviditetPage() {
         />
         {data.lowest_point && (
           <StatCard
-            tone="amber"
+            tone="copper"
             icon={
               data.lowest_point.balance > 0 ? (
                 <ShieldCheck size={16} strokeWidth={2.2} />

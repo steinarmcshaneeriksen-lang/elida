@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { ArrowRight, TrendingUp, TrendingDown, Minus, type LucideIcon } from "lucide-react";
 
-export type Tone = "ocean" | "teal" | "violet" | "amber" | "rose" | "slate";
+export type Tone = "ocean" | "teal" | "violet" | "copper" | "rose" | "slate";
 
 interface MetricCardProps {
   question: string;

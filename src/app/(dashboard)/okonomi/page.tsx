@@ -196,7 +196,7 @@ export default function OkonomiPage() {
           looks as though months of data are missing. */}
       {bounds?.note && period === "ytd" && (
         <div
-          data-tone="amber"
+          data-tone="copper"
           className="tone-card flex gap-3 px-5 py-3.5 text-xs leading-relaxed text-foreground-secondary"
         >
           <Info size={15} className="mt-0.5 shrink-0 text-[var(--tone)]" />
@@ -224,7 +224,7 @@ export default function OkonomiPage() {
               change={data.costs?.change_percent ?? null}
               // Rising costs are unfavourable, so invert the colour cue.
               invert
-              tone="amber"
+              tone="copper"
               icon={Receipt}
             />
             <SummaryCard
@@ -291,7 +291,7 @@ export default function OkonomiPage() {
           )}
 
           {costCategories.length > 0 && (
-            <Panel tone="amber" icon={Receipt} title="Kostnader etter kategori">
+            <Panel tone="copper" icon={Receipt} title="Kostnader etter kategori">
               <div className="space-y-4">
                 {costCategories.map((cat, i) => (
                   // Each category keeps its own hue down the list, so a row can

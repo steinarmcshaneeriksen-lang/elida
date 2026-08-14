@@ -98,10 +98,10 @@ export default function KunderPage() {
         </div>
       )}
 
-      {/* Summary — same card language as the dashboard: receivables amber,
+      {/* Summary — same card language as the dashboard: receivables copper,
           revenue ocean, so a figure keeps its colour from page to page. */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div data-tone="amber" className="tone-card p-5">
+        <div data-tone="copper" className="tone-card p-5">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-medium text-foreground-secondary">
               Totalt utestående
