@@ -128,8 +128,11 @@ export default function OkonomiPage() {
     );
   }, [period, bounds]);
 
-  const { data, isLoading, error, isEmpty } =
-    useCompanyData<FinancialsResponse>(path ?? "financials");
+  // Null until the year list resolves. It used to fall back to a bare
+  // "financials" path, which fetched a range nothing on the page wanted and
+  // then swapped to the real key — two loads, two spinners, every visit.
+  const { data, isLoading, isRefreshing, error, isEmpty } =
+    useCompanyData<FinancialsResponse>(path);
   const recurring = useCompanyData<RecurringResponse>("recurring-revenue");
 
   const monthly = data?.monthly ?? [];
@@ -209,7 +212,13 @@ export default function OkonomiPage() {
       {isEmpty && <NoDataState />}
 
       {!isLoading && !error && !isEmpty && data && (
-        <>
+        // Dimmed, not replaced: the figures stay readable while a changed
+        // period loads, and it is visible that they are about to be replaced.
+        <div
+          className={`space-y-8 transition-opacity duration-200 ${
+            isRefreshing ? "opacity-60" : ""
+          }`}
+        >
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <SummaryCard
               label="Omsetning"
@@ -325,7 +334,7 @@ export default function OkonomiPage() {
               </div>
             </Panel>
           )}
-        </>
+        </div>
       )}
     </div>
   );

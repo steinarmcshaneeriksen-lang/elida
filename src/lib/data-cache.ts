@@ -38,8 +38,17 @@ const entries = new Map<string, Entry<unknown>>();
 
 const PENDING: Snapshot<never> = { value: null, error: null, hasValue: false };
 
-/** How long a value is served without a background refresh. */
-const FRESH_MS = 60_000;
+/**
+ * How long a value is served without a background refresh.
+ *
+ * Accounting figures change when a file is imported and at no other time, and
+ * an import calls `refreshCompanyData()`, which clears this cache outright. A
+ * one-minute window therefore bought nothing and cost a refetch of every
+ * figure on every page revisit — the reason the pages appeared to reload when
+ * nothing had changed. Fifteen minutes is a backstop for a change made in
+ * another tab, not the mechanism that keeps the numbers current.
+ */
+const FRESH_MS = 15 * 60_000;
 
 function getEntry<T>(key: string): Entry<T> {
   let entry = entries.get(key) as Entry<T> | undefined;

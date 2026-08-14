@@ -55,9 +55,8 @@ export default function TransaksjonerPage() {
   });
   if (activeSearch) query.set("text", activeSearch);
 
-  const { data, isLoading, error } = useCompanyData<TransactionsResponse>(
-    `transactions?${query}`
-  );
+  const { data, isLoading, isRefreshing, error } =
+    useCompanyData<TransactionsResponse>(`transactions?${query}`);
 
   const transactions = data?.transactions ?? [];
   const total = data?.pagination.total ?? 0;
@@ -115,7 +114,14 @@ export default function TransaksjonerPage() {
       {!isLoading && error && <ErrorState message={error} />}
 
       {!isLoading && !error && (
-        <>
+        // Searching and paging change the request, not the page. The table used
+        // to be replaced by a spinner on every keystroke; it now stays put and
+        // dims while the next set of rows arrives.
+        <div
+          className={`space-y-6 transition-opacity duration-200 ${
+            isRefreshing ? "opacity-60" : ""
+          }`}
+        >
           <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-[var(--shadow)]">
             <table className="w-full text-sm">
               <thead>
@@ -229,7 +235,7 @@ export default function TransaksjonerPage() {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );
