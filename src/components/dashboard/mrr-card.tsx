@@ -140,35 +140,30 @@ export function MrrCard({ data }: { data: MrrData }) {
             )}
           </div>
 
-          <p className="mt-1 text-xs text-foreground-muted">
-            {mrr.value_gross != null && (
-              <>{formatCurrency(mrr.value_gross)} inkl. mva · </>
-            )}
-            {fromContracts
-              ? `${data.contracts?.counted ?? 0} aktive avtaler`
-              : mrr.month
-                ? `MRR i ${longMonth(mrr.month)} — siste fullstendige måned`
-                : "MRR"}
-          </p>
+          {/* The contract count is its own figure two columns along, and the
+              gross amount is a conversion of the one above it. Both were
+              repeated here. What is left is the only thing this line adds:
+              which month the figure is. */}
+          {!fromContracts && mrr.month && (
+            <p className="mt-1 text-xs text-foreground-muted">
+              {longMonth(mrr.month)}
+            </p>
+          )}
         </div>
 
-        <Stat
-          label="Årlig takt (ARR)"
-          value={formatCurrency(mrr.arr)}
-          detail={mrr.arr_gross != null ? `${formatCurrency(mrr.arr_gross)} inkl. mva` : null}
-        />
+        {/*
+         * A label and a figure each, nothing under them.
+         *
+         * Every one of these carried a second line explaining itself — the
+         * amount converted to gross, the contracts split four ways by billing
+         * interval, the share qualified by which month it was. True, and none
+         * of it what anyone looks at this band for. The breakdowns are a click
+         * away under «Se hva som gjentar seg», and what the figures rest on is
+         * in the note beside the heading.
+         */}
+        <Stat label="Årlig takt (ARR)" value={formatCurrency(mrr.arr)} />
         {fromContracts ? (
-          <Stat
-            label="Avtaler"
-            value={String(data.contracts?.counted ?? 0)}
-            detail={
-              data.contracts && data.contracts.by_interval.length > 1
-                ? data.contracts.by_interval
-                    .map((i) => `${i.count} ${i.label.toLowerCase()}`)
-                    .join(", ")
-                : null
-            }
-          />
+          <Stat label="Avtaler" value={String(data.contracts?.counted ?? 0)} />
         ) : (
           <Stat label="Snitt siste 3 mnd" value={formatCurrency(mrr.average_3m)} />
         )}
@@ -176,7 +171,6 @@ export function MrrCard({ data }: { data: MrrData }) {
           <Stat
             label="Andel av omsetningen"
             value={`${mrr.recurring_share} %`}
-            detail="av siste fullstendige måned"
           />
         )}
 

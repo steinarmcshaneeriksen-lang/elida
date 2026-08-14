@@ -79,11 +79,17 @@ export function KpiCard({
               })}
               {change.unit === "points" ? " pp" : " %"}
             </span>
+            {/*
+             * Short enough to fit.
+             *
+             * This read "vs. samme periode i fjor — stiplet linje" and arrived
+             * on screen as "vs. samme periode i fjor — st…": a caption naming
+             * the dashed line, repeated on all four cards, cut off mid-word on
+             * every one of them. What the dashed line is belongs once, on the
+             * line itself, not four times under the figures.
+             */}
             <span className="truncate text-xs text-foreground-muted">
               {change.label}
-              {/* Names the dashed line, so the graphic is not a second,
-                  unexplained reading of the same card. */}
-              {comparisonSeries ? " — stiplet linje" : ""}
             </span>
           </>
         ) : (

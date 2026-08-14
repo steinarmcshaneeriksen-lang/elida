@@ -524,10 +524,15 @@ export const createBudget = async (
     basis_gap_months: generated.gapMonths,
     annual: result.annual,
     note:
-      "Budsjettet er opprettet som UTKAST og fylt med tallene fra " +
-      "grunnlagsperioden. Si hvilken periode det bygger på. Bruk " +
-      "propose_budget_change med denne budsjett-id-en for å legge inn mål " +
-      "eller endringer.",
+      "Budsjettet er opprettet som UTKAST. Det er et HELT driftsbudsjett: " +
+      "alle inntekts- og kostnadslinjene fra grunnlagsperioden er kopiert inn " +
+      "som de var, ikke bare den linjen brukeren spurte om. Si dette, og si " +
+      "hvilken periode det bygger på — ellers ser brukeren en skjerm full av " +
+      "poster hen ikke har bedt om. " +
+      "INGEN vekst, mål eller endring er lagt inn ennå. Ba brukeren om et " +
+      "vekstbudsjett, er dette bare utgangspunktet: neste steg er å legge inn " +
+      "endringen på riktig linje, og det må bekreftes for seg. Ikke si at " +
+      "veksten er med.",
     data_source: "budget",
   };
 };

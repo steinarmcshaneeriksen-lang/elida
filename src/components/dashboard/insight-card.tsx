@@ -1,7 +1,7 @@
 "use client";
 
+import { useState } from "react";
 import { AlertTriangle, AlertCircle, Info, Bell, AlertOctagon, ChevronRight } from "lucide-react";
-import { formatRelativeTime } from "@/lib/format";
 
 export type InsightSeverity =
   | "info"
@@ -17,7 +17,6 @@ interface InsightCardProps {
   /** The figures the observation was derived from. */
   evidence?: string[];
   period?: string;
-  createdAt: string;
 }
 
 const severityConfig: Record<
@@ -31,59 +30,72 @@ const severityConfig: Record<
   critical: { icon: AlertOctagon, tone: "rose", label: "Kritisk" },
 };
 
+/**
+ * One observation, one line until asked.
+ *
+ * Every card used to state everything at once: a heading, a paragraph
+ * explaining it, the two or three figures behind it, the period, and how long
+ * ago the import ran. Six lines each, three of them stacked, with the chat open
+ * over half the screen — a page nobody reads is a page that reports nothing.
+ *
+ * The heading already is the finding. "Bankbeholdningen dekker 1,2 måneder med
+ * drift" needs no summary underneath it; what it needs is somewhere to put the
+ * working for whoever doubts it. So the finding stands alone and the rest opens
+ * on a click. The chevron pointed at nothing before — it looked like a control
+ * and behaved like an ornament. Now it is the control.
+ */
 export function InsightCard({
   severity,
   title,
   description,
   evidence,
   period,
-  createdAt,
 }: InsightCardProps) {
+  const [open, setOpen] = useState(false);
   const config = severityConfig[severity] ?? severityConfig.info;
   const Icon = config.icon;
 
   return (
-    <div
-      data-tone={config.tone}
-      className="tone-card group flex items-start justify-between gap-4 p-4"
-    >
-      <div className="flex items-start gap-3">
-        <span className="tone-badge mt-0.5 shrink-0 rounded-full">
+    <div data-tone={config.tone} className="tone-card">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+      >
+        <span className="tone-badge shrink-0 rounded-full">
           <Icon size={15} strokeWidth={2.2} />
         </span>
-        <div>
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-          <p className="mt-1 text-sm leading-relaxed text-foreground-secondary">
+        <h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
+          {title}
+        </h3>
+        <ChevronRight
+          size={16}
+          className={`shrink-0 text-[var(--tone-ink)] transition-transform ${
+            open ? "rotate-90" : ""
+          }`}
+        />
+      </button>
+
+      {open && (
+        <div className="border-t border-border px-4 pb-3.5 pt-3 pl-[3.25rem]">
+          <p className="text-sm leading-relaxed text-foreground-secondary">
             {description}
           </p>
           {evidence && evidence.length > 0 && (
             <ul className="mt-2.5 space-y-0.5">
               {evidence.map((line) => (
-                <li
-                  key={line}
-                  className="text-xs tabular-nums text-foreground-muted"
-                >
+                <li key={line} className="text-xs tabular-nums text-foreground-muted">
                   {line}
                 </li>
               ))}
             </ul>
           )}
-          <div className="mt-2.5 flex flex-wrap items-center gap-3">
-            {period && (
-              <span className="inline-flex items-center rounded-full bg-surface-hover px-2 py-0.5 text-xs font-medium text-foreground-secondary">
-                {period}
-              </span>
-            )}
-            <span className="text-xs text-foreground-muted">
-              {formatRelativeTime(createdAt)}
-            </span>
-          </div>
+          {period && (
+            <p className="mt-2.5 text-xs text-foreground-muted">{period}</p>
+          )}
         </div>
-      </div>
-      <ChevronRight
-        size={18}
-        className="mt-1 shrink-0 text-[var(--tone-ink)] opacity-0 group-hover:opacity-100"
-      />
+      )}
     </div>
   );
 }

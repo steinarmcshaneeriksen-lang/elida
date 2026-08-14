@@ -141,11 +141,11 @@ export default function DashboardPage() {
                   data.revenue.has_comparison && data.revenue.change_percent != null
                     ? {
                         percent: data.revenue.change_percent,
-                        label: "vs. samme periode i fjor",
+                        label: "mot i fjor",
                       }
                     : null
                 }
-                note="Eks. mva · ingen sammenligning ennå"
+                note="Eks. mva"
               />
             )}
             {data.profit && (
@@ -160,11 +160,11 @@ export default function DashboardPage() {
                   data.profit.has_comparison && data.profit.change_percent != null
                     ? {
                         percent: data.profit.change_percent,
-                        label: "vs. samme periode i fjor",
+                        label: "mot i fjor",
                       }
                     : null
                 }
-                note="Eks. mva · ingen sammenligning ennå"
+                note="Eks. mva"
               />
             )}
             {data.revenue && data.profit && (
@@ -180,11 +180,11 @@ export default function DashboardPage() {
                     ? {
                         percent: marginChange(data)!,
                         unit: "points",
-                        label: "vs. samme periode i fjor",
+                        label: "mot i fjor",
                       }
                     : null
                 }
-                note="Ingen sammenligning ennå"
+                note=""
               />
             )}
             {data.cash && (
@@ -195,7 +195,7 @@ export default function DashboardPage() {
                 href="/likviditet"
                 series={cashflow.data?.monthly?.map((m) => m.balance)}
                 change={null}
-                note="Bokført saldo ved periodens slutt"
+                note="Bokført saldo"
               />
             )}
           </div>
@@ -209,7 +209,6 @@ export default function DashboardPage() {
                 tone="ocean"
                 icon={Lightbulb}
                 title="Dette bør du vite nå"
-                description="Utledet av regnskapet ved siste import. Hver observasjon oppgir tallene den bygger på."
               >
                 {data.insights.length === 0 ? (
                   <p className="py-8 text-center text-sm text-foreground-muted">
@@ -228,7 +227,6 @@ export default function DashboardPage() {
                         description={insight.description}
                         evidence={insight.evidence}
                         period={insight.period ?? undefined}
-                        createdAt={insight.created_at}
                       />
                     ))}
                   </div>
