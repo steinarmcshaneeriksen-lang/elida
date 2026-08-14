@@ -42,6 +42,13 @@ export interface GenerateOptions {
   costGrowthPercent?: number;
 }
 
+export interface GeneratedBudget {
+  grid: BudgetGrid;
+  basis: { start: string; end: string } | null;
+  /** Basis months with no postings, filled from the rest of the year. */
+  gapMonths: string[];
+}
+
 interface Posting {
   account_number: string;
   amount: number;
@@ -55,18 +62,18 @@ interface Posting {
 export async function generateBudgetGrid(
   supabase: DB,
   options: GenerateOptions
-): Promise<{ grid: BudgetGrid; basis: { start: string; end: string } | null }> {
+): Promise<GeneratedBudget> {
   const empty = emptyGrid();
 
   if (options.basedOn === "empty") {
-    return { grid: empty, basis: null };
+    return { grid: empty, basis: null, gapMonths: [] };
   }
 
   const basis = await resolveBasisPeriod(supabase, options);
-  if (!basis) return { grid: empty, basis: null };
+  if (!basis) return { grid: empty, basis: null, gapMonths: [] };
 
   const postings = await loadPostings(supabase, options.companyId, basis.start, basis.end);
-  if (postings.length === 0) return { grid: empty, basis };
+  if (postings.length === 0) return { grid: empty, basis, gapMonths: [] };
 
   // Sum by category and by the month of the basis period. The basis period may
   // not start in January, so months are mapped back onto a calendar year by
@@ -75,13 +82,17 @@ export async function generateBudgetGrid(
   const indexOfMonth = new Map(monthKeys.map((m, i) => [m, i]));
 
   const grid = emptyGrid();
+  // How much the basis actually says about each of its months. A month nothing
+  // was booked in is a hole in the record, not a month of no trading.
+  const postingsPerMonth = new Array(monthKeys.length).fill(0);
 
   for (const p of postings) {
-    const category = categoryForAccount(p.account_number);
-    if (!category) continue;
-
     const monthIndex = indexOfMonth.get(p.transaction_date.slice(0, 7));
     if (monthIndex == null) continue;
+    postingsPerMonth[monthIndex]++;
+
+    const category = categoryForAccount(p.account_number);
+    if (!category) continue;
 
     // A 12-month basis maps one-to-one; a shorter one is spread evenly.
     const slot = monthKeys.length === 12 ? monthIndex % 12 : null;
@@ -95,6 +106,8 @@ export async function generateBudgetGrid(
       }
     }
   }
+
+  const gapMonths = fillGaps(grid, monthKeys, postingsPerMonth);
 
   // A basis that does not start in January leaves the calendar months rotated;
   // rotate them back so January in the budget is January in the basis.
@@ -118,7 +131,49 @@ export async function generateBudgetGrid(
     );
   }
 
-  return { grid, basis };
+  return { grid, basis, gapMonths };
+}
+
+/**
+ * Replaces months the basis says nothing about with the average of the months
+ * it does.
+ *
+ * A budgeted zero is a forecast: no sales in September. A month with no
+ * postings in the basis is not that — it is a gap in the record, and copying
+ * it forward states something the ledger never said. It happened here because
+ * the basis period reached into months holding only forward-dated
+ * periodisations, but the same hole appears in a company that started
+ * mid-year, changed accounting system, or is simply behind on its bookkeeping.
+ *
+ * A category that is genuinely zero in a month the basis does cover is left
+ * alone — an annual insurance premium booked every January must stay in
+ * January and must not be smeared across the year.
+ *
+ * Returns the months that were filled, so the budget can say so rather than
+ * presenting an inference as a figure.
+ */
+export function fillGaps(
+  grid: BudgetGrid,
+  monthKeys: string[],
+  postingsPerMonth: number[]
+): string[] {
+  if (monthKeys.length !== 12) return [];
+
+  const empty: number[] = [];
+  for (let i = 0; i < 12; i++) {
+    if (postingsPerMonth[i] === 0) empty.push(i);
+  }
+
+  // Nothing to fill, or nothing to fill it from.
+  if (empty.length === 0 || empty.length === 12) return [];
+
+  for (const key of Object.keys(grid)) {
+    const known = grid[key].filter((_, i) => postingsPerMonth[i] > 0);
+    const mean = known.reduce((total, v) => total + v, 0) / known.length;
+    for (const i of empty) grid[key][i] = round(mean);
+  }
+
+  return empty.map((i) => monthKeys[i]);
 }
 
 export function emptyGrid(): BudgetGrid {

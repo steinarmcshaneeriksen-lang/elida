@@ -96,6 +96,7 @@ export async function POST(
 
     let grid: BudgetGrid;
     let basis: { start: string; end: string } | null = null;
+    let gapMonths: string[] = [];
 
     if (body.copy_from_budget_id) {
       grid = await copyGrid(supabase, body.copy_from_budget_id, {
@@ -112,6 +113,7 @@ export async function POST(
       });
       grid = generated.grid;
       basis = generated.basis;
+      gapMonths = generated.gapMonths;
     }
 
     await writeGrid(supabase, budget.id, grid);
@@ -122,11 +124,15 @@ export async function POST(
     if (basis) {
       await supabase
         .from("budgets")
-        .update({ basis_start: basis.start, basis_end: basis.end } as never)
+        .update({
+          basis_start: basis.start,
+          basis_end: basis.end,
+          basis_gap_months: gapMonths,
+        } as never)
         .eq("id", budget.id);
     }
 
-    return NextResponse.json({ budget, basis });
+    return NextResponse.json({ budget, basis, gap_months: gapMonths });
   } catch (error) {
     console.error("Budget create error:", error);
     return errorResponse("Kunne ikke opprette budsjettet");

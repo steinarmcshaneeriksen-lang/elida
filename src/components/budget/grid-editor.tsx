@@ -617,28 +617,47 @@ const BASIS_MONTHS = [
 function BasisNote({
   budget,
 }: {
-  budget: { basis_start: string | null; basis_end: string | null };
+  budget: {
+    basis_start: string | null;
+    basis_end: string | null;
+    basis_gap_months: string[] | null;
+  };
 }) {
   if (!budget.basis_start || !budget.basis_end) return null;
 
   const span = monthSpan(budget.basis_start, budget.basis_end);
   const seasonal = span === 12;
+  const gaps = budget.basis_gap_months ?? [];
+  const clean = seasonal && gaps.length === 0;
 
   return (
-    <div data-tone={seasonal ? "ocean" : "copper"} className="tone-card flex gap-3 p-4">
+    <div data-tone={clean ? "ocean" : "copper"} className="tone-card flex gap-3 p-4">
       <span className="tone-badge shrink-0">
         <CalendarRange size={16} strokeWidth={2.2} />
       </span>
-      <p className="text-sm leading-relaxed text-foreground-secondary">
-        Bygget på regnskapstallene fra{" "}
-        <span className="font-medium text-foreground">
-          {monthLabel(budget.basis_start)}–{monthLabel(budget.basis_end)}
-        </span>
-        .{" "}
-        {seasonal
-          ? "Tolv hele måneder, så sesongsvingningene i tallene er beholdt."
-          : `Grunnlaget er ${span} måneder, ikke tolv, så beløpene er fordelt jevnt utover året. Sesongsvingninger må du legge inn selv.`}
-      </p>
+      <div className="space-y-1.5 text-sm leading-relaxed text-foreground-secondary">
+        <p>
+          Bygget på regnskapstallene fra{" "}
+          <span className="font-medium text-foreground">
+            {monthLabel(budget.basis_start)}–{monthLabel(budget.basis_end)}
+          </span>
+          .{" "}
+          {seasonal
+            ? "Tolv hele måneder, så sesongsvingningene i tallene er beholdt."
+            : `Grunnlaget er ${span} måneder, ikke tolv, så beløpene er fordelt jevnt utover året. Sesongsvingninger må du legge inn selv.`}
+        </p>
+        {gaps.length > 0 && (
+          <p>
+            {gaps.length === 1 ? "Måneden" : "Månedene"}{" "}
+            <span className="font-medium text-foreground">
+              {gaps.map(monthLabel).join(", ")}
+            </span>{" "}
+            hadde ingen posteringer i grunnlaget, så {gaps.length === 1 ? "den" : "de"}{" "}
+            er fylt med snittet av de øvrige. Et budsjett skal ikke påstå null
+            omsetning fordi regnskapet manglet data.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

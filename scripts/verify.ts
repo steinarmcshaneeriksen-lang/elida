@@ -3,7 +3,7 @@ import {
   buildFinancialsFromTransactions,
   type TxRow,
 } from "@/app/api/companies/[id]/financials/route";
-import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual, basisFromActivity } from "@/lib/budget/engine";
+import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual, basisFromActivity, fillGaps } from "@/lib/budget/engine";
 import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } from "@/lib/reports/categories";
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
 import { resolveDataWindow, trailingNote, type MonthActivity } from "@/lib/data-window";
@@ -285,6 +285,40 @@ check("Et uavsluttet år som grunnlag stopper etter august",
 
 check("Uten posteringer finnes ikke noe grunnlag",
   basisFromActivity([], { year: 2027, basedOn: "last_12_months" }), null);
+
+// --- 7c. Hull i grunnlaget --------------------------------------------------
+// A month the basis says nothing about is missing data, not a forecast of no
+// trading. It must never reach the budget as a zero.
+const twelve = (v: number[]) => v;
+const gapGrid = {
+  revenue: twelve([500, 500, 500, 500, 500, 500, 500, 500, 0, 0, 0, 500]),
+  // An annual premium booked every January, and nothing the rest of the year.
+  insurance: twelve([1200, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+};
+const counts = [900, 900, 900, 900, 900, 900, 900, 900, 0, 0, 0, 900];
+const months = Array.from({ length: 12 }, (_, i) =>
+  `2026-${String(i + 1).padStart(2, "0")}`
+);
+
+const filled = fillGaps(gapGrid, months, counts);
+check("De tomme månedene rapporteres", filled, ["2026-09", "2026-10", "2026-11"]);
+check("Ingen budsjettmåned står igjen på null",
+  gapGrid.revenue.every((v) => v > 0), true);
+check("Hullet fylles med snittet av de kjente månedene",
+  gapGrid.revenue[8], 500);
+check("Kjente måneder røres ikke", gapGrid.revenue[0], 500);
+
+// The January-only premium keeps its shape: the gap months take the mean, but
+// the ten real months that are genuinely zero stay zero.
+check("Ekte nullmåneder smøres ikke utover",
+  gapGrid.insurance.slice(1, 8).every((v) => v === 0), true);
+check("Årsavgiften blir stående i januar", gapGrid.insurance[0], 1200);
+
+// Nothing to fill, and nothing to fill from, are both no-ops.
+check("Uten hull gjøres ingenting",
+  fillGaps({ a: twelve(new Array(12).fill(1)) }, months, new Array(12).fill(5)), []);
+check("Et tomt grunnlag fylles ikke fra seg selv",
+  fillGaps({ a: twelve(new Array(12).fill(0)) }, months, new Array(12).fill(0)), []);
 
 // --- 8. Kontrast --------------------------------------------------------
 // Read from the stylesheet, so the palette cannot drift past the threshold
