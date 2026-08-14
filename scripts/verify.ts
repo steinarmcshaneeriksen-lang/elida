@@ -6,7 +6,7 @@ import {
 import { computeBudgetResult, computeCashEffect, computeEmployeeCost, emptyGrid, adjustCategory, distributeAnnual, basisFromActivity, fillGaps } from "@/lib/budget/engine";
 import { categoryForAccount, signedAmount, CATEGORIES, PAYROLL_CATEGORY_KEYS } from "@/lib/reports/categories";
 import { comparisonRange, periodRange, type YearBounds } from "@/lib/periods";
-import { resolveDataWindow, trailingNote, type MonthActivity } from "@/lib/data-window";
+import { resolveDataWindow, partialMonthNote, type MonthActivity } from "@/lib/data-window";
 import { deriveInsights, type InsightInput } from "@/lib/insights/derive";
 import { readFileSync } from "node:fs";
 import {
@@ -151,7 +151,8 @@ check("Ingen påbegynt måned når bøkene når månedsslutt", window2026?.parti
 check("Framdaterte måneder rapporteres", window2026?.trailingMonths,
   ["2026-09", "2026-10", "2026-11", "2026-12"]);
 check("Framdaterte posteringer telles", window2026?.trailingPostings, 30);
-check("Avkortet periode forklares", trailingNote(window2026!)?.includes("30 framdaterte"), true);
+// Nothing to say: the books reach month-end, so no month is left uncovered.
+check("Ferdig måned gir ingen merknad", partialMonthNote(window2026!), null);
 
 // A finished year keeps all twelve months and gets no note.
 const twentyFive = Array.from({ length: 12 }, (_, i) => ({
@@ -161,7 +162,7 @@ const twentyFive = Array.from({ length: 12 }, (_, i) => ({
 }));
 const window2025 = resolveDataWindow(twentyFive);
 check("Fullt år beholder desember", window2025?.end, "2025-12-31");
-check("Fullt år får ingen forklaring", trailingNote(window2025!), null);
+check("Fullt år får ingen merknad", partialMonthNote(window2025!), null);
 
 // A quiet December is still December: only a near-empty month is cut.
 const quiet = twentyFive.slice(0, 11).concat([
@@ -194,8 +195,11 @@ check("Bøkene stopper 13. august", cut?.end, "2026-08-13");
 check("Rapportering stopper ved juli", cut?.completeEnd, "2026-07-31");
 check("August rapporteres som påbegynt", cut?.partial,
   { month: "2026-08", lastDate: "2026-08-13", postingCount: 844 });
-check("Den påbegynte måneden forklares",
-  trailingNote(cut!)?.includes("august er påbegynt"), true);
+// One clause, and only the fact a reader can act on: a month exists in the
+// books that the figures do not cover. It used to be a paragraph justifying
+// the choice of period, which is not the same as informing anyone.
+check("Den påbegynte måneden nevnes i én setning",
+  partialMonthNote(cut!), "August er påbegynt og teller ikke med.");
 
 // A finished year is untouched: December reaching the 31st is a whole month.
 check("Fullt år rapporteres til 31. desember", window2025?.completeEnd, "2025-12-31");

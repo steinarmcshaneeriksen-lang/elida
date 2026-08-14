@@ -6,7 +6,6 @@ import {
   Coins,
   Percent,
   Wallet,
-  Info,
   Lightbulb,
   Gauge,
   Droplets,
@@ -108,20 +107,14 @@ export default function DashboardPage() {
           {data?.period?.comparison_start && data.period.comparison_end
             ? ` Tallene er sammenlignet med ${comparisonYear(data.period.comparison_end)}.`
             : ""}
+          {/* A month exists in the books that the figures do not cover, so a
+              reader who uploaded it does not conclude the import lost it.
+              This was a banner explaining the reasoning behind the period —
+              true, but nothing anyone could act on, and the period is stated
+              in the same breath. */}
+          {data?.period?.note ? ` ${data.period.note}` : ""}
         </p>
       </div>
-
-      {/* Why the period stops before the last posting in the books. */}
-      {data?.period?.note && (
-        <div data-tone="copper" className="tone-card flex max-w-3xl gap-3 p-4">
-          <span className="tone-badge shrink-0">
-            <Info size={16} strokeWidth={2.2} />
-          </span>
-          <p className="text-sm leading-relaxed text-foreground-secondary">
-            {data.period.note}
-          </p>
-        </div>
-      )}
 
       {isLoading && <LoadingState />}
       {!isLoading && error && <ErrorState message={error} />}

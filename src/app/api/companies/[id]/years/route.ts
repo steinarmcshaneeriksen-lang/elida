@@ -4,7 +4,7 @@ import { verifyCompanyAccess, errorResponse } from "@/app/api/_lib/auth";
 import { fetchAll } from "@/lib/supabase/paginate";
 import {
   resolveDataWindow,
-  trailingNote,
+  partialMonthNote,
   type MonthActivity,
 } from "@/lib/data-window";
 
@@ -92,11 +92,11 @@ export async function GET(
         // earlier. A half-booked final month is reported in `note`.
         end: window?.completeEnd ?? y.end_date,
         is_complete: (window?.completeEnd ?? "") >= `${y.year}-12-31`,
-        // Forward-dated postings beyond the end, so a page can say why the
-        // period stops where it does rather than looking as if data is missing.
+        // Forward-dated postings beyond the end, kept for the observation
+        // that reports them.
         trailing_months: window?.trailingMonths ?? [],
         trailing_postings: window?.trailingPostings ?? 0,
-        note: window ? trailingNote(window) : null,
+        note: window ? partialMonthNote(window) : null,
       };
     });
 

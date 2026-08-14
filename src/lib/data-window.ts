@@ -118,32 +118,27 @@ export function resolveDataWindow(months: MonthActivity[]): DataWindow | null {
 }
 
 /**
- * The sentence to show when the reported period stops short of what the ledger
- * holds — because the last month is half-booked, because postings are dated
- * ahead, or both.
+ * The one fact about the window a reader can do anything with: a month exists
+ * in the books that the figures do not cover.
+ *
+ * This used to be a paragraph. It explained that half a month cannot be
+ * compared with a whole one, how many postings the part month held, that
+ * thirty forward-dated entries sat in September to December, and that
+ * periodisations are not months of trading. All true, none of it useful: the
+ * period is stated directly above it, and nothing in the explanation changes
+ * what anyone does next. Justifying a decision is not the same as informing
+ * someone.
+ *
+ * What is worth saying is that August is under way and not counted, so a
+ * reader who uploaded a file containing August does not conclude the import
+ * lost it. One clause. The forward-dated postings are reported as an
+ * observation instead, where they can be skimmed past.
  */
-export function trailingNote(window: DataWindow): string | null {
-  const parts: string[] = [];
+export function partialMonthNote(window: DataWindow): string | null {
+  if (!window.partial) return null;
 
-  if (window.partial) {
-    parts.push(
-      `${monthName(window.partial.month)} er påbegynt — regnskapet stopper ` +
-        `${formatDate(window.partial.lastDate)}, med ${window.partial.postingCount} ` +
-        "posteringer så langt. En halv måned kan ikke sammenlignes med en hel, " +
-        "så tallene gjelder til og med forrige månedsslutt."
-    );
-  }
-
-  if (window.trailingMonths.length > 0) {
-    parts.push(
-      `Regnskapet har ${window.trailingPostings} framdaterte posteringer i ` +
-        `${window.trailingMonths.map(monthName).join(", ")} — typisk ` +
-        "forhåndsbetalte kostnader og periodiseringer. De er ikke måneder med " +
-        "drift og teller ikke med."
-    );
-  }
-
-  return parts.length > 0 ? parts.join(" ") : null;
+  const month = monthName(window.partial.month);
+  return `${month.charAt(0).toUpperCase()}${month.slice(1)} er påbegynt og teller ikke med.`;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,7 +171,3 @@ function monthName(yyyymm: string): string {
   return MONTHS[m - 1] ?? yyyymm;
 }
 
-function formatDate(iso: string): string {
-  const [, m, d] = iso.split("-").map(Number);
-  return `${d}. ${MONTHS[m - 1]}`;
-}

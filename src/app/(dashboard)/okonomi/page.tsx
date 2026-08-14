@@ -24,7 +24,6 @@ import {
   Coins,
   Receipt,
   Percent,
-  Info,
   type LucideIcon,
 } from "lucide-react";
 import type { Tone } from "@/components/dashboard/metric-card";
@@ -194,22 +193,12 @@ export default function OkonomiPage() {
         {bounds && (
           <span className="text-xs text-foreground-muted">
             Viser {formatRange(periodRange(period, bounds))}
-            {!bounds.is_complete && " · året er ikke fullført"}
+            {/* Only on the year to date, where a reader might otherwise look
+                for the month that is under way. */}
+            {period === "ytd" && bounds.note ? ` · ${bounds.note}` : ""}
           </span>
         )}
       </div>
-
-      {/* Why the period stops before the last posting. Without this the page
-          looks as though months of data are missing. */}
-      {bounds?.note && period === "ytd" && (
-        <div
-          data-tone="copper"
-          className="tone-card flex gap-3 px-5 py-3.5 text-xs leading-relaxed text-foreground-secondary"
-        >
-          <Info size={15} className="mt-0.5 shrink-0 text-[var(--tone-ink)]" />
-          <p>{bounds.note}</p>
-        </div>
-      )}
 
       {isLoading && <LoadingState />}
       {!isLoading && error && <ErrorState message={error} />}

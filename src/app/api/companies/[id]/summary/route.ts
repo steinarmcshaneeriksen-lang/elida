@@ -6,7 +6,7 @@ import type {
   FinancialInsight,
   IntegrationSyncState,
 } from "@/lib/types/database";
-import { trailingNote } from "@/lib/data-window";
+import { partialMonthNote } from "@/lib/data-window";
 import { fetchAll } from "@/lib/supabase/paginate";
 
 /**
@@ -111,8 +111,8 @@ export async function GET(
           end: revenueMetric.period_end,
           comparison_start: revenueMetric.comparison_period_start,
           comparison_end: revenueMetric.comparison_period_end,
-          // Set when the period was cut short of the last posting because
-          // what follows is forward-dated periodisation rather than trading.
+          // One clause, only when a month exists in the books that the
+          // figures do not cover.
           note: periodNote(revenueMetric),
         },
         monthly,
@@ -222,9 +222,8 @@ async function loadMonthly(
 }
 
 /**
- * The metrics carry what was left outside the period. Rebuilt into the
- * sentence the dashboard shows, so a shortened period explains itself instead
- * of looking like months of missing data.
+ * The month left outside the period, when there is one. Read back off the
+ * metrics, which recorded it when they were computed.
  */
 function periodNote(metric: FinancialMetricSnapshot): string | null {
   const meta = metric.metadata as {
@@ -239,7 +238,7 @@ function periodNote(metric: FinancialMetricSnapshot): string | null {
 
   if (!meta) return null;
 
-  return trailingNote({
+  return partialMonthNote({
     end: metric.period_end,
     completeEnd: metric.period_end,
     partial: meta.partial_month ?? null,
